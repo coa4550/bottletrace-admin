@@ -30,10 +30,11 @@ export default function BrandsPage() {
       `)
       .order('brand_name', { ascending: true });
 
-    if (error) console.error('Supabase error:', error);
-    else setBrands(data || []);
-    setLoading(false);
-  }
+   if (error) {
+  console.error('Supabase error:', error);
+} else {
+  console.log('Brands data:', data);
+}
 
   useEffect(() => {
     fetchBrands();
