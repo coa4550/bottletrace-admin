@@ -16,7 +16,7 @@ export default function BrandsPage() {
       const { data, error } = await supabase
         .from('core_brands')
         .select(`
-          id,
+          brand_id,
           brand_name,
           brand_url,
           brand_logo_url,
