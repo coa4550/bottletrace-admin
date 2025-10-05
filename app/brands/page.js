@@ -11,95 +11,88 @@ export default function BrandsPage() {
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  async function fetchBrands() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('core_brands')
-      .select(`
-        brand_id,
-        brand_name,
-        brand_url,
-        brand_logo_url,
-        data_source,
-        brand_categories (
-          core_categories (category_name)
-        ),
-        brand_sub_categories (
-          core_sub_categories (sub_category_name)
-        )
-      `)
-      .order('brand_name', { ascending: true });
-
-   if (error) {
-  console.error('Supabase error:', error);
-} else {
-  console.log('Brands data:', data);
-}
-
   useEffect(() => {
+    async function fetchBrands() {
+      const { data, error } = await supabase
+        .from('core_brands')
+        .select(`
+          id,
+          brand_name,
+          brand_url,
+          brand_logo_url,
+          data_source,
+          brand_categories (
+            categories (category_name)
+          ),
+          brand_sub_categories (
+            sub_categories (sub_category_name)
+          )
+        `);
+
+      if (error) {
+        console.error('Supabase error:', error);
+      } else {
+        console.log('Brands data:', data);
+        setBrands(data || []);
+      }
+      setLoading(false);
+    }
     fetchBrands();
   }, []);
 
-  return (
-    <div>
-      <h1 style={{ fontSize: 24, fontWeight: 600 }}>Brands</h1>
+  if (loading) return <p>Loading...</p>;
 
-      {loading ? (
-        <p>Loading brands...</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 16 }}>
-          <thead>
-            <tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
-              <th style={{ padding: 8 }}>Logo</th>
-              <th style={{ padding: 8 }}>Brand Name</th>
-              <th style={{ padding: 8 }}>Website</th>
-              <th style={{ padding: 8 }}>Categories</th>
-              <th style={{ padding: 8 }}>Sub-Categories</th>
-              <th style={{ padding: 8 }}>Data Source</th>
+  return (
+    <div style={{ padding: 20 }}>
+      <h1>Brands</h1>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead style={{ background: '#f1f5f9' }}>
+          <tr>
+            <th>Logo</th>
+            <th>Brand Name</th>
+            <th>Website</th>
+            <th>Categories</th>
+            <th>Sub-Categories</th>
+            <th>Data Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {brands.map((brand) => (
+            <tr key={brand.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+              <td>
+                {brand.brand_logo_url ? (
+                  <img
+                    src={brand.brand_logo_url}
+                    alt={brand.brand_name}
+                    style={{ width: 40, height: 40, objectFit: 'contain' }}
+                  />
+                ) : (
+                  '—'
+                )}
+              </td>
+              <td>{brand.brand_name}</td>
+              <td>
+                {brand.brand_url ? (
+                  <a href={brand.brand_url} target="_blank" rel="noopener noreferrer">
+                    {brand.brand_url}
+                  </a>
+                ) : (
+                  '—'
+                )}
+              </td>
+              <td>
+                {brand.brand_categories?.map((bc) => bc.categories.category_name).join(', ') || '—'}
+              </td>
+              <td>
+                {brand.brand_sub_categories
+                  ?.map((bsc) => bsc.sub_categories.sub_category_name)
+                  .join(', ') || '—'}
+              </td>
+              <td>{brand.data_source || '—'}</td>
             </tr>
-          </thead>
-          <tbody>
-            {brands.map((b) => (
-              <tr key={b.brand_id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: 8 }}>
-                  {b.brand_logo_url ? (
-                    <img src={b.brand_logo_url} alt={b.brand_name} style={{ height: 40 }} />
-                  ) : (
-                    <span style={{ color: '#94a3b8' }}>No logo</span>
-                  )}
-                </td>
-                <td style={{ padding: 8 }}>{b.brand_name}</td>
-                <td style={{ padding: 8 }}>
-                  {b.brand_url ? (
-                    <a href={b.brand_url} target="_blank" rel="noreferrer">
-                      {b.brand_url.replace(/^https?:\/\//, '')}
-                    </a>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-                <td style={{ padding: 8 }}>
-                  {b.brand_categories?.length
-                    ? b.brand_categories
-                        .map((c) => c.core_categories?.category_name)
-                        .filter(Boolean)
-                        .join(', ')
-                    : '—'}
-                </td>
-                <td style={{ padding: 8 }}>
-                  {b.brand_sub_categories?.length
-                    ? b.brand_sub_categories
-                        .map((s) => s.core_sub_categories?.sub_category_name)
-                        .filter(Boolean)
-                        .join(', ')
-                    : '—'}
-                </td>
-                <td style={{ padding: 8 }}>{b.data_source || '—'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
