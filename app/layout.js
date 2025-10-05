@@ -1,6 +1,6 @@
 export const metadata = {
   title: 'BottleTrace Admin',
-  description: 'Manage brands, suppliers, and relationships'
+  description: 'Manage brands, distributors, suppliers, and relationships'
 };
 export default function RootLayout({ children }) {
   return (
@@ -13,6 +13,7 @@ export default function RootLayout({ children }) {
   <a href="/" style={{ color: '#e2e8f0', textDecoration: 'none' }}>Dashboard</a>
   <a href="/brands" style={{ color: '#e2e8f0', textDecoration: 'none' }}>Brands</a>
   <a href="/suppliers" style={{ color: '#e2e8f0', textDecoration: 'none' }}>Suppliers</a>
+  <a href="/distributors" style={{ color: '#e2e8f0', textDecoration: 'none' }}>Distributors</a>
   <a href="/states" style={{ color: '#e2e8f0', textDecoration: 'none' }}>States</a>
 
   <h4 style={{ marginTop: 20, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase' }}>
