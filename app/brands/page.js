@@ -56,42 +56,55 @@ export default function BrandsPage() {
             <th>Data Source</th>
           </tr>
         </thead>
-        <tbody>
-          {brands.map((brand) => (
-            <tr key={brand.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-              <td>
-                {brand.brand_logo_url ? (
-                  <img
-                    src={brand.brand_logo_url}
-                    alt={brand.brand_name}
-                    style={{ width: 40, height: 40, objectFit: 'contain' }}
-                  />
-                ) : (
-                  '—'
-                )}
-              </td>
-              <td>{brand.brand_name}</td>
-              <td>
-                {brand.brand_url ? (
-                  <a href={brand.brand_url} target="_blank" rel="noopener noreferrer">
-                    {brand.brand_url}
-                  </a>
-                ) : (
-                  '—'
-                )}
-              </td>
-              <td>
-                {brand.brand_categories?.map((bc) => bc.categories.category_name).join(', ') || '—'}
-              </td>
-              <td>
-                {brand.brand_sub_categories
-                  ?.map((bsc) => bsc.sub_categories.sub_category_name)
-                  .join(', ') || '—'}
-              </td>
-              <td>{brand.data_source || '—'}</td>
-            </tr>
-          ))}
-        </tbody>
+        {/* ✅ Safe render: prevents crash on null category/subcategory */}
+<tbody>
+  {brands.map((brand) => (
+    <tr key={brand.brand_id}>
+      <td>{brand.brand_name || "—"}</td>
+      <td>
+        {brand.brand_url ? (
+          <a
+            href={brand.brand_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#2563eb", textDecoration: "underline" }}
+          >
+            {brand.brand_url}
+          </a>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td>
+        {brand.brand_logo_url ? (
+          <img
+            src={brand.brand_logo_url}
+            alt={brand.brand_name}
+            width={60}
+            style={{ borderRadius: 6 }}
+          />
+        ) : (
+          "—"
+        )}
+      </td>
+      <td>
+        {Array.isArray(brand.brand_categories) && brand.brand_categories.length > 0
+          ? brand.brand_categories
+              .map((c) => c?.categories?.category_name || "—")
+              .join(", ")
+          : "—"}
+      </td>
+      <td>
+        {Array.isArray(brand.brand_sub_categories) && brand.brand_sub_categories.length > 0
+          ? brand.brand_sub_categories
+              .map((s) => s?.sub_categories?.sub_category_name || "—")
+              .join(", ")
+          : "—"}
+      </td>
+      <td>{brand.data_source || "—"}</td>
+    </tr>
+  ))}
+</tbody>
       </table>
     </div>
   );
