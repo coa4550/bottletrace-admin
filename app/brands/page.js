@@ -60,21 +60,7 @@ export default function BrandsPage() {
 <tbody>
   {brands.map((brand) => (
     <tr key={brand.brand_id}>
-      <td>{brand.brand_name || "—"}</td>
-      <td>
-        {brand.brand_url ? (
-          <a
-            href={brand.brand_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#2563eb", textDecoration: "underline" }}
-          >
-            {brand.brand_url}
-          </a>
-        ) : (
-          "—"
-        )}
-      </td>
+      {/* Logo */}
       <td>
         {brand.brand_logo_url ? (
           <img
@@ -87,6 +73,27 @@ export default function BrandsPage() {
           "—"
         )}
       </td>
+
+      {/* Brand Name */}
+      <td>{brand.brand_name || "—"}</td>
+
+      {/* Website */}
+      <td>
+        {brand.brand_url ? (
+          <a
+            href={brand.brand_url.startsWith("http") ? brand.brand_url : `https://${brand.brand_url}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#2563eb", textDecoration: "underline" }}
+          >
+            {brand.brand_url.replace(/^https?:\/\//, "")}
+          </a>
+        ) : (
+          "—"
+        )}
+      </td>
+
+      {/* Categories */}
       <td>
         {Array.isArray(brand.brand_categories) && brand.brand_categories.length > 0
           ? brand.brand_categories
@@ -94,6 +101,8 @@ export default function BrandsPage() {
               .join(", ")
           : "—"}
       </td>
+
+      {/* Sub-Categories */}
       <td>
         {Array.isArray(brand.brand_sub_categories) && brand.brand_sub_categories.length > 0
           ? brand.brand_sub_categories
@@ -101,6 +110,8 @@ export default function BrandsPage() {
               .join(", ")
           : "—"}
       </td>
+
+      {/* Data Source */}
       <td>{brand.data_source || "—"}</td>
     </tr>
   ))}
