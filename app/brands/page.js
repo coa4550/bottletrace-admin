@@ -160,7 +160,14 @@ export default function BrandsPage() {
   return (
     <div style={{ padding: 20, overflowX: 'auto' }}>
       <h1>Brands</h1>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table
+  style={{
+    borderCollapse: 'collapse',
+    tableLayout: 'auto',
+    width: 'max-content',
+    minWidth: '100%'
+  }}
+>
        <thead style={{ background: '#f1f5f9' }}>
   <tr>
     {[

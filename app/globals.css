@@ -85,12 +85,18 @@ input:focus {
   background-color: rgba(0, 0, 0, 0.3);
 }
 
-/* === Column Resize (CSS-based fallback) === */
+/* === Column Resize (CSS-based) === */
 th {
   resize: horizontal;
-  overflow: auto;
+  overflow: hidden;
+  min-width: 120px;
+  max-width: 600px;
+  white-space: nowrap;
+  cursor: col-resize;
+  border-right: 1px solid #e2e8f0;
 }
 
+/* Make the drag handle thin and subtle */
 th::-webkit-resizer {
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: transparent;
 }
