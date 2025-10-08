@@ -62,3 +62,25 @@ input:focus {
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
+
+/* === Column Resize Handle Styles === */
+.react-resizable {
+  position: relative;
+  display: inline-block;
+}
+
+.react-resizable-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  cursor: col-resize;
+  width: 8px;
+  height: 100%;
+  z-index: 10;
+  background-color: rgba(0, 0, 0, 0.1);
+  transition: background-color 0.15s ease-in-out;
+}
+
+.react-resizable-handle:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}

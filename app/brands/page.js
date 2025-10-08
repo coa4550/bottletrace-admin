@@ -1,4 +1,5 @@
 'use client';
+import 'react-resizable/css/styles.css';
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -163,35 +164,57 @@ export default function BrandsPage() {
         <thead style={{ background: '#f1f5f9' }}>
           {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <Resizable
-                  key={header.id}
-                  height={30}
-                  width={columnWidths[header.id] || 180}
-                  onResize={handleResize(header.id)}
-                >
-                  <th
-                    style={{
-                      width: columnWidths[header.id] || 180,
-                      cursor: 'col-resize',
-                      textAlign: 'left',
-                      padding: '8px 12px',
-                      borderBottom: '2px solid #e2e8f0',
-                      userSelect: 'none',
-                      background: '#f8fafc',
-                    }}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    {flexRender(
-                      header.column.columnDef.header,
-                      header.getContext()
-                    )}
-                    {{
-                      asc: ' 🔼',
-                      desc: ' 🔽',
-                    }[header.column.getIsSorted()] ?? null}
-                  </th>
-                </Resizable>
+             {headerGroup.headers.map((header) => (
+  <th
+    key={header.id}
+    style={{
+      position: 'relative',
+      width: columnWidths[header.id] || 180,
+      textAlign: 'left',
+      padding: '8px 12px',
+      borderBottom: '2px solid #e2e8f0',
+      userSelect: 'none',
+      background: '#f8fafc',
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'relative',
+      }}
+    >
+      <span
+        onClick={header.column.getToggleSortingHandler()}
+        style={{ cursor: 'pointer', flex: 1 }}
+      >
+        {flexRender(header.column.columnDef.header, header.getContext())}
+        {{
+          asc: ' 🔼',
+          desc: ' 🔽',
+        }[header.column.getIsSorted()] ?? null}
+      </span>
+      <Resizable
+        height={30}
+        width={columnWidths[header.id] || 180}
+        onResize={handleResize(header.id)}
+      >
+        <div
+          className="react-resizable-handle"
+          style={{
+            width: 8,
+            height: '100%',
+            position: 'absolute',
+            right: 0,
+            top: 0,
+          }}
+        />
+      </Resizable>
+    </div>
+  </th>
+))}
+     
               ))}
             </tr>
           ))}
