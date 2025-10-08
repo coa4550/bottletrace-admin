@@ -1,4 +1,3 @@
-'use client';
 import './globals.css';
 import 'react-resizable/css/styles.css';
 
