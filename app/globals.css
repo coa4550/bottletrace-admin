@@ -84,3 +84,13 @@ input:focus {
 .react-resizable-handle:hover {
   background-color: rgba(0, 0, 0, 0.3);
 }
+
+/* === Column Resize (CSS-based fallback) === */
+th {
+  resize: horizontal;
+  overflow: auto;
+}
+
+th::-webkit-resizer {
+  background-color: rgba(0, 0, 0, 0.15);
+}
