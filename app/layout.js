@@ -1,6 +1,10 @@
+'use client';
+import './globals.css';
+import 'react-resizable/css/styles.css';
+
 export const metadata = {
   title: 'BottleTrace Admin',
-  description: 'Manage brands, distributors, suppliers, and relationships'
+  description: 'Manage brands, suppliers, and relationships'
 };
 export default function RootLayout({ children }) {
   return (
