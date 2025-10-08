@@ -22,17 +22,21 @@ export default function BrandsPage() {
   // Fetch brands
   useEffect(() => {
     async function fetchBrands() {
-      const { data, error } = await supabase
-        .from('core_brands')
-        .select(`
-          brand_id,
-          brand_name,
-          brand_url,
-          brand_logo_url,
-          data_source,
-          brand_categories (categories (category_name)),
-          brand_sub_categories (sub_categories (sub_category_name))
-        `);
+   const { data, error } = await supabase
+  .from('core_brands')
+  .select(`
+    brand_id,
+    brand_name,
+    brand_url,
+    brand_logo_url,
+    data_source,
+    brand_categories:brand_categories (
+      categories:categories (category_name)
+    ),
+    brand_sub_categories:brand_sub_categories (
+      sub_categories:sub_categories (sub_category_name)
+    )
+  `);
       if (error) console.error('Supabase error:', error);
       else setBrands(data || []);
       setLoading(false);
