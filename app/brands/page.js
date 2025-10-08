@@ -48,14 +48,18 @@ export default function BrandsPage() {
         // Create lookup maps
         const catsMap = {};
         brandCats?.forEach(bc => {
-          if (!catsMap[bc.brand_id]) catsMap[bc.brand_id] = [];
-          catsMap[bc.brand_id].push(bc.categories.category_name);
+          if (bc.categories && bc.categories.category_name) {
+            if (!catsMap[bc.brand_id]) catsMap[bc.brand_id] = [];
+            catsMap[bc.brand_id].push(bc.categories.category_name);
+          }
         });
 
         const subcatsMap = {};
         brandSubcats?.forEach(bsc => {
-          if (!subcatsMap[bsc.brand_id]) subcatsMap[bsc.brand_id] = [];
-          subcatsMap[bsc.brand_id].push(bsc.sub_categories.sub_category_name);
+          if (bsc.sub_categories && bsc.sub_categories.sub_category_name) {
+            if (!subcatsMap[bsc.brand_id]) subcatsMap[bsc.brand_id] = [];
+            subcatsMap[bsc.brand_id].push(bsc.sub_categories.sub_category_name);
+          }
         });
 
         // Merge data
