@@ -1,6 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender
+} from '@tanstack/react-table';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -10,6 +16,7 @@ const supabase = createClient(
 export default function BrandsPage() {
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sorting, setSorting] = useState([]);
 
   useEffect(() => {
     async function fetchBrands() {
@@ -40,82 +47,113 @@ export default function BrandsPage() {
     fetchBrands();
   }, []);
 
+  const columns = [
+    {
+      accessorKey: 'brand_name',
+      header: 'Brand Name'
+    },
+    {
+      accessorKey: 'brand_categories',
+      header: 'Categories',
+      cell: info =>
+        Array.isArray(info.getValue())
+          ? info
+              .getValue()
+              .map(c => c?.categories?.category_name)
+              .filter(Boolean)
+              .join(', ')
+          : '—'
+    },
+    {
+      accessorKey: 'brand_sub_categories',
+      header: 'Sub-Categories',
+      cell: info =>
+        Array.isArray(info.getValue())
+          ? info
+              .getValue()
+              .map(s => s?.sub_categories?.sub_category_name)
+              .filter(Boolean)
+              .join(', ')
+          : '—'
+    },
+    {
+      accessorKey: 'data_source',
+      header: 'Data Source'
+    },
+    {
+      accessorKey: 'brand_url',
+      header: 'Website',
+      cell: info => info.getValue() || '—'
+    },
+    {
+      accessorKey: 'brand_logo_url',
+      header: 'Logo URL',
+      cell: info => info.getValue() || '—'
+    }
+  ];
+
+  const table = useReactTable({
+    data: brands,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel()
+  });
+
   if (loading) return <p>Loading...</p>;
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 20, overflowX: 'auto' }}>
       <h1>Brands</h1>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead style={{ background: '#f1f5f9' }}>
-          <tr>
-            <th>Logo</th>
-            <th>Brand Name</th>
-            <th>Website</th>
-            <th>Categories</th>
-            <th>Sub-Categories</th>
-            <th>Data Source</th>
-          </tr>
+          {table.getHeaderGroups().map(headerGroup => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map(header => (
+                <th
+                  key={header.id}
+                  onClick={header.column.getToggleSortingHandler()}
+                  style={{
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    borderBottom: '2px solid #e2e8f0',
+                    minWidth: 150,
+                    userSelect: 'none'
+                  }}
+                >
+                  {flexRender(
+                    header.column.columnDef.header,
+                    header.getContext()
+                  )}
+                  {{
+                    asc: ' 🔼',
+                    desc: ' 🔽'
+                  }[header.column.getIsSorted()] ?? null}
+                </th>
+              ))}
+            </tr>
+          ))}
         </thead>
-        {/* ✅ Safe render: prevents crash on null category/subcategory */}
-<tbody>
-  {brands.map((brand) => (
-    <tr key={brand.brand_id}>
-      {/* Logo */}
-      <td>
-        {brand.brand_logo_url ? (
-          <img
-            src={brand.brand_logo_url}
-            alt={brand.brand_name}
-            width={60}
-            style={{ borderRadius: 6 }}
-          />
-        ) : (
-          "—"
-        )}
-      </td>
-
-      {/* Brand Name */}
-      <td>{brand.brand_name || "—"}</td>
-
-      {/* Website */}
-      <td>
-        {brand.brand_url ? (
-          <a
-            href={brand.brand_url.startsWith("http") ? brand.brand_url : `https://${brand.brand_url}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "#2563eb", textDecoration: "underline" }}
-          >
-            {brand.brand_url.replace(/^https?:\/\//, "")}
-          </a>
-        ) : (
-          "—"
-        )}
-      </td>
-
-      {/* Categories */}
-      <td>
-        {Array.isArray(brand.brand_categories) && brand.brand_categories.length > 0
-          ? brand.brand_categories
-              .map((c) => c?.categories?.category_name || "—")
-              .join(", ")
-          : "—"}
-      </td>
-
-      {/* Sub-Categories */}
-      <td>
-        {Array.isArray(brand.brand_sub_categories) && brand.brand_sub_categories.length > 0
-          ? brand.brand_sub_categories
-              .map((s) => s?.sub_categories?.sub_category_name || "—")
-              .join(", ")
-          : "—"}
-      </td>
-
-      {/* Data Source */}
-      <td>{brand.data_source || "—"}</td>
-    </tr>
-  ))}
-</tbody>
+        <tbody>
+          {table.getRowModel().rows.map(row => (
+            <tr key={row.id}>
+              {row.getVisibleCells().map(cell => (
+                <td
+                  key={cell.id}
+                  style={{
+                    padding: '8px 12px',
+                    borderBottom: '1px solid #f1f5f9',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
       </table>
     </div>
   );
