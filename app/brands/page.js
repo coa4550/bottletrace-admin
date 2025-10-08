@@ -33,7 +33,6 @@ export default function BrandsPage() {
           brand_categories (categories (category_name)),
           brand_sub_categories (sub_categories (sub_category_name))
         `);
-
       if (error) console.error('Supabase error:', error);
       else setBrands(data || []);
       setLoading(false);
@@ -41,15 +40,16 @@ export default function BrandsPage() {
     fetchBrands();
   }, []);
 
-  // --- Handle column resize (fixed version)
+  // --- Resizing logic (with overlay grab zone)
   const startResize = (e, key) => {
     e.preventDefault();
+    e.stopPropagation();
     const startX = e.clientX;
-    const th = e.target.parentElement;
+    const th = e.target.closest('th');
     const startWidth = th.offsetWidth;
 
     const onMouseMove = (moveEvent) => {
-      const newWidth = Math.max(100, startWidth + (moveEvent.clientX - startX));
+      const newWidth = Math.max(60, startWidth + (moveEvent.clientX - startX)); // ✅ minWidth = 60
       setColWidths((prev) => {
         const updated = { ...prev, [key]: newWidth };
         localStorage.setItem('brandColWidths', JSON.stringify(updated));
@@ -68,7 +68,6 @@ export default function BrandsPage() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  // Auto-fit column width on double click
   const autoFitColumn = (key) => {
     const table = document.querySelector('table');
     if (!table) return;
@@ -91,14 +90,12 @@ export default function BrandsPage() {
     });
   };
 
-  // Inline editing + Supabase update
   const handleEdit = async (brandId, field, newValue) => {
     try {
       const { error } = await supabase
         .from('core_brands')
         .update({ [field]: newValue })
         .eq('brand_id', brandId);
-
       if (error) throw error;
       setBrands((prev) =>
         prev.map((b) => (b.brand_id === brandId ? { ...b, [field]: newValue } : b))
@@ -118,7 +115,6 @@ export default function BrandsPage() {
     { key: 'brand_logo_url', label: 'Logo URL', editable: true },
   ];
 
-  // Sort handling
   const sortedBrands = [...brands].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
@@ -146,7 +142,7 @@ export default function BrandsPage() {
         <table
           style={{
             borderCollapse: 'collapse',
-            tableLayout: 'auto',
+            tableLayout: 'fixed', // ✅ fixed layout allows shrink
             width: 'max-content',
             minWidth: '100%',
           }}
@@ -160,12 +156,14 @@ export default function BrandsPage() {
                     width: colWidths[col.key] || 150,
                     position: 'relative',
                     borderRight: '1px solid #e2e8f0',
-                    whiteSpace: 'nowrap',
                     userSelect: 'none',
                     padding: '8px 12px',
                     textAlign: 'left',
                     background: '#f8fafc',
                     cursor: 'pointer',
+                    overflow: 'hidden', // ✅ prevent stretching
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
                   onClick={() => handleSort(col.key)}
                 >
@@ -185,8 +183,9 @@ export default function BrandsPage() {
                       height: '100%',
                       width: '8px',
                       cursor: 'col-resize',
+                      zIndex: 10,
                       userSelect: 'none',
-                      zIndex: 2,
+                      background: 'transparent',
                     }}
                   />
                 </th>
@@ -249,7 +248,10 @@ export default function BrandsPage() {
 const cellStyle = {
   padding: '8px 12px',
   borderBottom: '1px solid #f1f5f9',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis', // ✅ truncates text
   whiteSpace: 'nowrap',
+  maxWidth: '600px',
 };
 
 // --- Inline editable cell
@@ -274,6 +276,9 @@ function EditableCell({ value, onChange }) {
           padding: 4,
           border: '1px solid #cbd5e1',
           borderRadius: 4,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       />
     );
@@ -281,8 +286,14 @@ function EditableCell({ value, onChange }) {
   return (
     <div
       onClick={() => setEditing(true)}
-      style={{ cursor: 'text', minWidth: 80 }}
-      title="Click to edit"
+      style={{
+        cursor: 'text',
+        minWidth: 80,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+      title={value || 'Click to edit'}
     >
       {value || '—'}
     </div>
