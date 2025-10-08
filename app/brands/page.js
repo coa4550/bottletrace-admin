@@ -19,23 +19,20 @@ export default function BrandsPage() {
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // 🔹 Fetch brands via Supabase RPC function (reliable joins)
+  // ✅ Fetch directly from the RPC instead of querying raw tables
   useEffect(() => {
     async function fetchBrands() {
       const { data, error } = await supabase.rpc('get_brands_with_categories');
       if (error) {
-        console.error('RPC error:', error);
-      } else {
-        console.log('Brands via RPC:', data);
-        setBrands(data);
+        console.error('Supabase RPC error:', error);
+        return;
       }
+      setBrands(data || []);
       setLoading(false);
     }
-
     fetchBrands();
   }, []);
 
-  // 🔹 Handle column resizing
   const startResize = (e, key) => {
     const startX = e.clientX;
     const startWidth = colWidths[key] || 150;
@@ -58,7 +55,6 @@ export default function BrandsPage() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  // 🔹 Inline editing + Supabase update
   const handleEdit = async (brandId, field, newValue) => {
     try {
       const { error } = await supabase
@@ -76,7 +72,6 @@ export default function BrandsPage() {
     }
   };
 
-  // 🔹 Column definitions
   const columns = [
     { key: 'brand_name', label: 'Brand Name', editable: true },
     { key: 'categories', label: 'Categories' },
@@ -86,14 +81,11 @@ export default function BrandsPage() {
     { key: 'brand_logo_url', label: 'Logo URL', editable: true },
   ];
 
-  // 🔹 Sort handling
   const sortedBrands = [...brands].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
-
     const aVal = a[key] ?? '';
     const bVal = b[key] ?? '';
-
     if (aVal < bVal) return direction === 'asc' ? -1 : 1;
     if (aVal > bVal) return direction === 'asc' ? 1 : -1;
     return 0;
@@ -194,7 +186,6 @@ export default function BrandsPage() {
   );
 }
 
-// --- Shared cell style
 const cellStyle = {
   padding: '8px 12px',
   borderBottom: '1px solid #f1f5f9',
@@ -204,7 +195,6 @@ const cellStyle = {
   textOverflow: 'ellipsis',
 };
 
-// --- Inline editable cell
 function EditableCell({ value, onChange }) {
   const [editing, setEditing] = useState(false);
   const [temp, setTemp] = useState(value || '');
