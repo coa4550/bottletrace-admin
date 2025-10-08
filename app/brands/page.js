@@ -1,12 +1,14 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
-  flexRender
+  flexRender,
 } from '@tanstack/react-table';
+import { Resizable } from 'react-resizable';
+import 'react-resizable/css/styles.css';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -17,6 +19,18 @@ export default function BrandsPage() {
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sorting, setSorting] = useState([]);
+  const [columnWidths, setColumnWidths] = useState({});
+
+  // --- Load saved column widths from localStorage ---
+  useEffect(() => {
+    const saved = localStorage.getItem('brandTableColumnWidths');
+    if (saved) setColumnWidths(JSON.parse(saved));
+  }, []);
+
+  // --- Save widths to localStorage whenever they change ---
+  useEffect(() => {
+    localStorage.setItem('brandTableColumnWidths', JSON.stringify(columnWidths));
+  }, [columnWidths]);
 
   useEffect(() => {
     async function fetchBrands() {
@@ -36,60 +50,99 @@ export default function BrandsPage() {
           )
         `);
 
-      if (error) {
-        console.error('Supabase error:', error);
-      } else {
-        console.log('Brands data:', data);
-        setBrands(data || []);
-      }
+      if (error) console.error('Supabase error:', error);
+      else setBrands(data || []);
       setLoading(false);
     }
     fetchBrands();
   }, []);
 
+  const handleResize = (columnId) => (e, { size }) => {
+    setColumnWidths((old) => ({ ...old, [columnId]: size.width }));
+  };
+
+  const handleEdit = async (brandId, field, newValue) => {
+    try {
+      const { error } = await supabase
+        .from('core_brands')
+        .update({ [field]: newValue })
+        .eq('brand_id', brandId);
+
+      if (error) throw error;
+      setBrands((prev) =>
+        prev.map((b) => (b.brand_id === brandId ? { ...b, [field]: newValue } : b))
+      );
+    } catch (err) {
+      console.error('Update error:', err.message);
+      alert('Failed to update Supabase.');
+    }
+  };
+
   const columns = [
     {
       accessorKey: 'brand_name',
-      header: 'Brand Name'
+      header: 'Brand Name',
+      cell: ({ row, getValue }) => (
+        <EditableCell
+          value={getValue()}
+          onChange={(val) => handleEdit(row.original.brand_id, 'brand_name', val)}
+        />
+      ),
     },
     {
       accessorKey: 'brand_categories',
       header: 'Categories',
-      cell: info =>
+      cell: (info) =>
         Array.isArray(info.getValue())
           ? info
               .getValue()
-              .map(c => c?.categories?.category_name)
+              .map((c) => c?.categories?.category_name)
               .filter(Boolean)
               .join(', ')
-          : '—'
+          : '—',
     },
     {
       accessorKey: 'brand_sub_categories',
       header: 'Sub-Categories',
-      cell: info =>
+      cell: (info) =>
         Array.isArray(info.getValue())
           ? info
               .getValue()
-              .map(s => s?.sub_categories?.sub_category_name)
+              .map((s) => s?.sub_categories?.sub_category_name)
               .filter(Boolean)
               .join(', ')
-          : '—'
+          : '—',
     },
     {
       accessorKey: 'data_source',
-      header: 'Data Source'
+      header: 'Data Source',
+      cell: ({ row, getValue }) => (
+        <EditableCell
+          value={getValue()}
+          onChange={(val) => handleEdit(row.original.brand_id, 'data_source', val)}
+        />
+      ),
     },
     {
       accessorKey: 'brand_url',
       header: 'Website',
-      cell: info => info.getValue() || '—'
+      cell: ({ row, getValue }) => (
+        <EditableCell
+          value={getValue()}
+          onChange={(val) => handleEdit(row.original.brand_id, 'brand_url', val)}
+        />
+      ),
     },
     {
       accessorKey: 'brand_logo_url',
       header: 'Logo URL',
-      cell: info => info.getValue() || '—'
-    }
+      cell: ({ row, getValue }) => (
+        <EditableCell
+          value={getValue()}
+          onChange={(val) => handleEdit(row.original.brand_id, 'brand_logo_url', val)}
+        />
+      ),
+    },
   ];
 
   const table = useReactTable({
@@ -98,7 +151,7 @@ export default function BrandsPage() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel()
+    getSortedRowModel: getSortedRowModel(),
   });
 
   if (loading) return <p>Loading...</p>;
@@ -108,44 +161,51 @@ export default function BrandsPage() {
       <h1>Brands</h1>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead style={{ background: '#f1f5f9' }}>
-          {table.getHeaderGroups().map(headerGroup => (
+          {table.getHeaderGroups().map((headerGroup) => (
             <tr key={headerGroup.id}>
-              {headerGroup.headers.map(header => (
-                <th
+              {headerGroup.headers.map((header) => (
+                <Resizable
                   key={header.id}
-                  onClick={header.column.getToggleSortingHandler()}
-                  style={{
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    padding: '8px 12px',
-                    borderBottom: '2px solid #e2e8f0',
-                    minWidth: 150,
-                    userSelect: 'none'
-                  }}
+                  height={30}
+                  width={columnWidths[header.id] || 180}
+                  onResize={handleResize(header.id)}
                 >
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext()
-                  )}
-                  {{
-                    asc: ' 🔼',
-                    desc: ' 🔽'
-                  }[header.column.getIsSorted()] ?? null}
-                </th>
+                  <th
+                    style={{
+                      width: columnWidths[header.id] || 180,
+                      cursor: 'col-resize',
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      borderBottom: '2px solid #e2e8f0',
+                      userSelect: 'none',
+                      background: '#f8fafc',
+                    }}
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext()
+                    )}
+                    {{
+                      asc: ' 🔼',
+                      desc: ' 🔽',
+                    }[header.column.getIsSorted()] ?? null}
+                  </th>
+                </Resizable>
               ))}
             </tr>
           ))}
         </thead>
         <tbody>
-          {table.getRowModel().rows.map(row => (
+          {table.getRowModel().rows.map((row) => (
             <tr key={row.id}>
-              {row.getVisibleCells().map(cell => (
+              {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}
                   style={{
                     padding: '8px 12px',
                     borderBottom: '1px solid #f1f5f9',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
                   }}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -155,6 +215,39 @@ export default function BrandsPage() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// 🔹 Editable cell component
+function EditableCell({ value, onChange }) {
+  const [editing, setEditing] = useState(false);
+  const [temp, setTemp] = useState(value || '');
+
+  const handleBlur = () => {
+    setEditing(false);
+    if (temp !== value) onChange(temp);
+  };
+
+  if (editing)
+    return (
+      <input
+        value={temp}
+        onChange={(e) => setTemp(e.target.value)}
+        onBlur={handleBlur}
+        autoFocus
+        style={{
+          width: '100%',
+          padding: 4,
+          border: '1px solid #cbd5e1',
+          borderRadius: 4,
+        }}
+      />
+    );
+
+  return (
+    <div onClick={() => setEditing(true)} style={{ cursor: 'text' }}>
+      {value || '—'}
     </div>
   );
 }
