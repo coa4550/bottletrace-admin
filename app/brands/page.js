@@ -19,41 +19,66 @@ export default function BrandsPage() {
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // Fetch brands
+  // 🔹 REPLACED fetchBrands() FUNCTION (this fixes categories/subcategories)
   useEffect(() => {
     async function fetchBrands() {
-   const { data, error } = await supabase
-  .from('core_brands')
-  .select(`
-    brand_id,
-    brand_name,
-    brand_url,
-    brand_logo_url,
-    data_source,
-    brand_categories:brand_categories (
-      categories:categories (category_name)
-    ),
-    brand_sub_categories:brand_sub_categories (
-      sub_categories:sub_categories (sub_category_name)
-    )
-  `);
-      if (error) console.error('Supabase error:', error);
-      else setBrands(data || []);
+      const { data, error } = await supabase
+        .from('core_brands')
+        .select(`
+          brand_id,
+          brand_name,
+          brand_url,
+          brand_logo_url,
+          data_source,
+          brand_categories:brand_categories!inner(category_id),
+          brand_sub_categories:brand_sub_categories!inner(sub_category_id)
+        `)
+        .limit(1000);
+
+      if (error) {
+        console.error('Supabase error:', error);
+        return;
+      }
+
+      // Fetch related category/subcategory names separately
+      const categoryIds = [
+        ...new Set(data.flatMap((b) => b.brand_categories?.map((c) => c.category_id) || []))
+      ];
+      const subCategoryIds = [
+        ...new Set(data.flatMap((b) => b.brand_sub_categories?.map((s) => s.sub_category_id) || []))
+      ];
+
+      const [{ data: categories }, { data: subCategories }] = await Promise.all([
+        supabase.from('categories').select('category_id, category_name').in('category_id', categoryIds),
+        supabase.from('sub_categories').select('sub_category_id, sub_category_name').in('sub_category_id', subCategoryIds)
+      ]);
+
+      const enriched = data.map((b) => ({
+        ...b,
+        categories: b.brand_categories
+          ?.map((c) => categories.find((x) => x.category_id === c.category_id)?.category_name)
+          .filter(Boolean)
+          .join(', ') || '—',
+        subCategories: b.brand_sub_categories
+          ?.map((s) => subCategories.find((x) => x.sub_category_id === s.sub_category_id)?.sub_category_name)
+          .filter(Boolean)
+          .join(', ') || '—',
+      }));
+
+      setBrands(enriched);
       setLoading(false);
     }
+
     fetchBrands();
   }, []);
 
-  // --- Resizing logic (with overlay grab zone)
+  // Handle column resize
   const startResize = (e, key) => {
-    e.preventDefault();
-    e.stopPropagation();
     const startX = e.clientX;
-    const th = e.target.closest('th');
-    const startWidth = th.offsetWidth;
+    const startWidth = colWidths[key] || 150;
 
     const onMouseMove = (moveEvent) => {
-      const newWidth = Math.max(60, startWidth + (moveEvent.clientX - startX)); // ✅ minWidth = 60
+      const newWidth = Math.max(60, startWidth + moveEvent.clientX - startX);
       setColWidths((prev) => {
         const updated = { ...prev, [key]: newWidth };
         localStorage.setItem('brandColWidths', JSON.stringify(updated));
@@ -64,42 +89,20 @@ export default function BrandsPage() {
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = 'default';
     };
 
-    document.body.style.cursor = 'col-resize';
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const autoFitColumn = (key) => {
-    const table = document.querySelector('table');
-    if (!table) return;
-
-    const index = columns.findIndex((c) => c.key === key) + 1;
-    const cells = Array.from(table.querySelectorAll(`td:nth-child(${index})`));
-    const header = table.querySelector(`th:nth-child(${index})`);
-    const ctx = document.createElement('canvas').getContext('2d');
-    ctx.font = getComputedStyle(table).font;
-
-    const maxWidth = Math.max(
-      ...cells.map((cell) => ctx.measureText(cell.innerText).width + 40),
-      ctx.measureText(header.innerText).width + 60
-    );
-
-    setColWidths((prev) => {
-      const updated = { ...prev, [key]: Math.min(maxWidth, 600) };
-      localStorage.setItem('brandColWidths', JSON.stringify(updated));
-      return updated;
-    });
-  };
-
+  // Inline editing + Supabase update
   const handleEdit = async (brandId, field, newValue) => {
     try {
       const { error } = await supabase
         .from('core_brands')
         .update({ [field]: newValue })
         .eq('brand_id', brandId);
+
       if (error) throw error;
       setBrands((prev) =>
         prev.map((b) => (b.brand_id === brandId ? { ...b, [field]: newValue } : b))
@@ -112,18 +115,21 @@ export default function BrandsPage() {
 
   const columns = [
     { key: 'brand_name', label: 'Brand Name', editable: true },
-    { key: 'brand_categories', label: 'Categories' },
-    { key: 'brand_sub_categories', label: 'Sub-Categories' },
+    { key: 'categories', label: 'Categories' },
+    { key: 'subCategories', label: 'Sub-Categories' },
     { key: 'data_source', label: 'Data Source', editable: true },
     { key: 'brand_url', label: 'Website', editable: true },
     { key: 'brand_logo_url', label: 'Logo URL', editable: true },
   ];
 
+  // Sort handling
   const sortedBrands = [...brands].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
+
     const aVal = a[key] ?? '';
     const bVal = b[key] ?? '';
+
     if (aVal < bVal) return direction === 'asc' ? -1 : 1;
     if (aVal > bVal) return direction === 'asc' ? 1 : -1;
     return 0;
@@ -146,7 +152,7 @@ export default function BrandsPage() {
         <table
           style={{
             borderCollapse: 'collapse',
-            tableLayout: 'fixed', // ✅ fixed layout allows shrink
+            tableLayout: 'auto',
             width: 'max-content',
             minWidth: '100%',
           }}
@@ -160,14 +166,12 @@ export default function BrandsPage() {
                     width: colWidths[col.key] || 150,
                     position: 'relative',
                     borderRight: '1px solid #e2e8f0',
+                    whiteSpace: 'nowrap',
                     userSelect: 'none',
                     padding: '8px 12px',
                     textAlign: 'left',
                     background: '#f8fafc',
                     cursor: 'pointer',
-                    overflow: 'hidden', // ✅ prevent stretching
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
                   }}
                   onClick={() => handleSort(col.key)}
                 >
@@ -177,18 +181,15 @@ export default function BrandsPage() {
                       {sortConfig.direction === 'asc' ? '▲' : '▼'}
                     </span>
                   )}
-                  <span
+                  <div
                     onMouseDown={(e) => startResize(e, col.key)}
-                    onDoubleClick={() => autoFitColumn(col.key)}
                     style={{
                       position: 'absolute',
                       right: 0,
                       top: 0,
                       height: '100%',
-                      width: '8px',
+                      width: '5px',
                       cursor: 'col-resize',
-                      zIndex: 10,
-                      userSelect: 'none',
                       background: 'transparent',
                     }}
                   />
@@ -203,25 +204,6 @@ export default function BrandsPage() {
                 {columns.map((col) => {
                   const value = b[col.key];
                   const editable = col.editable;
-
-                  if (col.key === 'brand_categories') {
-                    return (
-                      <td key={col.key} style={cellStyle}>
-                        {b.brand_categories?.map((c) => c?.categories?.category_name).join(', ') ||
-                          '—'}
-                      </td>
-                    );
-                  }
-
-                  if (col.key === 'brand_sub_categories') {
-                    return (
-                      <td key={col.key} style={cellStyle}>
-                        {b.brand_sub_categories
-                          ?.map((s) => s?.sub_categories?.sub_category_name)
-                          .join(', ') || '—'}
-                      </td>
-                    );
-                  }
 
                   if (editable)
                     return (
@@ -252,10 +234,10 @@ export default function BrandsPage() {
 const cellStyle = {
   padding: '8px 12px',
   borderBottom: '1px solid #f1f5f9',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis', // ✅ truncates text
   whiteSpace: 'nowrap',
-  maxWidth: '600px',
+  maxWidth: 400,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 };
 
 // --- Inline editable cell
@@ -280,9 +262,6 @@ function EditableCell({ value, onChange }) {
           padding: 4,
           border: '1px solid #cbd5e1',
           borderRadius: 4,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
         }}
       />
     );
@@ -290,14 +269,8 @@ function EditableCell({ value, onChange }) {
   return (
     <div
       onClick={() => setEditing(true)}
-      style={{
-        cursor: 'text',
-        minWidth: 80,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}
-      title={value || 'Click to edit'}
+      style={{ cursor: 'text', minWidth: 80 }}
+      title="Click to edit"
     >
       {value || '—'}
     </div>
