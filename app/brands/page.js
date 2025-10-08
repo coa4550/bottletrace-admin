@@ -19,16 +19,58 @@ export default function BrandsPage() {
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // ✅ Fetch directly from the RPC instead of querying raw tables
+  // Fetch brands with categories and sub-categories
   useEffect(() => {
     async function fetchBrands() {
-      const { data, error } = await supabase.rpc('get_brands_with_categories');
-      if (error) {
-        console.error('Supabase RPC error:', error);
-        return;
+      try {
+        // Fetch all brands
+        const { data: brandsData, error: brandsError } = await supabase
+          .from('core_brands')
+          .select('*')
+          .order('brand_name');
+
+        if (brandsError) throw brandsError;
+
+        // Fetch brand-category mappings
+        const { data: brandCats, error: catsError } = await supabase
+          .from('brand_categories')
+          .select('brand_id, categories(category_name)');
+
+        if (catsError) throw catsError;
+
+        // Fetch brand-subcategory mappings
+        const { data: brandSubcats, error: subcatsError } = await supabase
+          .from('brand_sub_categories')
+          .select('brand_id, sub_categories(sub_category_name)');
+
+        if (subcatsError) throw subcatsError;
+
+        // Create lookup maps
+        const catsMap = {};
+        brandCats?.forEach(bc => {
+          if (!catsMap[bc.brand_id]) catsMap[bc.brand_id] = [];
+          catsMap[bc.brand_id].push(bc.categories.category_name);
+        });
+
+        const subcatsMap = {};
+        brandSubcats?.forEach(bsc => {
+          if (!subcatsMap[bsc.brand_id]) subcatsMap[bsc.brand_id] = [];
+          subcatsMap[bsc.brand_id].push(bsc.sub_categories.sub_category_name);
+        });
+
+        // Merge data
+        const enrichedBrands = brandsData.map(brand => ({
+          ...brand,
+          categories: catsMap[brand.brand_id]?.join(', ') || '',
+          sub_categories: subcatsMap[brand.brand_id]?.join(', ') || ''
+        }));
+
+        setBrands(enrichedBrands);
+      } catch (error) {
+        console.error('Error fetching brands:', error);
+      } finally {
+        setLoading(false);
       }
-      setBrands(data || []);
-      setLoading(false);
     }
     fetchBrands();
   }, []);
