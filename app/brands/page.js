@@ -19,60 +19,23 @@ export default function BrandsPage() {
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // 🔹 REPLACED fetchBrands() FUNCTION (this fixes categories/subcategories)
+  // 🔹 Fetch brands via Supabase RPC function (reliable joins)
   useEffect(() => {
     async function fetchBrands() {
-      const { data, error } = await supabase
-        .from('core_brands')
-        .select(`
-          brand_id,
-          brand_name,
-          brand_url,
-          brand_logo_url,
-          data_source,
-          brand_categories:brand_categories!inner(category_id),
-          brand_sub_categories:brand_sub_categories!inner(sub_category_id)
-        `)
-        .limit(1000);
-
+      const { data, error } = await supabase.rpc('get_brands_with_categories');
       if (error) {
-        console.error('Supabase error:', error);
-        return;
+        console.error('RPC error:', error);
+      } else {
+        console.log('Brands via RPC:', data);
+        setBrands(data);
       }
-
-      // Fetch related category/subcategory names separately
-      const categoryIds = [
-        ...new Set(data.flatMap((b) => b.brand_categories?.map((c) => c.category_id) || []))
-      ];
-      const subCategoryIds = [
-        ...new Set(data.flatMap((b) => b.brand_sub_categories?.map((s) => s.sub_category_id) || []))
-      ];
-
-      const [{ data: categories }, { data: subCategories }] = await Promise.all([
-        supabase.from('categories').select('category_id, category_name').in('category_id', categoryIds),
-        supabase.from('sub_categories').select('sub_category_id, sub_category_name').in('sub_category_id', subCategoryIds)
-      ]);
-
-      const enriched = data.map((b) => ({
-        ...b,
-        categories: b.brand_categories
-          ?.map((c) => categories.find((x) => x.category_id === c.category_id)?.category_name)
-          .filter(Boolean)
-          .join(', ') || '—',
-        subCategories: b.brand_sub_categories
-          ?.map((s) => subCategories.find((x) => x.sub_category_id === s.sub_category_id)?.sub_category_name)
-          .filter(Boolean)
-          .join(', ') || '—',
-      }));
-
-      setBrands(enriched);
       setLoading(false);
     }
 
     fetchBrands();
   }, []);
 
-  // Handle column resize
+  // 🔹 Handle column resizing
   const startResize = (e, key) => {
     const startX = e.clientX;
     const startWidth = colWidths[key] || 150;
@@ -95,7 +58,7 @@ export default function BrandsPage() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  // Inline editing + Supabase update
+  // 🔹 Inline editing + Supabase update
   const handleEdit = async (brandId, field, newValue) => {
     try {
       const { error } = await supabase
@@ -113,16 +76,17 @@ export default function BrandsPage() {
     }
   };
 
+  // 🔹 Column definitions
   const columns = [
     { key: 'brand_name', label: 'Brand Name', editable: true },
     { key: 'categories', label: 'Categories' },
-    { key: 'subCategories', label: 'Sub-Categories' },
+    { key: 'sub_categories', label: 'Sub-Categories' },
     { key: 'data_source', label: 'Data Source', editable: true },
     { key: 'brand_url', label: 'Website', editable: true },
     { key: 'brand_logo_url', label: 'Logo URL', editable: true },
   ];
 
-  // Sort handling
+  // 🔹 Sort handling
   const sortedBrands = [...brands].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
