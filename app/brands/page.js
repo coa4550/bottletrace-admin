@@ -41,13 +41,15 @@ export default function BrandsPage() {
     fetchBrands();
   }, []);
 
-  // Handle column resize
+  // --- Handle column resize (fixed version)
   const startResize = (e, key) => {
+    e.preventDefault();
     const startX = e.clientX;
-    const startWidth = colWidths[key] || 150;
+    const th = e.target.parentElement;
+    const startWidth = th.offsetWidth;
 
     const onMouseMove = (moveEvent) => {
-      const newWidth = Math.max(100, startWidth + moveEvent.clientX - startX);
+      const newWidth = Math.max(100, startWidth + (moveEvent.clientX - startX));
       setColWidths((prev) => {
         const updated = { ...prev, [key]: newWidth };
         localStorage.setItem('brandColWidths', JSON.stringify(updated));
@@ -58,8 +60,10 @@ export default function BrandsPage() {
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'default';
     };
 
+    document.body.style.cursor = 'col-resize';
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
@@ -69,8 +73,9 @@ export default function BrandsPage() {
     const table = document.querySelector('table');
     if (!table) return;
 
-    const cells = Array.from(table.querySelectorAll(`td:nth-child(${columns.findIndex(c => c.key === key) + 1})`));
-    const header = table.querySelector(`th:nth-child(${columns.findIndex(c => c.key === key) + 1})`);
+    const index = columns.findIndex((c) => c.key === key) + 1;
+    const cells = Array.from(table.querySelectorAll(`td:nth-child(${index})`));
+    const header = table.querySelector(`th:nth-child(${index})`);
     const ctx = document.createElement('canvas').getContext('2d');
     ctx.font = getComputedStyle(table).font;
 
@@ -117,10 +122,8 @@ export default function BrandsPage() {
   const sortedBrands = [...brands].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
-
     const aVal = a[key] ?? '';
     const bVal = b[key] ?? '';
-
     if (aVal < bVal) return direction === 'asc' ? -1 : 1;
     if (aVal > bVal) return direction === 'asc' ? 1 : -1;
     return 0;
@@ -172,7 +175,7 @@ export default function BrandsPage() {
                       {sortConfig.direction === 'asc' ? '▲' : '▼'}
                     </span>
                   )}
-                  <div
+                  <span
                     onMouseDown={(e) => startResize(e, col.key)}
                     onDoubleClick={() => autoFitColumn(col.key)}
                     style={{
@@ -180,9 +183,10 @@ export default function BrandsPage() {
                       right: 0,
                       top: 0,
                       height: '100%',
-                      width: '6px',
+                      width: '8px',
                       cursor: 'col-resize',
-                      background: 'transparent',
+                      userSelect: 'none',
+                      zIndex: 2,
                     }}
                   />
                 </th>
