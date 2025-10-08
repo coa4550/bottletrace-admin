@@ -31,6 +31,11 @@ export default function RootLayout({ children }) {
 <a href="/import/brand" style={{ color:'#e2e8f0', textDecoration:'none' }}>Import Brand</a>
 <a href="/import/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none' }}>Import Supplier Portfolio</a>
 <a href="/import/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none' }}>Import Distributor Portfolio</a>
+<h4 style={{ marginTop: 20, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase' }}>
+  Classifications
+</h4>
+<a href="/categories" style={{ color:'#e2e8f0', textDecoration:'none' }}>Categories</a>
+<a href="/sub-categories" style={{ color:'#e2e8f0', textDecoration:'none' }}>Sub-Categories</a>
 </nav>
           </aside>
           <main style={{ flex: 1, padding: 24, background: '#f8fafc' }}>{children}</main>
