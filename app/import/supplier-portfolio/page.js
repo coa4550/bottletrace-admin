@@ -204,17 +204,29 @@ export default function ImportSupplierPortfolio() {
                   {supplier.supplierName}
                 </h3>
 
+                {/* Column Headers */}
+                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', background: '#f8fafc' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                    <div style={{ padding: '12px 16px', borderRight: '2px solid #cbd5e1' }}>
+                      <strong>Import Brands</strong>
+                    </div>
+                    <div style={{ padding: '12px 16px' }}>
+                      <strong>Existing Portfolio</strong>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Exact Matches - Ignore */}
                 {exactMatches.length > 0 && (
                   <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
                     <div style={{ padding: '12px 16px', background: '#d1fae5', borderBottom: '1px solid #10b981' }}>
                       <strong style={{ color: '#065f46' }}>✓ Exact Match - Ignore ({exactMatches.length})</strong>
-                      <div style={{ fontSize: 13, color: '#065f46', marginTop: 4 }}>
-                        These relationships already exist and will be re-verified
-                      </div>
+                      <span style={{ fontSize: 13, color: '#065f46', marginLeft: 8 }}>
+                        - Will re-verify these relationships
+                      </span>
                     </div>
                     {exactMatches.map((brand, brandIdx) => (
-                      <BrandRow 
+                      <TwoColumnBrandRow 
                         key={brandIdx} 
                         brand={brand} 
                         brandMatches={brandMatches}
@@ -228,15 +240,15 @@ export default function ImportSupplierPortfolio() {
 
                 {/* Fuzzy Matches - Confirm */}
                 {fuzzyMatches.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: exactMatches.length > 0 ? 'none' : 'none' }}>
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
                     <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fbbf24' }}>
                       <strong style={{ color: '#92400e' }}>~ Fuzzy Match - Confirm ({fuzzyMatches.length})</strong>
-                      <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
-                        Similar brands found - please review and confirm matches
-                      </div>
+                      <span style={{ fontSize: 13, color: '#92400e', marginLeft: 8 }}>
+                        - Review and confirm matches
+                      </span>
                     </div>
                     {fuzzyMatches.map((brand, brandIdx) => (
-                      <BrandRow 
+                      <TwoColumnBrandRow 
                         key={brandIdx} 
                         brand={brand} 
                         brandMatches={brandMatches}
@@ -250,15 +262,15 @@ export default function ImportSupplierPortfolio() {
 
                 {/* New Brands - Add */}
                 {newBrands.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: (exactMatches.length > 0 || fuzzyMatches.length > 0) ? 'none' : 'none' }}>
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
                     <div style={{ padding: '12px 16px', background: '#dbeafe', borderBottom: '1px solid #3b82f6' }}>
                       <strong style={{ color: '#1e40af' }}>+ New Brand - Add ({newBrands.length})</strong>
-                      <div style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>
-                        These brands will be created in the database
-                      </div>
+                      <span style={{ fontSize: 13, color: '#1e40af', marginLeft: 8 }}>
+                        - Will create these brands
+                      </span>
                     </div>
                     {newBrands.map((brand, brandIdx) => (
-                      <BrandRow 
+                      <TwoColumnBrandRow 
                         key={brandIdx} 
                         brand={brand} 
                         brandMatches={brandMatches}
@@ -272,22 +284,29 @@ export default function ImportSupplierPortfolio() {
 
                 {/* Orphaned Brands - Move */}
                 {orphanedBrands.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: (exactMatches.length > 0 || fuzzyMatches.length > 0 || newBrands.length > 0) ? 'none' : 'none' }}>
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
                     <div style={{ padding: '12px 16px', background: '#fee2e2', borderBottom: '1px solid #ef4444' }}>
                       <strong style={{ color: '#991b1b' }}>🗑️ Orphan - Move ({orphanedBrands.length})</strong>
-                      <div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>
-                        These brands exist in database but not in your import - will be moved to orphans table
-                      </div>
+                      <span style={{ fontSize: 13, color: '#991b1b', marginLeft: 8 }}>
+                        - Will move to orphans table
+                      </span>
                     </div>
                     {orphanedBrands.map((brand, brandIdx) => (
                       <div key={brandIdx} style={{ 
-                        padding: '12px 16px', 
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: 0,
                         borderBottom: '1px solid #fecaca',
                         background: '#fef2f2'
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ padding: '12px 16px', borderRight: '2px solid #fecaca' }}>
+                          <span style={{ color: '#94a3b8', fontSize: 14 }}>— Not in import —</span>
+                        </div>
+                        <div style={{ padding: '12px 16px' }}>
                           <strong>{brand.brand_name}</strong>
-                          <span style={{ fontSize: 13, color: '#991b1b' }}>States: {brand.states}</span>
+                          <span style={{ fontSize: 13, color: '#991b1b', marginLeft: 8 }}>
+                            States: {brand.states}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -350,31 +369,31 @@ export default function ImportSupplierPortfolio() {
   );
 }
 
-function BrandRow({ brand, brandMatches, validation, handleManualMatch, updateMatch }) {
+function TwoColumnBrandRow({ brand, brandMatches, validation, handleManualMatch, updateMatch }) {
   return (
     <div style={{ 
-      padding: '12px 16px', 
-      borderBottom: '1px solid #f1f5f9',
       display: 'grid',
-      gridTemplateColumns: '2fr 3fr',
-      gap: 24,
-      alignItems: 'center'
+      gridTemplateColumns: '1fr 1fr',
+      gap: 0,
+      borderBottom: '1px solid #f1f5f9'
     }}>
-      {/* Left - Brand Info */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+      {/* Left Column - Import Brand */}
+      <div style={{ padding: '12px 16px', borderRight: '2px solid #cbd5e1' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <strong style={{ fontSize: 15 }}>{brand.brandName}</strong>
-          <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
         </div>
-        {brand.matchedBrand && brand.matchType === 'fuzzy' && (
-          <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
-            Suggested: {brand.matchedBrand.brand_name} ({Math.round(brand.similarity * 100)}% match)
+        <div style={{ fontSize: 13, color: '#64748b' }}>
+          State: {brand.stateCode}
+        </div>
+        {brand.matchType === 'fuzzy' && brand.similarity && (
+          <div style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>
+            {Math.round(brand.similarity * 100)}% similar to suggested match
           </div>
         )}
       </div>
 
-      {/* Right - Match Selector */}
-      <div>
+      {/* Right Column - Existing/Match */}
+      <div style={{ padding: '12px 16px' }}>
         <select
           value={brandMatches[brand.rowIndex]?.useExisting ? brandMatches[brand.rowIndex]?.existingBrandId : 'CREATE_NEW'}
           onChange={(e) => {
@@ -393,8 +412,8 @@ function BrandRow({ brand, brandMatches, validation, handleManualMatch, updateMa
             background: 'white'
           }}
         >
-          <option value="CREATE_NEW">🆕 Create New Brand: "{brand.brandName}"</option>
-          <option disabled style={{ color: '#94a3b8' }}>──────────────────────</option>
+          <option value="CREATE_NEW">🆕 Create New: "{brand.brandName}"</option>
+          <option disabled style={{ color: '#94a3b8' }}>─── Match to Existing ───</option>
           {validation.allExistingBrands?.map(eb => (
             <option key={eb.brand_id} value={eb.brand_id}>
               {eb.brand_name}
@@ -403,7 +422,7 @@ function BrandRow({ brand, brandMatches, validation, handleManualMatch, updateMa
         </select>
         {brandMatches[brand.rowIndex]?.useExisting && brandMatches[brand.rowIndex]?.existingBrandName && (
           <div style={{ fontSize: 13, color: '#059669', marginTop: 6, fontWeight: 500 }}>
-            → Will match to: {brandMatches[brand.rowIndex].existingBrandName}
+            ✓ Matched to: {brandMatches[brand.rowIndex].existingBrandName}
           </div>
         )}
       </div>
