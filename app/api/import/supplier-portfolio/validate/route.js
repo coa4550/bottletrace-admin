@@ -57,12 +57,28 @@ export async function POST(req) {
       return NextResponse.json({ error: 'No rows provided' }, { status: 400 });
     }
 
-    // Fetch all existing brands for fuzzy matching
-    const { data: existingBrands, error: brandsError } = await supabaseAdmin
-      .from('core_brands')
-      .select('brand_id, brand_name');
+    // Fetch ALL existing brands for fuzzy matching (with pagination)
+    let existingBrands = [];
+    let start = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (brandsError) throw brandsError;
+    while (hasMore) {
+      const { data, error } = await supabaseAdmin
+        .from('core_brands')
+        .select('brand_id, brand_name')
+        .range(start, start + pageSize - 1);
+
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        existingBrands = [...existingBrands, ...data];
+        start += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
 
     // Fetch all existing suppliers
     const { data: existingSuppliers, error: suppliersError } = await supabaseAdmin
