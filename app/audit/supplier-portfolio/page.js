@@ -54,6 +54,8 @@ export default function AuditSupplierPortfolioPage() {
         const pageSize = 1000;
         let hasMore = true;
 
+        console.log(`Fetching relationships for supplier: ${selectedSupplier}`);
+
         while (hasMore) {
           const { data, error } = await supabase
             .from('brand_supplier_state')
@@ -62,6 +64,8 @@ export default function AuditSupplierPortfolioPage() {
             .range(start, start + pageSize - 1);
 
           if (error) throw error;
+
+          console.log(`Fetched batch ${Math.floor(start / pageSize) + 1}: ${data?.length || 0} relationships`);
 
           if (data && data.length > 0) {
             allRelationships = [...allRelationships, ...data];
@@ -72,8 +76,12 @@ export default function AuditSupplierPortfolioPage() {
           }
         }
 
+        console.log(`Total relationships fetched: ${allRelationships.length}`);
+
         // Get unique brand IDs
         const brandIds = [...new Set(allRelationships.map(r => r.brand_id))];
+        
+        console.log(`Unique brand IDs: ${brandIds.length}`, brandIds);
 
         if (brandIds.length === 0) {
           setPortfolioBrands([]);
