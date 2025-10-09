@@ -442,6 +442,7 @@ export default function AuditSupplierPortfolioPage() {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ 
                   width: '100%', 
+                  tableLayout: 'fixed',
                   borderCollapse: 'collapse',
                   background: 'white',
                   border: '1px solid #e2e8f0',
@@ -449,7 +450,7 @@ export default function AuditSupplierPortfolioPage() {
                 }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ ...headerStyle, width: 30, padding: '8px 4px', textAlign: 'center' }}>
+                      <th style={{ padding: '8px', textAlign: 'center', width: '30px', fontSize: 13, fontWeight: 600, color: '#475569' }}>
                         <input
                           type="checkbox"
                           checked={selectedBrands.size === portfolioBrands.length && portfolioBrands.length > 0}
@@ -458,12 +459,12 @@ export default function AuditSupplierPortfolioPage() {
                           title="Select all brands"
                         />
                       </th>
-                      <th style={headerStyle}>Brand Name</th>
-                      <th style={headerStyle}>Categories</th>
-                      <th style={headerStyle}>Sub-Categories</th>
-                      <th style={headerStyle}>Brand URL</th>
-                      <th style={headerStyle}>Logo URL</th>
-                      <th style={{ ...headerStyle, width: 90 }}>Actions</th>
+                      <th style={{ ...headerStyle, width: '20%' }}>Brand Name</th>
+                      <th style={{ ...headerStyle, width: '15%' }}>Categories</th>
+                      <th style={{ ...headerStyle, width: '15%' }}>Sub-Categories</th>
+                      <th style={{ ...headerStyle, width: '20%' }}>Brand URL</th>
+                      <th style={{ ...headerStyle, width: '20%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -475,7 +476,7 @@ export default function AuditSupplierPortfolioPage() {
                           background: selectedBrands.has(brand.brand_id) ? '#eff6ff' : 'transparent'
                         }}
                       >
-                        <td style={{ padding: '8px 4px', textAlign: 'center', width: 30 }}>
+                        <td style={{ padding: '8px', textAlign: 'center' }}>
                           <input
                             type="checkbox"
                             checked={selectedBrands.has(brand.brand_id)}
@@ -637,8 +638,14 @@ function EditableCell({ value, onChange }) {
   return (
     <div
       onClick={() => setEditing(true)}
-      style={{ cursor: 'text', minWidth: 80 }}
-      title="Click to edit"
+      style={{ 
+        cursor: 'text', 
+        minWidth: 80,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }}
+      title={value || "Click to edit"}
     >
       {value || '—'}
     </div>
