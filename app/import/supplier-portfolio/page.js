@@ -8,6 +8,7 @@ export default function ImportSupplierPortfolio() {
   const [validation, setValidation] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [brandMatches, setBrandMatches] = useState({});
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -15,6 +16,9 @@ export default function ImportSupplierPortfolio() {
     setFile(selectedFile);
     setValidation(null);
     setResults(null);
+    setBrand
+
+Matches({});
     parseFile(selectedFile);
   };
 
@@ -41,6 +45,19 @@ export default function ImportSupplierPortfolio() {
       
       const result = await response.json();
       setValidation(result);
+      
+      // Initialize brand matches with defaults
+      const matches = {};
+      result.supplierReviews?.forEach(sr => {
+        sr.importBrands?.forEach(brand => {
+          matches[brand.rowIndex] = {
+            useExisting: brand.matchType !== 'new',
+            existingBrandId: brand.matchedBrand?.brand_id,
+            existingBrandName: brand.matchedBrand?.brand_name
+          };
+        });
+      });
+      setBrandMatches(matches);
     } catch (error) {
       console.error('Validation error:', error);
       alert('Validation failed: ' + error.message);
@@ -57,7 +74,7 @@ export default function ImportSupplierPortfolio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           rows: parsed,
-          confirmedMatches: validation?.matches || {}
+          confirmedMatches: brandMatches
         })
       });
       
@@ -72,17 +89,25 @@ export default function ImportSupplierPortfolio() {
     }
   };
 
-  const updateMatch = (index, field, value) => {
-    setValidation(prev => ({
+  const updateMatch = (rowIndex, useExisting, brandId = null, brandName = null) => {
+    setBrandMatches(prev => ({
       ...prev,
-      matches: {
-        ...prev.matches,
-        [index]: {
-          ...prev.matches[index],
-          [field]: value
-        }
+      [rowIndex]: {
+        useExisting,
+        existingBrandId: brandId,
+        existingBrandName: brandName
       }
     }));
+  };
+
+  const getStatusBadge = (brand) => {
+    if (brand.matchType === 'exact') {
+      return <span style={{ padding: '2px 8px', background: '#d1fae5', color: '#065f46', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>✓ Exact Match</span>;
+    } else if (brand.matchType === 'fuzzy') {
+      return <span style={{ padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>~ Fuzzy ({Math.round(brand.similarity * 100)}%)</span>;
+    } else {
+      return <span style={{ padding: '2px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>+ New Brand</span>;
+    }
   };
 
   return (
@@ -112,42 +137,6 @@ export default function ImportSupplierPortfolio() {
       {parsed.length > 0 && !validation && !results && (
         <div style={{ marginTop: 24 }}>
           <h3>Parsed Rows: {parsed.length}</h3>
-          <div style={{ 
-            maxHeight: 300, 
-            overflow: 'auto', 
-            border: '1px solid #e2e8f0', 
-            borderRadius: 6,
-            marginTop: 12 
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ background: '#f8fafc', position: 'sticky', top: 0 }}>
-                <tr>
-                  {Object.keys(parsed[0]).map(key => (
-                    <th key={key} style={{ padding: 8, textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>
-                      {key}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {parsed.slice(0, 10).map((row, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    {Object.values(row).map((val, j) => (
-                      <td key={j} style={{ padding: 8, fontSize: 14 }}>
-                        {val}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {parsed.length > 10 && (
-            <p style={{ fontSize: 13, color: '#64748b', marginTop: 8 }}>
-              Showing first 10 of {parsed.length} rows
-            </p>
-          )}
-
           <button
             onClick={handleValidate}
             disabled={loading}
@@ -162,89 +151,138 @@ export default function ImportSupplierPortfolio() {
               fontWeight: 500
             }}
           >
-            {loading ? 'Validating...' : 'Validate & Check for Duplicates'}
+            {loading ? 'Validating...' : 'Validate & Review Changes'}
           </button>
         </div>
       )}
 
-      {validation && (
+      {validation && validation.supplierReviews && (
         <div style={{ marginTop: 32 }}>
-          <h3>Validation Results</h3>
-          
-          {validation.fuzzyMatches && validation.fuzzyMatches.length > 0 && (
-            <div style={{ 
-              marginTop: 16, 
-              padding: 16, 
-              background: '#fef3c7', 
-              border: '1px solid #fbbf24',
-              borderRadius: 8 
-            }}>
-              <h4 style={{ marginTop: 0, color: '#92400e' }}>⚠️ Potential Duplicate Brands Found</h4>
-              <p style={{ fontSize: 14, color: '#92400e' }}>
-                Please review these matches and confirm which brands to use:
-              </p>
-              
-              {validation.fuzzyMatches.map((match, idx) => (
-                <div key={idx} style={{ 
-                  marginTop: 12, 
-                  padding: 12, 
-                  background: 'white',
-                  borderRadius: 6,
-                  border: '1px solid #fbbf24'
-                }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <strong>Import row:</strong> {match.importName}
-                  </div>
-                  <div style={{ fontSize: 14 }}>
-                    <strong>Existing brand found:</strong> {match.existingName} 
-                    <span style={{ color: '#64748b', marginLeft: 8 }}>
-                      ({Math.round(match.similarity * 100)}% match)
-                    </span>
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <label>
-                      <input
-                        type="radio"
-                        name={`match-${idx}`}
-                        checked={validation.matches?.[match.rowIndex]?.useExisting !== false}
-                        onChange={() => updateMatch(match.rowIndex, 'useExisting', true)}
-                        style={{ marginRight: 6 }}
-                      />
-                      Use existing: <strong>{match.existingName}</strong>
-                    </label>
-                    <label style={{ marginLeft: 16 }}>
-                      <input
-                        type="radio"
-                        name={`match-${idx}`}
-                        checked={validation.matches?.[match.rowIndex]?.useExisting === false}
-                        onChange={() => updateMatch(match.rowIndex, 'useExisting', false)}
-                        style={{ marginRight: 6 }}
-                      />
-                      Create new: <strong>{match.importName}</strong>
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <h2>Review Import Changes</h2>
+          <p style={{ color: '#64748b', marginBottom: 24 }}>
+            Review all brands below. You can manually adjust matches before importing.
+          </p>
 
-          <div style={{ marginTop: 16, fontSize: 14, color: '#64748b' }}>
-            <p>✅ Valid rows: {validation.validRows}</p>
-            {validation.invalidRows > 0 && <p style={{ color: '#dc2626' }}>❌ Invalid rows: {validation.invalidRows}</p>}
-          </div>
+          {validation.supplierReviews.map((supplier, idx) => (
+            <div key={idx} style={{ marginBottom: 40 }}>
+              <h3 style={{ 
+                padding: '12px 16px', 
+                background: '#1e293b', 
+                color: 'white',
+                borderRadius: '8px 8px 0 0',
+                margin: 0
+              }}>
+                {supplier.supplierName}
+              </h3>
+
+              {/* Import Brands */}
+              {supplier.importBrands.length > 0 && (
+                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                  <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <strong>Brands in Import ({supplier.importBrands.length})</strong>
+                  </div>
+                  {supplier.importBrands.map((brand, brandIdx) => (
+                    <div key={brandIdx} style={{ 
+                      padding: '12px 16px', 
+                      borderBottom: '1px solid #f1f5f9',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: 16,
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                          <strong>{brand.brandName}</strong>
+                          {getStatusBadge(brand)}
+                          <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
+                        </div>
+                        {brand.matchedBrand && (
+                          <div style={{ fontSize: 14, color: '#64748b' }}>
+                            Will match to: <strong>{brand.matchedBrand.brand_name}</strong>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {brand.matchType !== 'exact' && (
+                          <>
+                            <button
+                              onClick={() => updateMatch(brand.rowIndex, brand.matchedBrand ? true : false, brand.matchedBrand?.brand_id, brand.matchedBrand?.brand_name)}
+                              style={{
+                                padding: '6px 12px',
+                                background: brandMatches[brand.rowIndex]?.useExisting ? '#10b981' : '#e2e8f0',
+                                color: brandMatches[brand.rowIndex]?.useExisting ? 'white' : '#475569',
+                                border: 'none',
+                                borderRadius: 4,
+                                fontSize: 13,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Match
+                            </button>
+                            <button
+                              onClick={() => updateMatch(brand.rowIndex, false)}
+                              style={{
+                                padding: '6px 12px',
+                                background: !brandMatches[brand.rowIndex]?.useExisting ? '#3b82f6' : '#e2e8f0',
+                                color: !brandMatches[brand.rowIndex]?.useExisting ? 'white' : '#475569',
+                                border: 'none',
+                                borderRadius: 4,
+                                fontSize: 13,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Create New
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Orphaned Brands */}
+              {supplier.orphanedBrands && supplier.orphanedBrands.length > 0 && (
+                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                  <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fbbf24' }}>
+                    <strong style={{ color: '#92400e' }}>⚠️ Brands Will Be Orphaned ({supplier.orphanedBrands.length})</strong>
+                    <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
+                      These brands exist in the database but are not in your import. They will be moved to orphans table.
+                    </div>
+                  </div>
+                  {supplier.orphanedBrands.map((brand, brandIdx) => (
+                    <div key={brandIdx} style={{ 
+                      padding: '12px 16px', 
+                      borderBottom: '1px solid #fef3c7',
+                      background: '#fffbeb'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <strong>{brand.brand_name}</strong>
+                        <span style={{ padding: '2px 8px', background: '#fed7aa', color: '#9a3412', borderRadius: 4, fontSize: 12 }}>
+                          🗑️ Will Orphan
+                        </span>
+                        <span style={{ fontSize: 13, color: '#92400e' }}>States: {brand.states}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
 
           <button
             onClick={handleImport}
             disabled={loading}
             style={{
-              marginTop: 16,
-              padding: '10px 20px',
+              marginTop: 24,
+              padding: '12px 24px',
               background: loading ? '#94a3b8' : '#10b981',
               color: 'white',
               border: 'none',
               borderRadius: 6,
               cursor: loading ? 'not-allowed' : 'pointer',
-              fontWeight: 500
+              fontWeight: 500,
+              fontSize: 16
             }}
           >
             {loading ? 'Importing...' : 'Confirm & Import to Database'}
@@ -266,6 +304,9 @@ export default function ImportSupplierPortfolio() {
             <p>✅ Brands created: {results.brandsCreated}</p>
             <p>✅ Relationships created: {results.relationshipsCreated}</p>
             <p>🔄 Relationships re-verified: {results.relationshipsVerified}</p>
+            {results.relationshipsOrphaned > 0 && (
+              <p style={{ color: '#d97706' }}>🗑️ Relationships moved to orphans: {results.relationshipsOrphaned}</p>
+            )}
             <p>⚠️ Rows skipped: {results.skipped}</p>
             {results.errors && results.errors.length > 0 && (
               <div style={{ marginTop: 12 }}>

@@ -71,64 +71,134 @@ export async function POST(req) {
 
     if (suppliersError) throw suppliersError;
 
-    let validRows = 0;
-    let invalidRows = 0;
-    const fuzzyMatches = [];
-    const matches = {};
-
     // Similarity threshold (75% match or higher)
     const THRESHOLD = 0.75;
 
-    rows.forEach((row, index) => {
-      const supplierName = (row.supplier_name || '').trim();
-      const brandName = (row.brand_name || '').trim();
-      const stateName = (row.state_name || '').trim();
-      const stateCode = (row.state_code || '').trim();
+    // Get unique suppliers from import
+    const supplierNames = [...new Set(rows.map(r => (r.supplier_name || '').trim()).filter(Boolean))];
+    
+    // Build comprehensive review data for each supplier
+    const supplierReviews = [];
 
-      if (!supplierName || !brandName || (!stateName && !stateCode)) {
-        invalidRows++;
-        return;
+    for (const supplierName of supplierNames) {
+      // Find or create supplier ID
+      let supplier = existingSuppliers.find(s => s.supplier_name === supplierName);
+      let supplierId = supplier?.supplier_id;
+
+      // Get all import rows for this supplier
+      const supplierRows = rows
+        .map((row, index) => ({ ...row, originalIndex: index }))
+        .filter(row => (row.supplier_name || '').trim() === supplierName);
+
+      // Get existing relationships for this supplier
+      let existingRelationships = [];
+      if (supplierId) {
+        const { data: rels } = await supabaseAdmin
+          .from('brand_supplier_state')
+          .select('brand_id, state_id, core_brands(brand_name), core_states(state_code)')
+          .eq('supplier_id', supplierId);
+        
+        existingRelationships = rels || [];
       }
 
-      validRows++;
+      // Process import brands
+      const importBrands = [];
+      const importedBrandIds = new Set();
 
-      // Check for fuzzy brand matches
-      const normalizedImportName = normalizeName(brandName);
-      
-      for (const existing of existingBrands) {
-        const normalizedExisting = normalizeName(existing.brand_name);
+      for (const row of supplierRows) {
+        const brandName = (row.brand_name || '').trim();
+        const stateCode = (row.state_code || '').trim();
         
-        // Skip exact matches (handled normally)
-        if (brandName === existing.brand_name) continue;
-        
-        const sim = similarity(normalizedImportName, normalizedExisting);
-        
-        if (sim >= THRESHOLD) {
-          fuzzyMatches.push({
-            rowIndex: index,
-            importName: brandName,
-            existingName: existing.brand_name,
-            existingId: existing.brand_id,
-            similarity: sim
-          });
+        if (!brandName) continue;
+
+        // Check for exact match
+        let matchedBrand = existingBrands.find(b => b.brand_name === brandName);
+        let matchType = 'new';
+        let suggestedMatch = null;
+        let similarity = 0;
+
+        if (matchedBrand) {
+          matchType = 'exact';
+          importedBrandIds.add(matchedBrand.brand_id);
+        } else {
+          // Check for fuzzy match
+          const normalizedImportName = normalizeName(brandName);
           
-          // Default to using existing brand (can be overridden by user)
-          matches[index] = {
-            useExisting: true,
-            existingBrandId: existing.brand_id,
-            existingBrandName: existing.brand_name
-          };
-          
-          break; // Only show the first match per import row
+          for (const existing of existingBrands) {
+            const normalizedExisting = normalizeName(existing.brand_name);
+            const sim = similarity(normalizedImportName, normalizedExisting);
+            
+            if (sim >= THRESHOLD && sim > similarity) {
+              suggestedMatch = existing;
+              similarity = sim;
+            }
+          }
+
+          if (suggestedMatch) {
+            matchType = 'fuzzy';
+            matchedBrand = suggestedMatch;
+          }
+        }
+
+        importBrands.push({
+          rowIndex: row.originalIndex,
+          brandName,
+          stateCode: stateCode || 'ALL',
+          matchType,
+          matchedBrand: matchedBrand ? {
+            brand_id: matchedBrand.brand_id,
+            brand_name: matchedBrand.brand_name
+          } : null,
+          similarity: matchType === 'fuzzy' ? similarity : null,
+          action: matchType === 'new' ? 'create' : 'match'
+        });
+
+        if (matchedBrand) {
+          importedBrandIds.add(matchedBrand.brand_id);
         }
       }
-    });
+
+      // Find orphaned relationships (in DB but not in import)
+      const orphanedBrands = [];
+      if (supplierId) {
+        const brandStateMap = new Map();
+        
+        // Group existing relationships by brand
+        for (const rel of existingRelationships) {
+          const brandId = rel.brand_id;
+          if (!brandStateMap.has(brandId)) {
+            brandStateMap.set(brandId, {
+              brand_id: brandId,
+              brand_name: rel.core_brands.brand_name,
+              states: []
+            });
+          }
+          brandStateMap.get(brandId).states.push(rel.core_states.state_code);
+        }
+
+        // Check which brands will be orphaned
+        for (const [brandId, brandData] of brandStateMap.entries()) {
+          if (!importedBrandIds.has(brandId)) {
+            orphanedBrands.push({
+              brand_id: brandId,
+              brand_name: brandData.brand_name,
+              states: brandData.states.join(', '),
+              action: 'orphan'
+            });
+          }
+        }
+      }
+
+      supplierReviews.push({
+        supplierName,
+        supplierId,
+        importBrands,
+        orphanedBrands
+      });
+    }
 
     return NextResponse.json({
-      validRows,
-      invalidRows,
-      fuzzyMatches,
-      matches
+      supplierReviews
     });
 
   } catch (error) {

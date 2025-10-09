@@ -13,8 +13,12 @@ export async function POST(req) {
     let brandsCreated = 0;
     let relationshipsCreated = 0;
     let relationshipsVerified = 0;
+    let relationshipsOrphaned = 0;
     let skipped = 0;
     const errors = [];
+    
+    // Track which supplier-brand-state combos are in the import
+    const importedRelationships = new Map(); // Map<supplierId, Set<brandId-stateId>>
 
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex];
@@ -122,8 +126,16 @@ export async function POST(req) {
           stateIds = [state.data.state_id];
         }
 
+        // Track this supplier's imported relationships
+        if (!importedRelationships.has(supplierId)) {
+          importedRelationships.set(supplierId, new Set());
+        }
+
         // 4. Create relationships for each state
         for (const stateId of stateIds) {
+          // Track this relationship as imported
+          importedRelationships.get(supplierId).add(`${brandId}:${stateId}`);
+
           const existing = await supabaseAdmin
             .from('brand_supplier_state')
             .select('brand_id')
@@ -172,11 +184,61 @@ export async function POST(req) {
       }
     }
 
+    // 5. Handle orphaned relationships (existing in DB but not in import)
+    for (const [supplierId, importedSet] of importedRelationships.entries()) {
+      try {
+        // Get all existing relationships for this supplier
+        const { data: existingRels, error: existingError } = await supabaseAdmin
+          .from('brand_supplier_state')
+          .select('brand_id, state_id, is_verified, last_verified_at, relationship_source')
+          .eq('supplier_id', supplierId);
+
+        if (existingError) throw existingError;
+
+        // Find relationships that exist in DB but not in import
+        for (const rel of existingRels) {
+          const relKey = `${rel.brand_id}:${rel.state_id}`;
+          
+          if (!importedSet.has(relKey)) {
+            // This relationship is orphaned - move to core_orphans
+            const orphanInsert = await supabaseAdmin
+              .from('core_orphans')
+              .insert({
+                brand_id: rel.brand_id,
+                supplier_id: supplierId,
+                state_id: rel.state_id,
+                was_verified: rel.is_verified,
+                last_verified_at: rel.last_verified_at,
+                relationship_source: rel.relationship_source,
+                reason: 'not_in_import'
+              });
+
+            if (orphanInsert.error) throw orphanInsert.error;
+
+            // Delete from active relationships
+            const deleteRel = await supabaseAdmin
+              .from('brand_supplier_state')
+              .delete()
+              .eq('brand_id', rel.brand_id)
+              .eq('supplier_id', supplierId)
+              .eq('state_id', rel.state_id);
+
+            if (deleteRel.error) throw deleteRel.error;
+
+            relationshipsOrphaned++;
+          }
+        }
+      } catch (orphanError) {
+        errors.push(`Error handling orphaned relationships: ${orphanError.message}`);
+      }
+    }
+
     return NextResponse.json({
       suppliersCreated,
       brandsCreated,
       relationshipsCreated,
       relationshipsVerified,
+      relationshipsOrphaned,
       skipped,
       errors: errors.slice(0, 10) // Limit to first 10 errors
     });
