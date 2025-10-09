@@ -199,33 +199,100 @@ export default function AuditSupplierPortfolioPage() {
               borderRadius: 8, 
               padding: 20 
             }}>
-              <div style={{ display: 'grid', gap: 16 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                    Supplier Name
-                  </label>
-                  <EditableInput
-                    value={supplierInfo.supplier_name}
-                    onChange={(val) => handleSupplierInfoEdit('supplier_name', val)}
-                  />
+              <div style={{ display: 'flex', gap: 32, alignItems: 'start' }}>
+                {/* Left side - Form fields */}
+                <div style={{ flex: 1, display: 'grid', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                      Supplier Name
+                    </label>
+                    <EditableInput
+                      value={supplierInfo.supplier_name}
+                      onChange={(val) => handleSupplierInfoEdit('supplier_name', val)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                      Supplier URL
+                    </label>
+                    <EditableInput
+                      value={supplierInfo.supplier_url}
+                      onChange={(val) => handleSupplierInfoEdit('supplier_url', val)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                      Supplier Logo URL
+                    </label>
+                    <EditableInput
+                      value={supplierInfo.supplier_logo_url}
+                      onChange={(val) => handleSupplierInfoEdit('supplier_logo_url', val)}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                    Supplier URL
+                
+                {/* Right side - Logo preview */}
+                <div style={{ 
+                  width: 200, 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center',
+                  gap: 8
+                }}>
+                  <label style={{ fontSize: 13, color: '#64748b', alignSelf: 'flex-start' }}>
+                    Logo Preview
                   </label>
-                  <EditableInput
-                    value={supplierInfo.supplier_url}
-                    onChange={(val) => handleSupplierInfoEdit('supplier_url', val)}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                    Supplier Logo URL
-                  </label>
-                  <EditableInput
-                    value={supplierInfo.supplier_logo_url}
-                    onChange={(val) => handleSupplierInfoEdit('supplier_logo_url', val)}
-                  />
+                  {supplierInfo.supplier_logo_url ? (
+                    <div style={{
+                      width: '100%',
+                      height: 150,
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: '#f8fafc',
+                      overflow: 'hidden'
+                    }}>
+                      <img 
+                        src={supplierInfo.supplier_logo_url} 
+                        alt={supplierInfo.supplier_name}
+                        style={{ 
+                          maxWidth: '100%', 
+                          maxHeight: '100%',
+                          objectFit: 'contain'
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'block';
+                        }}
+                      />
+                      <div style={{ 
+                        display: 'none', 
+                        color: '#94a3b8', 
+                        fontSize: 13,
+                        textAlign: 'center',
+                        padding: 16
+                      }}>
+                        Failed to load logo
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: '100%',
+                      height: 150,
+                      border: '1px dashed #cbd5e1',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: '#f8fafc',
+                      color: '#94a3b8',
+                      fontSize: 13
+                    }}>
+                      No logo URL
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
