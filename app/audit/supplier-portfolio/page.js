@@ -13,6 +13,7 @@ export default function AuditSupplierPortfolioPage() {
   const [supplierInfo, setSupplierInfo] = useState(null);
   const [portfolioBrands, setPortfolioBrands] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedBrands, setSelectedBrands] = useState(new Set());
 
   // Fetch all suppliers on mount
   useEffect(() => {
@@ -191,6 +192,91 @@ export default function AuditSupplierPortfolioPage() {
     }
   };
 
+  const handleDeleteBrand = async (brandId, brandName) => {
+    if (!confirm(`Delete "${brandName}" from the database?\n\nThis will remove the brand and all its relationships permanently.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('core_brands')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (error) throw error;
+
+      setPortfolioBrands(prev => prev.filter(b => b.brand_id !== brandId));
+      setSelectedBrands(prev => {
+        const updated = new Set(prev);
+        updated.delete(brandId);
+        return updated;
+      });
+      alert('Brand deleted successfully!');
+    } catch (err) {
+      console.error('Delete error:', err.message);
+      alert('Failed to delete brand: ' + err.message);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedBrands.size === 0) {
+      alert('No brands selected');
+      return;
+    }
+
+    const brandNames = portfolioBrands
+      .filter(b => selectedBrands.has(b.brand_id))
+      .map(b => b.brand_name)
+      .join('\n• ');
+
+    if (!confirm(`Delete ${selectedBrands.size} brands from the database?\n\n• ${brandNames}\n\nThis will remove all selected brands and their relationships permanently.`)) {
+      return;
+    }
+
+    try {
+      const brandIdsToDelete = Array.from(selectedBrands);
+      
+      // Delete in batches to avoid URL length limits
+      const batchSize = 10;
+      for (let i = 0; i < brandIdsToDelete.length; i += batchSize) {
+        const batch = brandIdsToDelete.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from('core_brands')
+          .delete()
+          .in('brand_id', batch);
+
+        if (error) throw error;
+      }
+
+      setPortfolioBrands(prev => prev.filter(b => !selectedBrands.has(b.brand_id)));
+      setSelectedBrands(new Set());
+      alert(`Successfully deleted ${brandIdsToDelete.length} brands!`);
+    } catch (err) {
+      console.error('Bulk delete error:', err.message);
+      alert('Failed to delete brands: ' + err.message);
+    }
+  };
+
+  const toggleBrandSelection = (brandId) => {
+    setSelectedBrands(prev => {
+      const updated = new Set(prev);
+      if (updated.has(brandId)) {
+        updated.delete(brandId);
+      } else {
+        updated.add(brandId);
+      }
+      return updated;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedBrands.size === portfolioBrands.length) {
+      setSelectedBrands(new Set());
+    } else {
+      setSelectedBrands(new Set(portfolioBrands.map(b => b.brand_id)));
+    }
+  };
+
   return (
     <div style={{ padding: 20 }}>
       <h1>Audit Supplier Portfolio</h1>
@@ -268,26 +354,26 @@ export default function AuditSupplierPortfolioPage() {
                 
                 {/* Right side - Logo preview */}
                 <div style={{ 
-                  width: 200, 
+                  width: 250, 
                   display: 'flex', 
                   flexDirection: 'column', 
-                  alignItems: 'center',
                   gap: 8
                 }}>
-                  <label style={{ fontSize: 13, color: '#64748b', alignSelf: 'flex-start' }}>
-                    Logo Preview
+                  <label style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>
+                    Supplier Logo
                   </label>
                   {supplierInfo.supplier_logo_url ? (
                     <div style={{
                       width: '100%',
-                      height: 150,
-                      border: '1px solid #e2e8f0',
+                      height: 200,
+                      border: '2px solid #e2e8f0',
                       borderRadius: 8,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      background: '#f8fafc',
-                      overflow: 'hidden'
+                      background: 'white',
+                      overflow: 'hidden',
+                      padding: 16
                     }}>
                       <img 
                         src={supplierInfo.supplier_logo_url} 
@@ -298,25 +384,23 @@ export default function AuditSupplierPortfolioPage() {
                           objectFit: 'contain'
                         }}
                         onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'block';
+                          console.error('Failed to load logo:', supplierInfo.supplier_logo_url);
+                          e.target.parentElement.innerHTML = `
+                            <div style="color: #ef4444; fontSize: 13px; textAlign: center; padding: 16px;">
+                              ⚠️ Failed to load logo<br/>
+                              <span style="fontSize: 11px; color: #64748b; marginTop: 8px; display: block;">
+                                ${supplierInfo.supplier_logo_url}
+                              </span>
+                            </div>
+                          `;
                         }}
                       />
-                      <div style={{ 
-                        display: 'none', 
-                        color: '#94a3b8', 
-                        fontSize: 13,
-                        textAlign: 'center',
-                        padding: 16
-                      }}>
-                        Failed to load logo
-                      </div>
                     </div>
                   ) : (
                     <div style={{
                       width: '100%',
-                      height: 150,
-                      border: '1px dashed #cbd5e1',
+                      height: 200,
+                      border: '2px dashed #cbd5e1',
                       borderRadius: 8,
                       display: 'flex',
                       alignItems: 'center',
@@ -325,7 +409,12 @@ export default function AuditSupplierPortfolioPage() {
                       color: '#94a3b8',
                       fontSize: 13
                     }}>
-                      No logo URL
+                      No logo URL set
+                    </div>
+                  )}
+                  {supplierInfo.supplier_logo_url && (
+                    <div style={{ fontSize: 11, color: '#64748b', wordBreak: 'break-all' }}>
+                      {supplierInfo.supplier_logo_url}
                     </div>
                   )}
                 </div>
@@ -335,9 +424,28 @@ export default function AuditSupplierPortfolioPage() {
 
           {/* Portfolio Section */}
           <div>
-            <h2 style={{ fontSize: 20, marginBottom: 16, color: '#1e293b' }}>
-              Supplier Portfolio ({portfolioBrands.length} brands)
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 20, margin: 0, color: '#1e293b' }}>
+                Supplier Portfolio ({portfolioBrands.length} brands)
+              </h2>
+              {selectedBrands.size > 0 && (
+                <button
+                  onClick={handleBulkDelete}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    fontSize: 14
+                  }}
+                >
+                  Delete {selectedBrands.size} Selected Brand{selectedBrands.size > 1 ? 's' : ''}
+                </button>
+              )}
+            </div>
             {portfolioBrands.length === 0 ? (
               <p style={{ color: '#64748b' }}>No brands found in this supplier's portfolio.</p>
             ) : (
@@ -351,16 +459,40 @@ export default function AuditSupplierPortfolioPage() {
                 }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ ...headerStyle, width: 40 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedBrands.size === portfolioBrands.length && portfolioBrands.length > 0}
+                          onChange={toggleSelectAll}
+                          style={{ cursor: 'pointer' }}
+                          title="Select all brands"
+                        />
+                      </th>
                       <th style={headerStyle}>Brand Name</th>
                       <th style={headerStyle}>Categories</th>
                       <th style={headerStyle}>Sub-Categories</th>
                       <th style={headerStyle}>Brand URL</th>
                       <th style={headerStyle}>Logo URL</th>
+                      <th style={headerStyle}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {portfolioBrands.map(brand => (
-                      <tr key={brand.brand_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <tr 
+                        key={brand.brand_id} 
+                        style={{ 
+                          borderBottom: '1px solid #f1f5f9',
+                          background: selectedBrands.has(brand.brand_id) ? '#eff6ff' : 'transparent'
+                        }}
+                      >
+                        <td style={{ ...cellStyle, padding: '12px 16px', textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedBrands.has(brand.brand_id)}
+                            onChange={() => toggleBrandSelection(brand.brand_id)}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        </td>
                         <td style={cellStyle}>
                           <EditableCell
                             value={brand.brand_name}
@@ -380,6 +512,22 @@ export default function AuditSupplierPortfolioPage() {
                             value={brand.brand_logo_url}
                             onChange={(val) => handleBrandEdit(brand.brand_id, 'brand_logo_url', val)}
                           />
+                        </td>
+                        <td style={cellStyle}>
+                          <button
+                            onClick={() => handleDeleteBrand(brand.brand_id, brand.brand_name)}
+                            style={{
+                              padding: '4px 12px',
+                              fontSize: 13,
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
