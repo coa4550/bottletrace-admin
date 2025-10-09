@@ -3,11 +3,25 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function POST(req) {
   try {
-    const { rows, confirmedMatches = {} } = await req.json();
+    const { rows, confirmedMatches = {}, fileName } = await req.json();
     
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: 'No rows provided' }, { status: 400 });
     }
+
+    // Create import log entry
+    const { data: importLog, error: logError } = await supabaseAdmin
+      .from('import_logs')
+      .insert({
+        import_type: 'supplier_portfolio',
+        file_name: fileName || 'unknown',
+        rows_processed: rows.length
+      })
+      .select('import_log_id')
+      .single();
+
+    if (logError) throw logError;
+    const importLogId = importLog.import_log_id;
 
     let suppliersCreated = 0;
     let brandsCreated = 0;
@@ -16,6 +30,7 @@ export async function POST(req) {
     let relationshipsOrphaned = 0;
     let skipped = 0;
     const errors = [];
+    const changes = []; // Track all changes for batch insert
     
     // Track which supplier-brand-state combos are in the import
     const importedRelationships = new Map(); // Map<supplierId, Set<brandId-stateId>>
@@ -52,6 +67,17 @@ export async function POST(req) {
           if (newSupplier.error) throw newSupplier.error;
           supplier.data = newSupplier.data;
           suppliersCreated++;
+          
+          // Log supplier creation
+          changes.push({
+            import_log_id: importLogId,
+            change_type: 'supplier_created',
+            entity_type: 'supplier',
+            entity_id: newSupplier.data.supplier_id,
+            entity_name: supplierName,
+            new_value: { supplier_name: supplierName },
+            source_row: row
+          });
         }
 
         const supplierId = supplier.data.supplier_id;
@@ -82,6 +108,17 @@ export async function POST(req) {
             if (newBrand.error) throw newBrand.error;
             brand.data = newBrand.data;
             brandsCreated++;
+            
+            // Log brand creation
+            changes.push({
+              import_log_id: importLogId,
+              change_type: 'brand_created',
+              entity_type: 'brand',
+              entity_id: newBrand.data.brand_id,
+              entity_name: brandName,
+              new_value: { brand_name: brandName },
+              source_row: row
+            });
           }
 
           brandId = brand.data.brand_id;
@@ -160,6 +197,17 @@ export async function POST(req) {
 
             if (relationship.error) throw relationship.error;
             relationshipsCreated++;
+            
+            // Log relationship creation
+            changes.push({
+              import_log_id: importLogId,
+              change_type: 'relationship_created',
+              entity_type: 'relationship',
+              entity_id: brandId,
+              entity_name: `${supplierName} → ${brandName}`,
+              new_value: { brand_id: brandId, supplier_id: supplierId, state_id: stateId },
+              source_row: row
+            });
           } else {
             // Update existing relationship to mark as verified with current timestamp
             const updateRel = await supabaseAdmin
@@ -175,6 +223,17 @@ export async function POST(req) {
 
             if (updateRel.error) throw updateRel.error;
             relationshipsVerified++;
+            
+            // Log relationship re-verification
+            changes.push({
+              import_log_id: importLogId,
+              change_type: 'relationship_verified',
+              entity_type: 'relationship',
+              entity_id: brandId,
+              entity_name: `${supplierName} → ${brandName}`,
+              new_value: { verified_at: new Date().toISOString() },
+              source_row: row
+            });
           }
         }
 
@@ -226,12 +285,55 @@ export async function POST(req) {
             if (deleteRel.error) throw deleteRel.error;
 
             relationshipsOrphaned++;
+            
+            // Log relationship orphaning
+            changes.push({
+              import_log_id: importLogId,
+              change_type: 'relationship_orphaned',
+              entity_type: 'relationship',
+              entity_id: rel.brand_id,
+              entity_name: `Supplier ${supplierId} → Brand ${rel.brand_id}`,
+              old_value: { 
+                brand_id: rel.brand_id, 
+                supplier_id: supplierId, 
+                state_id: rel.state_id,
+                was_verified: rel.is_verified,
+                last_verified_at: rel.last_verified_at
+              },
+              source_row: { reason: 'not_in_import' }
+            });
           }
         }
       } catch (orphanError) {
         errors.push(`Error handling orphaned relationships: ${orphanError.message}`);
       }
     }
+
+    // Save all changes to import_changes table
+    if (changes.length > 0) {
+      const { error: changesError } = await supabaseAdmin
+        .from('import_changes')
+        .insert(changes);
+
+      if (changesError) {
+        console.error('Error saving import changes:', changesError);
+      }
+    }
+
+    // Update import log with final counts
+    await supabaseAdmin
+      .from('import_logs')
+      .update({
+        suppliers_created: suppliersCreated,
+        brands_created: brandsCreated,
+        relationships_created: relationshipsCreated,
+        relationships_verified: relationshipsVerified,
+        relationships_orphaned: relationshipsOrphaned,
+        rows_skipped: skipped,
+        errors_count: errors.length,
+        status: errors.length > 0 ? 'partial' : 'completed'
+      })
+      .eq('import_log_id', importLogId);
 
     return NextResponse.json({
       suppliersCreated,
@@ -240,7 +342,8 @@ export async function POST(req) {
       relationshipsVerified,
       relationshipsOrphaned,
       skipped,
-      errors: errors.slice(0, 10) // Limit to first 10 errors
+      errors: errors.slice(0, 10), // Limit to first 10 errors
+      importLogId
     });
 
   } catch (error) {

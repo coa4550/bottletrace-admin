@@ -83,7 +83,8 @@ export default function ImportSupplierPortfolio() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           rows: parsed,
-          confirmedMatches: brandMatches
+          confirmedMatches: brandMatches,
+          fileName: file?.name
         })
       });
       
@@ -360,6 +361,16 @@ export default function ImportSupplierPortfolio() {
                 {results.errors.map((err, i) => (
                   <p key={i} style={{ color: '#dc2626', fontSize: 13 }}>• {err}</p>
                 ))}
+              </div>
+            )}
+            {results.importLogId && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #86efac' }}>
+                <a 
+                  href={`/import/logs/${results.importLogId}`}
+                  style={{ color: '#059669', textDecoration: 'underline', fontSize: 14 }}
+                >
+                  📋 View detailed import log
+                </a>
               </div>
             )}
           </div>
