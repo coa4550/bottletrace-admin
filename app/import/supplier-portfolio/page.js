@@ -267,7 +267,20 @@ export default function ImportSupplierPortfolio() {
             const exactMatches = supplier.importBrands.filter(b => b.matchType === 'exact');
             const fuzzyMatches = supplier.importBrands.filter(b => b.matchType === 'fuzzy');
             const newBrands = supplier.importBrands.filter(b => b.matchType === 'new');
-            const orphanedBrands = supplier.orphanedBrands || [];
+            
+            // Get all matched brand IDs from current brandMatches state
+            const matchedBrandIds = new Set();
+            supplier.importBrands.forEach(importBrand => {
+              const match = brandMatches[importBrand.rowIndex];
+              if (match && match.useExisting && match.existingBrandId) {
+                matchedBrandIds.add(match.existingBrandId);
+              }
+            });
+            
+            // Filter orphaned brands - exclude any that are now matched
+            const orphanedBrands = (supplier.orphanedBrands || []).filter(
+              orphan => !matchedBrandIds.has(orphan.brand_id)
+            );
 
             return (
               <div key={idx} style={{ marginBottom: 40 }}>
