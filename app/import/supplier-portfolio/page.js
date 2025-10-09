@@ -52,6 +52,9 @@ export default function ImportSupplierPortfolio() {
       <p style={{ color: '#64748b', marginTop: 8 }}>
         Upload a spreadsheet with supplier portfolios. Expected columns: supplier_name, brand_name, state_name (or state_code)
       </p>
+      <p style={{ color: '#64748b', marginTop: 4, fontSize: 14 }}>
+        💡 <strong>Tip:</strong> Use <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>ALL</code> in the state_code column to create relationships for all 50 states + territories automatically.
+      </p>
 
       <div style={{ marginTop: 32 }}>
         <input

@@ -74,72 +74,87 @@ export async function POST(req) {
 
         const brandId = brand.data.brand_id;
 
-        // 3. Get state
-        let state;
-        if (stateCode) {
-          state = await supabaseAdmin
+        // 3. Get state(s) - handle "ALL" special case
+        let stateIds = [];
+        
+        if (stateCode && stateCode.toUpperCase() === 'ALL') {
+          // Fetch all states
+          const allStates = await supabaseAdmin
             .from('core_states')
-            .select('state_id')
-            .eq('state_code', stateCode.toUpperCase())
-            .maybeSingle();
+            .select('state_id');
+
+          if (allStates.error) throw allStates.error;
+          stateIds = allStates.data.map(s => s.state_id);
         } else {
-          state = await supabaseAdmin
-            .from('core_states')
-            .select('state_id')
-            .ilike('state_name', stateName)
-            .maybeSingle();
+          // Single state lookup
+          let state;
+          if (stateCode) {
+            state = await supabaseAdmin
+              .from('core_states')
+              .select('state_id')
+              .eq('state_code', stateCode.toUpperCase())
+              .maybeSingle();
+          } else {
+            state = await supabaseAdmin
+              .from('core_states')
+              .select('state_id')
+              .ilike('state_name', stateName)
+              .maybeSingle();
+          }
+
+          if (state.error) throw state.error;
+
+          if (!state.data) {
+            errors.push(`State not found: ${stateName || stateCode} (row: ${supplierName} - ${brandName})`);
+            skipped++;
+            continue;
+          }
+
+          stateIds = [state.data.state_id];
         }
 
-        if (state.error) throw state.error;
-
-        if (!state.data) {
-          errors.push(`State not found: ${stateName || stateCode} (row: ${supplierName} - ${brandName})`);
-          skipped++;
-          continue;
-        }
-
-        const stateId = state.data.state_id;
-
-        // 4. Create relationship (if doesn't exist)
-        const existing = await supabaseAdmin
-          .from('brand_supplier_state')
-          .select('brand_id')
-          .eq('brand_id', brandId)
-          .eq('supplier_id', supplierId)
-          .eq('state_id', stateId)
-          .maybeSingle();
-
-        if (existing.error) throw existing.error;
-
-        if (!existing.data) {
-          const relationship = await supabaseAdmin
+        // 4. Create relationships for each state
+        for (const stateId of stateIds) {
+          const existing = await supabaseAdmin
             .from('brand_supplier_state')
-            .insert({
-              brand_id: brandId,
-              supplier_id: supplierId,
-              state_id: stateId,
-              is_verified: true,
-              last_verified_at: new Date().toISOString(),
-              relationship_source: 'csv_import'
-            });
-
-          if (relationship.error) throw relationship.error;
-          relationshipsCreated++;
-        } else {
-          // Update existing relationship to mark as verified with current timestamp
-          const updateRel = await supabaseAdmin
-            .from('brand_supplier_state')
-            .update({
-              is_verified: true,
-              last_verified_at: new Date().toISOString(),
-              relationship_source: 'csv_import'
-            })
+            .select('brand_id')
             .eq('brand_id', brandId)
             .eq('supplier_id', supplierId)
-            .eq('state_id', stateId);
+            .eq('state_id', stateId)
+            .maybeSingle();
 
-          if (updateRel.error) throw updateRel.error;
-          relationshipsVerified++;
+          if (existing.error) throw existing.error;
+
+          if (!existing.data) {
+            const relationship = await supabaseAdmin
+              .from('brand_supplier_state')
+              .insert({
+                brand_id: brandId,
+                supplier_id: supplierId,
+                state_id: stateId,
+                is_verified: true,
+                last_verified_at: new Date().toISOString(),
+                relationship_source: 'csv_import'
+              });
+
+            if (relationship.error) throw relationship.error;
+            relationshipsCreated++;
+          } else {
+            // Update existing relationship to mark as verified with current timestamp
+            const updateRel = await supabaseAdmin
+              .from('brand_supplier_state')
+              .update({
+                is_verified: true,
+                last_verified_at: new Date().toISOString(),
+                relationship_source: 'csv_import'
+              })
+              .eq('brand_id', brandId)
+              .eq('supplier_id', supplierId)
+              .eq('state_id', stateId);
+
+            if (updateRel.error) throw updateRel.error;
+            relationshipsVerified++;
+          }
         }
 
       } catch (rowError) {
