@@ -370,6 +370,8 @@ export default function ImportSupplierPortfolio() {
 }
 
 function TwoColumnBrandRow({ brand, brandMatches, validation, handleManualMatch, updateMatch }) {
+  const isFuzzy = brand.matchType === 'fuzzy';
+  
   return (
     <div style={{ 
       display: 'grid',
@@ -379,13 +381,11 @@ function TwoColumnBrandRow({ brand, brandMatches, validation, handleManualMatch,
     }}>
       {/* Left Column - Import Brand */}
       <div style={{ padding: '12px 16px', borderRight: '2px solid #cbd5e1' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <strong style={{ fontSize: 15 }}>{brand.brandName}</strong>
+          <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
         </div>
-        <div style={{ fontSize: 13, color: '#64748b' }}>
-          State: {brand.stateCode}
-        </div>
-        {brand.matchType === 'fuzzy' && brand.similarity && (
+        {isFuzzy && brand.similarity && (
           <div style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>
             {Math.round(brand.similarity * 100)}% similar to suggested match
           </div>
@@ -393,7 +393,7 @@ function TwoColumnBrandRow({ brand, brandMatches, validation, handleManualMatch,
       </div>
 
       {/* Right Column - Existing/Match */}
-      <div style={{ padding: '12px 16px' }}>
+      <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <select
           value={brandMatches[brand.rowIndex]?.useExisting ? brandMatches[brand.rowIndex]?.existingBrandId : 'CREATE_NEW'}
           onChange={(e) => {
@@ -408,7 +408,8 @@ function TwoColumnBrandRow({ brand, brandMatches, validation, handleManualMatch,
             border: '1px solid #cbd5e1',
             borderRadius: 4,
             fontSize: 14,
-            width: '100%',
+            minWidth: 250,
+            maxWidth: 300,
             background: 'white'
           }}
         >
@@ -421,8 +422,8 @@ function TwoColumnBrandRow({ brand, brandMatches, validation, handleManualMatch,
           ))}
         </select>
         {brandMatches[brand.rowIndex]?.useExisting && brandMatches[brand.rowIndex]?.existingBrandName && (
-          <div style={{ fontSize: 13, color: '#059669', marginTop: 6, fontWeight: 500 }}>
-            ✓ Matched to: {brandMatches[brand.rowIndex].existingBrandName}
+          <div style={{ fontSize: 13, color: '#059669', fontWeight: 500, whiteSpace: 'nowrap' }}>
+            ✓ {brandMatches[brand.rowIndex].existingBrandName}
           </div>
         )}
       </div>

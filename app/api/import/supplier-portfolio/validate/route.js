@@ -177,6 +177,9 @@ export async function POST(req) {
       // Find orphaned relationships (in DB but not in import)
       const orphanedBrands = [];
       if (supplierId) {
+        console.log(`Checking orphans for ${supplierName}, existing relationships:`, existingRelationships.length);
+        console.log(`Import brand IDs:`, Array.from(importedBrandIds));
+        
         const brandStateMap = new Map();
         
         // Group existing relationships by brand
@@ -192,9 +195,12 @@ export async function POST(req) {
           brandStateMap.get(brandId).states.push(rel.core_states.state_code);
         }
 
+        console.log(`Unique brands in existing relationships:`, brandStateMap.size);
+
         // Check which brands will be orphaned
         for (const [brandId, brandData] of brandStateMap.entries()) {
           if (!importedBrandIds.has(brandId)) {
+            console.log(`Brand ${brandData.brand_name} will be orphaned (not in import)`);
             orphanedBrands.push({
               brand_id: brandId,
               brand_name: brandData.brand_name,
@@ -203,6 +209,8 @@ export async function POST(req) {
             });
           }
         }
+        
+        console.log(`Total orphaned brands for ${supplierName}:`, orphanedBrands.length);
       }
 
       supplierReviews.push({
