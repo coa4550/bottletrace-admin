@@ -185,111 +185,117 @@ export default function ImportSupplierPortfolio() {
             Review all brands below. You can manually adjust matches before importing.
           </p>
 
-          {validation.supplierReviews.map((supplier, idx) => (
-            <div key={idx} style={{ marginBottom: 40 }}>
-              <h3 style={{ 
-                padding: '12px 16px', 
-                background: '#1e293b', 
-                color: 'white',
-                borderRadius: '8px 8px 0 0',
-                margin: 0
-              }}>
-                {supplier.supplierName}
-              </h3>
+          {validation.supplierReviews.map((supplier, idx) => {
+            // Group brands by type
+            const exactMatches = supplier.importBrands.filter(b => b.matchType === 'exact');
+            const fuzzyMatches = supplier.importBrands.filter(b => b.matchType === 'fuzzy');
+            const newBrands = supplier.importBrands.filter(b => b.matchType === 'new');
+            const orphanedBrands = supplier.orphanedBrands || [];
 
-              {/* Import Brands */}
-              {supplier.importBrands.length > 0 && (
-                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                  <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <strong>Brands in Import ({supplier.importBrands.length})</strong>
+            return (
+              <div key={idx} style={{ marginBottom: 40 }}>
+                <h3 style={{ 
+                  padding: '12px 16px', 
+                  background: '#1e293b', 
+                  color: 'white',
+                  borderRadius: '8px 8px 0 0',
+                  margin: 0
+                }}>
+                  {supplier.supplierName}
+                </h3>
+
+                {/* Exact Matches - Ignore */}
+                {exactMatches.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#d1fae5', borderBottom: '1px solid #10b981' }}>
+                      <strong style={{ color: '#065f46' }}>✓ Exact Match - Ignore ({exactMatches.length})</strong>
+                      <div style={{ fontSize: 13, color: '#065f46', marginTop: 4 }}>
+                        These relationships already exist and will be re-verified
+                      </div>
+                    </div>
+                    {exactMatches.map((brand, brandIdx) => (
+                      <BrandRow 
+                        key={brandIdx} 
+                        brand={brand} 
+                        brandMatches={brandMatches}
+                        validation={validation}
+                        handleManualMatch={handleManualMatch}
+                        updateMatch={updateMatch}
+                      />
+                    ))}
                   </div>
-                  {supplier.importBrands.map((brand, brandIdx) => (
-                    <div key={brandIdx} style={{ 
-                      padding: '12px 16px', 
-                      borderBottom: '1px solid #f1f5f9'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'start', gap: 16 }}>
-                        {/* Left - Import Brand Info */}
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                            <strong style={{ fontSize: 15 }}>{brand.brandName}</strong>
-                            {getStatusBadge(brand)}
-                            <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
-                          </div>
-                          
-                          {/* Manual Match Selector */}
-                          <div style={{ marginTop: 8 }}>
-                            <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                              Match to existing brand:
-                            </label>
-                            <select
-                              value={brandMatches[brand.rowIndex]?.useExisting ? brandMatches[brand.rowIndex]?.existingBrandId : 'CREATE_NEW'}
-                              onChange={(e) => {
-                                if (e.target.value === 'CREATE_NEW') {
-                                  updateMatch(brand.rowIndex, false);
-                                } else if (e.target.value) {
-                                  handleManualMatch(brand.rowIndex, e.target.value);
-                                }
-                              }}
-                              style={{
-                                padding: '6px 10px',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: 4,
-                                fontSize: 14,
-                                minWidth: 300,
-                                background: 'white'
-                              }}
-                            >
-                              <option value="CREATE_NEW">🆕 Create New Brand: "{brand.brandName}"</option>
-                              <option disabled style={{ color: '#94a3b8' }}>──────────────────────</option>
-                              {validation.allExistingBrands?.map(eb => (
-                                <option key={eb.brand_id} value={eb.brand_id}>
-                                  {eb.brand_name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                )}
 
-                          {brandMatches[brand.rowIndex]?.useExisting && brandMatches[brand.rowIndex]?.existingBrandName && (
-                            <div style={{ fontSize: 13, color: '#059669', marginTop: 6, fontWeight: 500 }}>
-                              → Will match to: {brandMatches[brand.rowIndex].existingBrandName}
-                            </div>
-                          )}
+                {/* Fuzzy Matches - Confirm */}
+                {fuzzyMatches.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: exactMatches.length > 0 ? 'none' : 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fbbf24' }}>
+                      <strong style={{ color: '#92400e' }}>~ Fuzzy Match - Confirm ({fuzzyMatches.length})</strong>
+                      <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
+                        Similar brands found - please review and confirm matches
+                      </div>
+                    </div>
+                    {fuzzyMatches.map((brand, brandIdx) => (
+                      <BrandRow 
+                        key={brandIdx} 
+                        brand={brand} 
+                        brandMatches={brandMatches}
+                        validation={validation}
+                        handleManualMatch={handleManualMatch}
+                        updateMatch={updateMatch}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* New Brands - Add */}
+                {newBrands.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: (exactMatches.length > 0 || fuzzyMatches.length > 0) ? 'none' : 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#dbeafe', borderBottom: '1px solid #3b82f6' }}>
+                      <strong style={{ color: '#1e40af' }}>+ New Brand - Add ({newBrands.length})</strong>
+                      <div style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>
+                        These brands will be created in the database
+                      </div>
+                    </div>
+                    {newBrands.map((brand, brandIdx) => (
+                      <BrandRow 
+                        key={brandIdx} 
+                        brand={brand} 
+                        brandMatches={brandMatches}
+                        validation={validation}
+                        handleManualMatch={handleManualMatch}
+                        updateMatch={updateMatch}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Orphaned Brands - Move */}
+                {orphanedBrands.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: (exactMatches.length > 0 || fuzzyMatches.length > 0 || newBrands.length > 0) ? 'none' : 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#fee2e2', borderBottom: '1px solid #ef4444' }}>
+                      <strong style={{ color: '#991b1b' }}>🗑️ Orphan - Move ({orphanedBrands.length})</strong>
+                      <div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>
+                        These brands exist in database but not in your import - will be moved to orphans table
+                      </div>
+                    </div>
+                    {orphanedBrands.map((brand, brandIdx) => (
+                      <div key={brandIdx} style={{ 
+                        padding: '12px 16px', 
+                        borderBottom: '1px solid #fecaca',
+                        background: '#fef2f2'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <strong>{brand.brand_name}</strong>
+                          <span style={{ fontSize: 13, color: '#991b1b' }}>States: {brand.states}</span>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Orphaned Brands */}
-              {supplier.orphanedBrands && supplier.orphanedBrands.length > 0 && (
-                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                  <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fbbf24' }}>
-                    <strong style={{ color: '#92400e' }}>⚠️ Brands Will Be Orphaned ({supplier.orphanedBrands.length})</strong>
-                    <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
-                      These brands exist in the database but are not in your import. They will be moved to orphans table.
-                    </div>
+                    ))}
                   </div>
-                  {supplier.orphanedBrands.map((brand, brandIdx) => (
-                    <div key={brandIdx} style={{ 
-                      padding: '12px 16px', 
-                      borderBottom: '1px solid #fef3c7',
-                      background: '#fffbeb'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <strong>{brand.brand_name}</strong>
-                        <span style={{ padding: '2px 8px', background: '#fed7aa', color: '#9a3412', borderRadius: 4, fontSize: 12 }}>
-                          🗑️ Will Orphan
-                        </span>
-                        <span style={{ fontSize: 13, color: '#92400e' }}>States: {brand.states}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
 
           <button
             onClick={handleImport}
@@ -340,6 +346,67 @@ export default function ImportSupplierPortfolio() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function BrandRow({ brand, brandMatches, validation, handleManualMatch, updateMatch }) {
+  return (
+    <div style={{ 
+      padding: '12px 16px', 
+      borderBottom: '1px solid #f1f5f9',
+      display: 'grid',
+      gridTemplateColumns: '2fr 3fr',
+      gap: 24,
+      alignItems: 'center'
+    }}>
+      {/* Left - Brand Info */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+          <strong style={{ fontSize: 15 }}>{brand.brandName}</strong>
+          <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
+        </div>
+        {brand.matchedBrand && brand.matchType === 'fuzzy' && (
+          <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>
+            Suggested: {brand.matchedBrand.brand_name} ({Math.round(brand.similarity * 100)}% match)
+          </div>
+        )}
+      </div>
+
+      {/* Right - Match Selector */}
+      <div>
+        <select
+          value={brandMatches[brand.rowIndex]?.useExisting ? brandMatches[brand.rowIndex]?.existingBrandId : 'CREATE_NEW'}
+          onChange={(e) => {
+            if (e.target.value === 'CREATE_NEW') {
+              updateMatch(brand.rowIndex, false);
+            } else if (e.target.value) {
+              handleManualMatch(brand.rowIndex, e.target.value);
+            }
+          }}
+          style={{
+            padding: '6px 10px',
+            border: '1px solid #cbd5e1',
+            borderRadius: 4,
+            fontSize: 14,
+            width: '100%',
+            background: 'white'
+          }}
+        >
+          <option value="CREATE_NEW">🆕 Create New Brand: "{brand.brandName}"</option>
+          <option disabled style={{ color: '#94a3b8' }}>──────────────────────</option>
+          {validation.allExistingBrands?.map(eb => (
+            <option key={eb.brand_id} value={eb.brand_id}>
+              {eb.brand_name}
+            </option>
+          ))}
+        </select>
+        {brandMatches[brand.rowIndex]?.useExisting && brandMatches[brand.rowIndex]?.existingBrandName && (
+          <div style={{ fontSize: 13, color: '#059669', marginTop: 6, fontWeight: 500 }}>
+            → Will match to: {brandMatches[brand.rowIndex].existingBrandName}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
