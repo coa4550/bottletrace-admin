@@ -23,34 +23,77 @@ export default function BrandsPage() {
   useEffect(() => {
     async function fetchBrands() {
       try {
-        // Fetch all brands (Supabase default is 1000, so we set a higher limit)
-        const { data: brandsData, error: brandsError } = await supabase
-          .from('core_brands')
-          .select('*')
-          .order('brand_name')
-          .limit(10000);
+        // Fetch ALL brands using pagination
+        let allBrands = [];
+        let start = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        if (brandsError) throw brandsError;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('core_brands')
+            .select('*')
+            .order('brand_name')
+            .range(start, start + pageSize - 1);
 
-        // Fetch brand-category mappings (set high limit to get all)
-        const { data: brandCats, error: catsError } = await supabase
-          .from('brand_categories')
-          .select('brand_id, categories(category_name)')
-          .limit(10000);
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            allBrands = [...allBrands, ...data];
+            start += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
 
-        if (catsError) throw catsError;
+        // Fetch ALL brand-category mappings
+        let allBrandCats = [];
+        start = 0;
+        hasMore = true;
 
-        // Fetch brand-subcategory mappings (set high limit to get all)
-        const { data: brandSubcats, error: subcatsError } = await supabase
-          .from('brand_sub_categories')
-          .select('brand_id, sub_categories(sub_category_name)')
-          .limit(10000);
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('brand_categories')
+            .select('brand_id, categories(category_name)')
+            .range(start, start + pageSize - 1);
 
-        if (subcatsError) throw subcatsError;
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allBrandCats = [...allBrandCats, ...data];
+            start += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        // Fetch ALL brand-subcategory mappings
+        let allBrandSubcats = [];
+        start = 0;
+        hasMore = true;
+
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('brand_sub_categories')
+            .select('brand_id, sub_categories(sub_category_name)')
+            .range(start, start + pageSize - 1);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allBrandSubcats = [...allBrandSubcats, ...data];
+            start += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
 
         // Create lookup maps
         const catsMap = {};
-        brandCats?.forEach(bc => {
+        allBrandCats?.forEach(bc => {
           if (bc.categories && bc.categories.category_name) {
             if (!catsMap[bc.brand_id]) catsMap[bc.brand_id] = [];
             catsMap[bc.brand_id].push(bc.categories.category_name);
@@ -58,7 +101,7 @@ export default function BrandsPage() {
         });
 
         const subcatsMap = {};
-        brandSubcats?.forEach(bsc => {
+        allBrandSubcats?.forEach(bsc => {
           if (bsc.sub_categories && bsc.sub_categories.sub_category_name) {
             if (!subcatsMap[bsc.brand_id]) subcatsMap[bsc.brand_id] = [];
             subcatsMap[bsc.brand_id].push(bsc.sub_categories.sub_category_name);
@@ -66,7 +109,7 @@ export default function BrandsPage() {
         });
 
         // Merge data
-        const enrichedBrands = brandsData.map(brand => ({
+        const enrichedBrands = allBrands.map(brand => ({
           ...brand,
           categories: catsMap[brand.brand_id]?.join(', ') || '',
           sub_categories: subcatsMap[brand.brand_id]?.join(', ') || ''
