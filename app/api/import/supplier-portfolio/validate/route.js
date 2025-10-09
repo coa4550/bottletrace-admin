@@ -10,6 +10,19 @@ function normalizeName(name) {
     .replace(/[^\w\s]/g, ''); // Remove special characters
 }
 
+// Get first significant word from brand name (excluding "the")
+function getFirstWord(name) {
+  const normalized = normalizeName(name);
+  const words = normalized.split(' ').filter(w => w.length > 0);
+  
+  // Skip "the" if it's the first word
+  if (words.length > 0 && words[0] === 'the') {
+    return words[1] || words[0];
+  }
+  
+  return words[0] || '';
+}
+
 // Calculate similarity between two strings (simple Levenshtein-based)
 function similarity(s1, s2) {
   const longer = s1.length > s2.length ? s1 : s2;
@@ -137,16 +150,31 @@ export async function POST(req) {
           matchType = 'exact';
           importedBrandIds.add(matchedBrand.brand_id);
         } else {
+          // Check for first word match (high confidence)
+          const importFirstWord = getFirstWord(brandName);
+          
           // Check for fuzzy match
           const normalizedImportName = normalizeName(brandName);
           
           for (const existing of existingBrands) {
             const normalizedExisting = normalizeName(existing.brand_name);
-            const sim = similarity(normalizedImportName, normalizedExisting);
+            const existingFirstWord = getFirstWord(existing.brand_name);
             
-            if (sim >= THRESHOLD && sim > bestSimilarity) {
-              suggestedMatch = existing;
-              bestSimilarity = sim;
+            // High confidence if first words match (excluding "the")
+            if (importFirstWord && importFirstWord === existingFirstWord && importFirstWord.length > 2) {
+              const sim = 0.95; // High confidence score for first word match
+              if (sim > bestSimilarity) {
+                suggestedMatch = existing;
+                bestSimilarity = sim;
+              }
+            } else {
+              // Regular Levenshtein similarity
+              const sim = similarity(normalizedImportName, normalizedExisting);
+              
+              if (sim >= THRESHOLD && sim > bestSimilarity) {
+                suggestedMatch = existing;
+                bestSimilarity = sim;
+              }
             }
           }
 
