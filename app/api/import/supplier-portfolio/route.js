@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function POST(req) {
   try {
-    const { rows } = await req.json();
+    const { rows, confirmedMatches = {} } = await req.json();
     
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: 'No rows provided' }, { status: 400 });
@@ -16,7 +16,8 @@ export async function POST(req) {
     let skipped = 0;
     const errors = [];
 
-    for (const row of rows) {
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+      const row = rows[rowIndex];
       const supplierName = (row.supplier_name || '').trim();
       const brandName = (row.brand_name || '').trim();
       const stateName = (row.state_name || '').trim();
@@ -51,28 +52,36 @@ export async function POST(req) {
 
         const supplierId = supplier.data.supplier_id;
 
-        // 2. Get or create brand
-        let brand = await supabaseAdmin
-          .from('core_brands')
-          .select('brand_id')
-          .eq('brand_name', brandName)
-          .maybeSingle();
-
-        if (brand.error) throw brand.error;
-
-        if (!brand.data) {
-          const newBrand = await supabaseAdmin
+        // 2. Get or create brand (with fuzzy match support)
+        let brandId;
+        
+        // Check if user confirmed to use an existing brand via fuzzy match
+        if (confirmedMatches[rowIndex] && confirmedMatches[rowIndex].useExisting) {
+          brandId = confirmedMatches[rowIndex].existingBrandId;
+        } else {
+          // Normal brand lookup or creation
+          let brand = await supabaseAdmin
             .from('core_brands')
-            .insert({ brand_name: brandName })
             .select('brand_id')
-            .single();
+            .eq('brand_name', brandName)
+            .maybeSingle();
 
-          if (newBrand.error) throw newBrand.error;
-          brand.data = newBrand.data;
-          brandsCreated++;
+          if (brand.error) throw brand.error;
+
+          if (!brand.data) {
+            const newBrand = await supabaseAdmin
+              .from('core_brands')
+              .insert({ brand_name: brandName })
+              .select('brand_id')
+              .single();
+
+            if (newBrand.error) throw newBrand.error;
+            brand.data = newBrand.data;
+            brandsCreated++;
+          }
+
+          brandId = brand.data.brand_id;
         }
-
-        const brandId = brand.data.brand_id;
 
         // 3. Get state(s) - handle "ALL" special case
         let stateIds = [];
