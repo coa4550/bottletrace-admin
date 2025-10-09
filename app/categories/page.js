@@ -7,12 +7,12 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-export default function DistributorsPage() {
-  const [distributors, setDistributors] = useState([]);
+export default function CategoriesPage() {
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [colWidths, setColWidths] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('distributorColWidths');
+      const saved = localStorage.getItem('categoryColWidths');
       return saved ? JSON.parse(saved) : {};
     }
     return {};
@@ -20,22 +20,22 @@ export default function DistributorsPage() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
-    async function fetchDistributors() {
+    async function fetchCategories() {
       try {
         const { data, error } = await supabase
-          .from('core_distributors')
+          .from('categories')
           .select('*')
-          .order('distributor_name');
+          .order('category_name');
 
         if (error) throw error;
-        setDistributors(data || []);
+        setCategories(data || []);
       } catch (error) {
-        console.error('Error fetching distributors:', error);
+        console.error('Error fetching categories:', error);
       } finally {
         setLoading(false);
       }
     }
-    fetchDistributors();
+    fetchCategories();
   }, []);
 
   const startResize = (e, key) => {
@@ -46,7 +46,7 @@ export default function DistributorsPage() {
       const newWidth = Math.max(60, startWidth + moveEvent.clientX - startX);
       setColWidths((prev) => {
         const updated = { ...prev, [key]: newWidth };
-        localStorage.setItem('distributorColWidths', JSON.stringify(updated));
+        localStorage.setItem('categoryColWidths', JSON.stringify(updated));
         return updated;
       });
     };
@@ -60,16 +60,16 @@ export default function DistributorsPage() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleEdit = async (distributorId, field, newValue) => {
+  const handleEdit = async (categoryId, field, newValue) => {
     try {
       const { error } = await supabase
-        .from('core_distributors')
+        .from('categories')
         .update({ [field]: newValue })
-        .eq('distributor_id', distributorId);
+        .eq('category_id', categoryId);
 
       if (error) throw error;
-      setDistributors((prev) =>
-        prev.map((d) => (d.distributor_id === distributorId ? { ...d, [field]: newValue } : d))
+      setCategories((prev) =>
+        prev.map((c) => (c.category_id === categoryId ? { ...c, [field]: newValue } : c))
       );
     } catch (err) {
       console.error('Update error:', err.message);
@@ -78,12 +78,11 @@ export default function DistributorsPage() {
   };
 
   const columns = [
-    { key: 'distributor_name', label: 'Distributor Name', editable: true },
-    { key: 'distributor_url', label: 'Website', editable: true },
-    { key: 'distributor_logo_url', label: 'Logo URL', editable: true },
+    { key: 'category_name', label: 'Category Name', editable: true },
+    { key: 'category_description', label: 'Description', editable: true },
   ];
 
-  const sortedDistributors = [...distributors].sort((a, b) => {
+  const sortedCategories = [...categories].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
     const aVal = a[key] ?? '';
@@ -105,7 +104,7 @@ export default function DistributorsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Distributors</h1>
+      <h1>Categories</h1>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
@@ -157,10 +156,10 @@ export default function DistributorsPage() {
           </thead>
 
           <tbody>
-            {sortedDistributors.map((d) => (
-              <tr key={d.distributor_id}>
+            {sortedCategories.map((c) => (
+              <tr key={c.category_id}>
                 {columns.map((col) => {
-                  const value = d[col.key];
+                  const value = c[col.key];
                   const editable = col.editable;
 
                   if (editable)
@@ -168,7 +167,7 @@ export default function DistributorsPage() {
                       <td key={col.key} style={cellStyle}>
                         <EditableCell
                           value={value}
-                          onChange={(val) => handleEdit(d.distributor_id, col.key, val)}
+                          onChange={(val) => handleEdit(c.category_id, col.key, val)}
                         />
                       </td>
                     );
@@ -232,3 +231,4 @@ function EditableCell({ value, onChange }) {
     </div>
   );
 }
+

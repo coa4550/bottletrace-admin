@@ -1,66 +1,234 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
+
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState({});
-  const [search, setSearch] = useState('');
+  const [colWidths, setColWidths] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('supplierColWidths');
+      return saved ? JSON.parse(saved) : {};
+    }
+    return {};
+  });
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  async function fetchSuppliers() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('core_suppliers')
-      .select('supplier_id, supplier_name, supplier_website, created_at')
-      .ilike('supplier_name', `%${search}%`)
-      .order('supplier_name', { ascending: true });
-    if (error) console.error(error);
-    else setSuppliers(data || []);
-    setLoading(false);
-  }
+  useEffect(() => {
+    async function fetchSuppliers() {
+      try {
+        const { data, error } = await supabase
+          .from('core_suppliers')
+          .select('*')
+          .order('supplier_name');
 
-  useEffect(() => { fetchSuppliers(); }, [search]);
+        if (error) throw error;
+        setSuppliers(data || []);
+      } catch (error) {
+        console.error('Error fetching suppliers:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSuppliers();
+  }, []);
 
-  const handleEdit = (id, field, value) => {
-    setEditing(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  const startResize = (e, key) => {
+    const startX = e.clientX;
+    const startWidth = colWidths[key] || 150;
+
+    const onMouseMove = (moveEvent) => {
+      const newWidth = Math.max(60, startWidth + moveEvent.clientX - startX);
+      setColWidths((prev) => {
+        const updated = { ...prev, [key]: newWidth };
+        localStorage.setItem('supplierColWidths', JSON.stringify(updated));
+        return updated;
+      });
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleSave = async (id) => {
-    const updated = editing[id];
-    const { error } = await supabase.from('core_suppliers').update(updated).eq('supplier_id', id);
-    if (!error) {
-      setSuppliers(prev => prev.map(d => (d.supplier_id === id ? { ...d, ...updated } : d)));
-      const newEditing = { ...editing }; delete newEditing[id]; setEditing(newEditing);
-    } else console.error(error);
+  const handleEdit = async (supplierId, field, newValue) => {
+    try {
+      const { error } = await supabase
+        .from('core_suppliers')
+        .update({ [field]: newValue })
+        .eq('supplier_id', supplierId);
+
+      if (error) throw error;
+      setSuppliers((prev) =>
+        prev.map((s) => (s.supplier_id === supplierId ? { ...s, [field]: newValue } : s))
+      );
+    } catch (err) {
+      console.error('Update error:', err.message);
+      alert('Failed to update Supabase.');
+    }
   };
+
+  const columns = [
+    { key: 'supplier_name', label: 'Supplier Name', editable: true },
+    { key: 'supplier_url', label: 'Website', editable: true },
+    { key: 'supplier_logo_url', label: 'Logo URL', editable: true },
+  ];
+
+  const sortedSuppliers = [...suppliers].sort((a, b) => {
+    const { key, direction } = sortConfig;
+    if (!key) return 0;
+    const aVal = a[key] ?? '';
+    const bVal = b[key] ?? '';
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key)
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      return { key, direction: 'asc' };
+    });
+  };
+
+  if (loading) return <p>Loading...</p>;
 
   return (
-    <div>
-      <h1 style={{ fontSize: 24, fontWeight: 600 }}>Suppliers</h1>
+    <div style={{ padding: 20 }}>
+      <h1>Suppliers</h1>
+      <div style={{ overflowX: 'auto' }}>
+        <table
+          style={{
+            borderCollapse: 'collapse',
+            tableLayout: 'auto',
+            width: 'max-content',
+            minWidth: '100%',
+          }}
+        >
+          <thead style={{ background: '#f1f5f9' }}>
+            <tr>
+              {columns.map((col) => (
+                <th
+                  key={col.key}
+                  style={{
+                    width: colWidths[col.key] || 150,
+                    position: 'relative',
+                    borderRight: '1px solid #e2e8f0',
+                    whiteSpace: 'nowrap',
+                    userSelect: 'none',
+                    padding: '8px 12px',
+                    textAlign: 'left',
+                    background: '#f8fafc',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => handleSort(col.key)}
+                >
+                  {col.label}
+                  {sortConfig.key === col.key && (
+                    <span style={{ marginLeft: 4 }}>
+                      {sortConfig.direction === 'asc' ? '▲' : '▼'}
+                    </span>
+                  )}
+                  <div
+                    onMouseDown={(e) => startResize(e, col.key)}
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 0,
+                      height: '100%',
+                      width: '5px',
+                      cursor: 'col-resize',
+                      background: 'transparent',
+                    }}
+                  />
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {sortedSuppliers.map((s) => (
+              <tr key={s.supplier_id}>
+                {columns.map((col) => {
+                  const value = s[col.key];
+                  const editable = col.editable;
+
+                  if (editable)
+                    return (
+                      <td key={col.key} style={cellStyle}>
+                        <EditableCell
+                          value={value}
+                          onChange={(val) => handleEdit(s.supplier_id, col.key, val)}
+                        />
+                      </td>
+                    );
+
+                  return (
+                    <td key={col.key} style={cellStyle}>
+                      {value || '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const cellStyle = {
+  padding: '8px 12px',
+  borderBottom: '1px solid #f1f5f9',
+  whiteSpace: 'nowrap',
+  maxWidth: 400,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+};
+
+function EditableCell({ value, onChange }) {
+  const [editing, setEditing] = useState(false);
+  const [temp, setTemp] = useState(value || '');
+
+  const handleBlur = () => {
+    setEditing(false);
+    if (temp !== value) onChange(temp);
+  };
+
+  if (editing)
+    return (
       <input
-        type="text" placeholder="Search suppliers..." value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ marginTop: 16, marginBottom: 16, padding: 8, width: '100%', maxWidth: 400, borderRadius: 6, border: '1px solid #cbd5e1' }}
+        value={temp}
+        onChange={(e) => setTemp(e.target.value)}
+        onBlur={handleBlur}
+        autoFocus
+        style={{
+          width: '100%',
+          padding: 4,
+          border: '1px solid #cbd5e1',
+          borderRadius: 4,
+        }}
       />
-      {loading ? <p>Loading suppliers...</p> : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ background: '#f1f5f9', textAlign: 'left' }}>
-            <th style={{ padding: 8 }}>Name</th><th style={{ padding: 8 }}>Website</th><th style={{ padding: 8 }}>Created</th><th style={{ padding: 8 }}>Actions</th></tr></thead>
-          <tbody>{suppliers.map((s) => {
-            const isEditing = editing[s.supplier_id];
-            return (
-              <tr key={s.supplier_id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: 8 }}>{isEditing ? <input value={isEditing.supplier_name} onChange={(e) => handleEdit(s.supplier_id, 'supplier_name', e.target.value)} /> : s.supplier_name}</td>
-                <td style={{ padding: 8 }}>{isEditing ? <input value={isEditing.supplier_website} onChange={(e) => handleEdit(s.supplier_id, 'supplier_website', e.target.value)} /> : s.supplier_website || '—'}</td>
-                <td style={{ padding: 8 }}>{new Date(s.created_at).toLocaleDateString()}</td>
-                <td style={{ padding: 8 }}>{isEditing ? <button onClick={() => handleSave(s.supplier_id)}>💾 Save</button> : <button onClick={() => setEditing({ ...editing, [s.supplier_id]: s })}>✏️ Edit</button>}</td>
-              </tr>);
-          })}</tbody>
-        </table>)}
+    );
+
+  return (
+    <div
+      onClick={() => setEditing(true)}
+      style={{ cursor: 'text', minWidth: 80 }}
+      title="Click to edit"
+    >
+      {value || '—'}
     </div>
   );
 }

@@ -7,12 +7,12 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-export default function DistributorsPage() {
-  const [distributors, setDistributors] = useState([]);
+export default function SubCategoriesPage() {
+  const [subCategories, setSubCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [colWidths, setColWidths] = useState(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('distributorColWidths');
+      const saved = localStorage.getItem('subCategoryColWidths');
       return saved ? JSON.parse(saved) : {};
     }
     return {};
@@ -20,22 +20,30 @@ export default function DistributorsPage() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
-    async function fetchDistributors() {
+    async function fetchSubCategories() {
       try {
+        // Fetch sub-categories with parent category info
         const { data, error } = await supabase
-          .from('core_distributors')
-          .select('*')
-          .order('distributor_name');
+          .from('sub_categories')
+          .select('*, categories(category_name)')
+          .order('sub_category_name');
 
         if (error) throw error;
-        setDistributors(data || []);
+
+        // Flatten the nested category data
+        const enriched = data.map(sc => ({
+          ...sc,
+          category_name: sc.categories?.category_name || '—'
+        }));
+
+        setSubCategories(enriched || []);
       } catch (error) {
-        console.error('Error fetching distributors:', error);
+        console.error('Error fetching sub-categories:', error);
       } finally {
         setLoading(false);
       }
     }
-    fetchDistributors();
+    fetchSubCategories();
   }, []);
 
   const startResize = (e, key) => {
@@ -46,7 +54,7 @@ export default function DistributorsPage() {
       const newWidth = Math.max(60, startWidth + moveEvent.clientX - startX);
       setColWidths((prev) => {
         const updated = { ...prev, [key]: newWidth };
-        localStorage.setItem('distributorColWidths', JSON.stringify(updated));
+        localStorage.setItem('subCategoryColWidths', JSON.stringify(updated));
         return updated;
       });
     };
@@ -60,16 +68,16 @@ export default function DistributorsPage() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleEdit = async (distributorId, field, newValue) => {
+  const handleEdit = async (subCategoryId, field, newValue) => {
     try {
       const { error } = await supabase
-        .from('core_distributors')
+        .from('sub_categories')
         .update({ [field]: newValue })
-        .eq('distributor_id', distributorId);
+        .eq('sub_category_id', subCategoryId);
 
       if (error) throw error;
-      setDistributors((prev) =>
-        prev.map((d) => (d.distributor_id === distributorId ? { ...d, [field]: newValue } : d))
+      setSubCategories((prev) =>
+        prev.map((sc) => (sc.sub_category_id === subCategoryId ? { ...sc, [field]: newValue } : sc))
       );
     } catch (err) {
       console.error('Update error:', err.message);
@@ -78,12 +86,11 @@ export default function DistributorsPage() {
   };
 
   const columns = [
-    { key: 'distributor_name', label: 'Distributor Name', editable: true },
-    { key: 'distributor_url', label: 'Website', editable: true },
-    { key: 'distributor_logo_url', label: 'Logo URL', editable: true },
+    { key: 'sub_category_name', label: 'Sub-Category Name', editable: true },
+    { key: 'category_name', label: 'Parent Category', editable: false },
   ];
 
-  const sortedDistributors = [...distributors].sort((a, b) => {
+  const sortedSubCategories = [...subCategories].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
     const aVal = a[key] ?? '';
@@ -105,7 +112,7 @@ export default function DistributorsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Distributors</h1>
+      <h1>Sub-Categories</h1>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
@@ -157,10 +164,10 @@ export default function DistributorsPage() {
           </thead>
 
           <tbody>
-            {sortedDistributors.map((d) => (
-              <tr key={d.distributor_id}>
+            {sortedSubCategories.map((sc) => (
+              <tr key={sc.sub_category_id}>
                 {columns.map((col) => {
-                  const value = d[col.key];
+                  const value = sc[col.key];
                   const editable = col.editable;
 
                   if (editable)
@@ -168,7 +175,7 @@ export default function DistributorsPage() {
                       <td key={col.key} style={cellStyle}>
                         <EditableCell
                           value={value}
-                          onChange={(val) => handleEdit(d.distributor_id, col.key, val)}
+                          onChange={(val) => handleEdit(sc.sub_category_id, col.key, val)}
                         />
                       </td>
                     );
@@ -232,3 +239,4 @@ function EditableCell({ value, onChange }) {
     </div>
   );
 }
+
