@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
   </h4>
   <a href="/audit/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Audit Supplier Portfolio</a>
   <a href="/audit/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Audit Distributor Portfolio</a>
-  <a href="/audit/orphans" style={{ color:'#fbbf24', textDecoration:'none', paddingLeft: 12 }}>🗑️ Orphaned Relationships</a>
+  <a href="/audit/orphans" style={{ color:'#fbbf24', textDecoration:'none', paddingLeft: 12 }}>Orphaned Brands</a>
 
   <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
     Data Import
