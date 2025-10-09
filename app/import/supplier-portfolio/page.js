@@ -16,9 +16,7 @@ export default function ImportSupplierPortfolio() {
     setFile(selectedFile);
     setValidation(null);
     setResults(null);
-    setBrand
-
-Matches({});
+    setBrandMatches({});
     parseFile(selectedFile);
   };
 
