@@ -39,29 +39,26 @@ CREATE INDEX idx_brand_supplier_brand_id ON brand_supplier(brand_id);
 CREATE INDEX idx_brand_supplier_supplier_id ON brand_supplier(supplier_id);
 CREATE INDEX idx_brand_supplier_verified ON brand_supplier(is_verified);
 
--- Step 7: Update core_orphans table if it exists (remove state_id)
+-- Step 7: Recreate core_orphans table without state_id (if it exists)
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'core_orphans') THEN
-        -- Create new orphans table without state_id
-        CREATE TABLE core_orphans_temp AS
-        SELECT DISTINCT ON (brand_id, supplier_id)
-            orphan_id,
-            brand_id,
-            supplier_id,
-            was_verified,
-            last_verified_at,
-            relationship_source,
-            reason,
-            created_at
-        FROM core_orphans
-        ORDER BY brand_id, supplier_id, created_at DESC;
-        
+        -- Drop the old orphans table (we can start fresh)
         DROP TABLE core_orphans;
-        ALTER TABLE core_orphans_temp RENAME TO core_orphans;
         
-        ALTER TABLE core_orphans
-        ADD CONSTRAINT core_orphans_pkey PRIMARY KEY (orphan_id);
+        -- Create new orphans table structure without state_id
+        CREATE TABLE core_orphans (
+            brand_id UUID NOT NULL,
+            supplier_id UUID NOT NULL,
+            was_verified BOOLEAN DEFAULT FALSE,
+            last_verified_at TIMESTAMP,
+            relationship_source TEXT,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            PRIMARY KEY (brand_id, supplier_id),
+            FOREIGN KEY (brand_id) REFERENCES core_brands(brand_id) ON DELETE CASCADE,
+            FOREIGN KEY (supplier_id) REFERENCES core_suppliers(supplier_id) ON DELETE CASCADE
+        );
     END IF;
 END $$;
 
