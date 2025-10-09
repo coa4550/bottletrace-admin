@@ -48,16 +48,32 @@ export default function AuditSupplierPortfolioPage() {
         if (supplierError) throw supplierError;
         setSupplierInfo(supplier);
 
-        // Fetch brands in this supplier's portfolio
-        const { data: relationships, error: relError } = await supabase
-          .from('brand_supplier_state')
-          .select('brand_id')
-          .eq('supplier_id', selectedSupplier);
+        // Fetch brands in this supplier's portfolio (with pagination to get ALL relationships)
+        let allRelationships = [];
+        let start = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        if (relError) throw relError;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('brand_supplier_state')
+            .select('brand_id')
+            .eq('supplier_id', selectedSupplier)
+            .range(start, start + pageSize - 1);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allRelationships = [...allRelationships, ...data];
+            start += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
 
         // Get unique brand IDs
-        const brandIds = [...new Set(relationships.map(r => r.brand_id))];
+        const brandIds = [...new Set(allRelationships.map(r => r.brand_id))];
 
         if (brandIds.length === 0) {
           setPortfolioBrands([]);
