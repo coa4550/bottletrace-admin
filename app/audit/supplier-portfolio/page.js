@@ -320,9 +320,9 @@ export default function AuditSupplierPortfolioPage() {
               borderRadius: 8, 
               padding: 20 
             }}>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'start' }}>
+              <div style={{ display: 'flex', gap: 40, alignItems: 'start' }}>
                 {/* Left side - Form fields */}
-                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 600 }}>
+                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 500 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
                       Supplier Name
@@ -449,7 +449,7 @@ export default function AuditSupplierPortfolioPage() {
                 }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ ...headerStyle, width: 40, padding: '12px 8px' }}>
+                      <th style={{ ...headerStyle, width: 30, padding: '8px 4px', textAlign: 'center' }}>
                         <input
                           type="checkbox"
                           checked={selectedBrands.size === portfolioBrands.length && portfolioBrands.length > 0}
@@ -475,7 +475,7 @@ export default function AuditSupplierPortfolioPage() {
                           background: selectedBrands.has(brand.brand_id) ? '#eff6ff' : 'transparent'
                         }}
                       >
-                        <td style={{ ...cellStyle, padding: '12px 8px', textAlign: 'center' }}>
+                        <td style={{ padding: '8px 4px', textAlign: 'center', width: 30 }}>
                           <input
                             type="checkbox"
                             checked={selectedBrands.has(brand.brand_id)}
@@ -552,7 +552,7 @@ const cellStyle = {
   color: '#1e293b'
 };
 
-function EditableInput({ value, onChange }) {
+function EditableInput({ value, onChange, style }) {
   const [editing, setEditing] = useState(false);
   const [temp, setTemp] = useState(value || '');
 
@@ -577,7 +577,8 @@ function EditableInput({ value, onChange }) {
           padding: '6px 8px',
           border: '1px solid #3b82f6',
           borderRadius: 4,
-          fontSize: 14
+          fontSize: 14,
+          ...style
         }}
       />
     );
@@ -591,11 +592,15 @@ function EditableInput({ value, onChange }) {
         cursor: 'text',
         minHeight: 32,
         borderRadius: 4,
-        border: '1px solid transparent'
+        border: '1px solid transparent',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        ...style
       }}
       onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
       onMouseLeave={(e) => e.target.style.background = 'transparent'}
-      title="Click to edit"
+      title={value || "Click to edit"}
     >
       {value || '—'}
     </div>
