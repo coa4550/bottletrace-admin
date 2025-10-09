@@ -277,10 +277,10 @@ export default function ImportSupplierPortfolio() {
               }
             });
             
-            // Filter orphaned brands - exclude any that are now matched
-            const orphanedBrands = (supplier.orphanedBrands || []).filter(
-              orphan => !matchedBrandIds.has(orphan.brand_id)
-            );
+            // Filter orphaned brands - exclude any that are now matched, then sort alphabetically
+            const orphanedBrands = (supplier.orphanedBrands || [])
+              .filter(orphan => !matchedBrandIds.has(orphan.brand_id))
+              .sort((a, b) => a.brand_name.localeCompare(b.brand_name));
 
             return (
               <div key={idx} style={{ marginBottom: 40 }}>
@@ -381,25 +381,34 @@ export default function ImportSupplierPortfolio() {
                         - Will move to orphans table
                       </span>
                     </div>
-                    {orphanedBrands.map((brand, brandIdx) => (
-                      <div key={brandIdx} style={{ 
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: 0,
-                        borderBottom: '1px solid #fecaca',
-                        background: '#fef2f2'
-                      }}>
-                        <div style={{ padding: '12px 16px', borderRight: '2px solid #fecaca' }}>
-                          <span style={{ color: '#94a3b8', fontSize: 14 }}>— Not in import —</span>
+                    {orphanedBrands.map((brand, brandIdx) => {
+                      // Parse states string to count them
+                      const statesArray = brand.states.split(', ').filter(s => s);
+                      const stateCount = statesArray.length;
+                      const statesDisplay = stateCount > 5 
+                        ? `${stateCount} states (${statesArray.slice(0, 3).join(', ')}...)` 
+                        : brand.states;
+                      
+                      return (
+                        <div key={brandIdx} style={{ 
+                          display: 'grid',
+                          gridTemplateColumns: '1fr 1fr',
+                          gap: 0,
+                          borderBottom: '1px solid #fecaca',
+                          background: '#fef2f2'
+                        }}>
+                          <div style={{ padding: '12px 16px', borderRight: '2px solid #fecaca' }}>
+                            <span style={{ color: '#94a3b8', fontSize: 14 }}>— Not in import —</span>
+                          </div>
+                          <div style={{ padding: '12px 16px' }}>
+                            <strong>{brand.brand_name}</strong>
+                            <span style={{ fontSize: 13, color: '#991b1b', marginLeft: 8 }} title={brand.states}>
+                              States: {statesDisplay}
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ padding: '12px 16px' }}>
-                          <strong>{brand.brand_name}</strong>
-                          <span style={{ fontSize: 13, color: '#991b1b', marginLeft: 8 }}>
-                            States: {brand.states}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
