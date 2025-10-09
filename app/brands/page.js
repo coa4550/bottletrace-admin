@@ -36,22 +36,14 @@ export default function BrandsPage() {
           .from('brand_categories')
           .select('brand_id, categories(category_name)');
 
-        if (catsError) {
-          console.error('Categories error:', catsError);
-        } else {
-          console.log('Brand categories data:', brandCats);
-        }
+        if (catsError) throw catsError;
 
         // Fetch brand-subcategory mappings
         const { data: brandSubcats, error: subcatsError } = await supabase
           .from('brand_sub_categories')
           .select('brand_id, sub_categories(sub_category_name)');
 
-        if (subcatsError) {
-          console.error('Sub-categories error:', subcatsError);
-        } else {
-          console.log('Brand sub-categories data:', brandSubcats);
-        }
+        if (subcatsError) throw subcatsError;
 
         // Create lookup maps
         const catsMap = {};
