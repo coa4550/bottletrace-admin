@@ -47,21 +47,28 @@ export async function POST(req) {
     const importedRelationships = new Map(); // Map<supplierId, Set<brandId-stateId>>
     
     // Pre-load all suppliers, brands, and states for this batch to avoid repeated queries
-    const { data: allSuppliers } = await supabaseAdmin
+    const { data: allSuppliers, error: suppliersError } = await supabaseAdmin
       .from('core_suppliers')
       .select('supplier_id, supplier_name');
     
-    const { data: allBrands } = await supabaseAdmin
+    if (suppliersError) throw suppliersError;
+    
+    const { data: allBrands, error: brandsError } = await supabaseAdmin
       .from('core_brands')
       .select('brand_id, brand_name');
     
-    const { data: allStates } = await supabaseAdmin
+    if (brandsError) throw brandsError;
+    
+    const { data: allStates, error: statesError } = await supabaseAdmin
       .from('core_states')
       .select('state_id, state_code, state_name');
+    
+    if (statesError) throw statesError;
     
     // Build lookup maps
     const supplierMap = new Map(allSuppliers?.map(s => [s.supplier_name, s]) || []);
     const brandMap = new Map(allBrands?.map(b => [b.brand_name, b]) || []);
+    const brandIdMap = new Map(allBrands?.map(b => [b.brand_id, b]) || []); // Map by ID for confirmed matches
     const stateCodeMap = new Map(allStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
     const stateNameMap = new Map(allStates?.map(s => [s.state_name?.toLowerCase(), s]) || []);
     
@@ -94,13 +101,20 @@ export async function POST(req) {
         // Find or queue brand creation (respect user overrides)
         let targetBrandName = brandName;
         if (confirmedMatches[rowIndex] && confirmedMatches[rowIndex].useExisting) {
-          // User manually selected an existing brand
-          const existingBrand = allBrands.find(b => b.brand_id === confirmedMatches[rowIndex].existingBrandId);
+          // User manually selected an existing brand - look it up by ID
+          const existingBrand = brandIdMap.get(confirmedMatches[rowIndex].existingBrandId);
           if (existingBrand) {
             targetBrandName = existingBrand.brand_name;
+          } else {
+            // Fallback: try to find by name in case of mismatch
+            errors.push(`Warning: Could not find confirmed brand match for ${brandName} (ID: ${confirmedMatches[rowIndex].existingBrandId}). Creating new brand.`);
+            targetBrandName = brandName;
           }
-        } else if (!brandMap.has(brandName) && !brandsToCreate.some(b => b.name === brandName)) {
-          brandsToCreate.push({ name: brandName, row });
+        }
+        
+        // Queue for creation if needed (and not already confirmed to exist)
+        if (!brandMap.has(targetBrandName) && !brandsToCreate.some(b => b.name === targetBrandName)) {
+          brandsToCreate.push({ name: targetBrandName, row });
         }
 
         // Find states
@@ -139,11 +153,11 @@ export async function POST(req) {
 
       if (supplierError) throw supplierError;
 
-      suppliersCreated += newSuppliers.length;
-      newSuppliers.forEach(s => supplierMap.set(s.supplier_name, s));
+      suppliersCreated += newSuppliers?.length || 0;
+      newSuppliers?.forEach(s => supplierMap.set(s.supplier_name, s));
 
       // Log supplier creations
-      newSuppliers.forEach((s, idx) => {
+      newSuppliers?.forEach((s, idx) => {
         changes.push({
           import_log_id: importLogId,
           change_type: 'supplier_created',
@@ -165,11 +179,14 @@ export async function POST(req) {
 
       if (brandError) throw brandError;
 
-      brandsCreated += newBrands.length;
-      newBrands.forEach(b => brandMap.set(b.brand_name, b));
+      brandsCreated += newBrands?.length || 0;
+      newBrands?.forEach(b => {
+        brandMap.set(b.brand_name, b);
+        brandIdMap.set(b.brand_id, b);
+      });
 
       // Log brand creations
-      newBrands.forEach((b, idx) => {
+      newBrands?.forEach((b, idx) => {
         changes.push({
           import_log_id: importLogId,
           change_type: 'brand_created',
@@ -206,8 +223,14 @@ export async function POST(req) {
       const supplier = supplierMap.get(supplierName);
       const brand = brandMap.get(brandName);
 
-      if (!supplier || !brand) {
-        errors.push(`Could not find supplier or brand: ${supplierName} - ${brandName}`);
+      if (!supplier) {
+        errors.push(`Could not find supplier in map: ${supplierName} (for brand: ${brandName})`);
+        skipped++;
+        continue;
+      }
+      
+      if (!brand) {
+        errors.push(`Could not find brand in map: ${brandName} (for supplier: ${supplierName}). Available brands: ${Array.from(brandMap.keys()).filter(k => k.toLowerCase().includes(brandName.toLowerCase().substring(0, 3))).join(', ')}`);
         skipped++;
         continue;
       }
