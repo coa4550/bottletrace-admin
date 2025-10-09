@@ -288,59 +288,13 @@ export async function POST(req) {
       }
     }
 
-    // Step 8: Handle orphaned relationships - only on last batch
-    if (isLastBatch) {
-      for (const [supplierId, importedBrandIds] of importedRelationships.entries()) {
-        try {
-          const { data: existingRels, error: existingError } = await supabaseAdmin
-            .from('brand_supplier')
-            .select('brand_id, is_verified, last_verified_at, relationship_source')
-            .eq('supplier_id', supplierId);
-
-          if (existingError) throw existingError;
-
-          const orphanedRels = [];
-          const orphanRecords = [];
-          
-          for (const rel of existingRels || []) {
-            if (!importedBrandIds.has(rel.brand_id)) {
-              orphanedRels.push(rel);
-              orphanRecords.push({
-                brand_id: rel.brand_id,
-                supplier_id: supplierId,
-                was_verified: rel.is_verified,
-                last_verified_at: rel.last_verified_at,
-                relationship_source: rel.relationship_source,
-                reason: 'not_in_import'
-              });
-            }
-          }
-
-          // Bulk insert orphans
-          if (orphanRecords.length > 0) {
-            try {
-              await supabaseAdmin.from('core_orphans').insert(orphanRecords);
-            } catch (orphanInsertError) {
-              console.warn('Could not insert orphans:', orphanInsertError.message);
-            }
-
-            // Delete orphaned relationships
-            for (const rel of orphanedRels) {
-              const { error: deleteError } = await supabaseAdmin
-                .from('brand_supplier')
-                .delete()
-                .eq('brand_id', rel.brand_id)
-                .eq('supplier_id', supplierId);
-
-              if (deleteError) throw deleteError;
-              relationshipsOrphaned++;
-            }
-          }
-        } catch (orphanError) {
-          errors.push(`Error handling orphaned relationships: ${orphanError.message}`);
-        }
-      }
-    }
+    // Step 8: Handle orphaned relationships
+    // NOTE: Orphaning is disabled for batched imports because each batch only knows about its own brands
+    // To enable orphaning, you would need to pass ALL imported brands across all batches
+    // For now, orphans must be handled manually via the Orphans audit page
+    // if (isLastBatch) {
+    //   // Orphaning logic disabled in batched imports
+    // }
 
     // Save all changes to import_changes table
     if (changes.length > 0) {

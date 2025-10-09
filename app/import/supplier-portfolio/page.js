@@ -277,10 +277,8 @@ export default function ImportSupplierPortfolio() {
               }
             });
             
-            // Filter orphaned brands - exclude any that are now matched, then sort alphabetically
-            const orphanedBrands = (supplier.orphanedBrands || [])
-              .filter(orphan => !matchedBrandIds.has(orphan.brand_id))
-              .sort((a, b) => a.brand_name.localeCompare(b.brand_name));
+            // Orphaning disabled - use Orphans audit page to manage orphaned brands manually
+            const orphanedBrands = [];
 
             return (
               <div key={idx} style={{ marginBottom: 40 }}>
@@ -477,9 +475,6 @@ export default function ImportSupplierPortfolio() {
             <p>✅ Brands created: {results.brandsCreated}</p>
             <p>✅ Relationships created: {results.relationshipsCreated}</p>
             <p>🔄 Relationships re-verified: {results.relationshipsVerified}</p>
-            {results.relationshipsOrphaned > 0 && (
-              <p style={{ color: '#d97706' }}>🗑️ Relationships moved to orphans: {results.relationshipsOrphaned}</p>
-            )}
             <p>⚠️ Rows skipped: {results.skipped}</p>
             {results.errors && results.errors.length > 0 && (
               <div style={{ marginTop: 12 }}>

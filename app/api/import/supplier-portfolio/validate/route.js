@@ -200,41 +200,8 @@ export async function POST(req) {
         }
       }
 
-      // Find orphaned relationships (in DB but not in import)
+      // Orphaning disabled - brands must be managed via Orphans audit page
       const orphanedBrands = [];
-      if (supplierId) {
-        console.log(`Checking orphans for ${supplierName}, existing relationships:`, existingRelationships.length);
-        console.log(`Import brand IDs:`, Array.from(importedBrandIds));
-        
-        const brandStateMap = new Map();
-        
-        // Group existing relationships by brand
-        for (const rel of existingRelationships) {
-          const brandId = rel.brand_id;
-          if (!brandStateMap.has(brandId)) {
-            brandStateMap.set(brandId, {
-              brand_id: brandId,
-              brand_name: rel.core_brands.brand_name
-            });
-          }
-        }
-
-        console.log(`Unique brands in existing relationships:`, brandStateMap.size);
-
-        // Check which brands will be orphaned
-        for (const [brandId, brandData] of brandStateMap.entries()) {
-          if (!importedBrandIds.has(brandId)) {
-            console.log(`Brand ${brandData.brand_name} will be orphaned (not in import)`);
-            orphanedBrands.push({
-              brand_id: brandId,
-              brand_name: brandData.brand_name,
-              action: 'orphan'
-            });
-          }
-        }
-        
-        console.log(`Total orphaned brands for ${supplierName}:`, orphanedBrands.length);
-      }
 
       supplierReviews.push({
         supplierName,
