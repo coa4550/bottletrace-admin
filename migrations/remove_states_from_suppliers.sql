@@ -11,8 +11,7 @@ SELECT DISTINCT ON (brand_id, supplier_id)
     is_verified,
     last_verified_at,
     relationship_source,
-    created_at,
-    updated_at
+    created_at
 FROM brand_supplier_state
 ORDER BY brand_id, supplier_id, last_verified_at DESC NULLS LAST;
 
