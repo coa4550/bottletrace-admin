@@ -320,9 +320,9 @@ export default function AuditSupplierPortfolioPage() {
               borderRadius: 8, 
               padding: 20 
             }}>
-              <div style={{ display: 'flex', gap: 32, alignItems: 'start' }}>
+              <div style={{ display: 'flex', gap: 16, alignItems: 'start' }}>
                 {/* Left side - Form fields */}
-                <div style={{ flex: 1, display: 'grid', gap: 16 }}>
+                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 600 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
                       Supplier Name
@@ -354,12 +354,10 @@ export default function AuditSupplierPortfolioPage() {
                 
                 {/* Right side - Logo preview */}
                 <div style={{ 
-                  width: 250, 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: 8
+                  width: 200,
+                  flexShrink: 0
                 }}>
-                  <label style={{ fontSize: 14, color: '#475569', fontWeight: 600 }}>
+                  <label style={{ display: 'block', fontSize: 14, color: '#475569', fontWeight: 600, marginBottom: 8 }}>
                     Supplier Logo
                   </label>
                   {supplierInfo.supplier_logo_url ? (
@@ -386,11 +384,8 @@ export default function AuditSupplierPortfolioPage() {
                         onError={(e) => {
                           console.error('Failed to load logo:', supplierInfo.supplier_logo_url);
                           e.target.parentElement.innerHTML = `
-                            <div style="color: #ef4444; fontSize: 13px; textAlign: center; padding: 16px;">
-                              ⚠️ Failed to load logo<br/>
-                              <span style="fontSize: 11px; color: #64748b; marginTop: 8px; display: block;">
-                                ${supplierInfo.supplier_logo_url}
-                              </span>
+                            <div style="color: #ef4444; font-size: 13px; text-align: center; padding: 16px;">
+                              ⚠️ Failed to load logo
                             </div>
                           `;
                         }}
@@ -410,11 +405,6 @@ export default function AuditSupplierPortfolioPage() {
                       fontSize: 13
                     }}>
                       No logo URL set
-                    </div>
-                  )}
-                  {supplierInfo.supplier_logo_url && (
-                    <div style={{ fontSize: 11, color: '#64748b', wordBreak: 'break-all' }}>
-                      {supplierInfo.supplier_logo_url}
                     </div>
                   )}
                 </div>
@@ -459,7 +449,7 @@ export default function AuditSupplierPortfolioPage() {
                 }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ ...headerStyle, width: 40 }}>
+                      <th style={{ ...headerStyle, width: 40, padding: '12px 8px' }}>
                         <input
                           type="checkbox"
                           checked={selectedBrands.size === portfolioBrands.length && portfolioBrands.length > 0}
@@ -473,7 +463,7 @@ export default function AuditSupplierPortfolioPage() {
                       <th style={headerStyle}>Sub-Categories</th>
                       <th style={headerStyle}>Brand URL</th>
                       <th style={headerStyle}>Logo URL</th>
-                      <th style={headerStyle}>Actions</th>
+                      <th style={{ ...headerStyle, width: 90 }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -485,7 +475,7 @@ export default function AuditSupplierPortfolioPage() {
                           background: selectedBrands.has(brand.brand_id) ? '#eff6ff' : 'transparent'
                         }}
                       >
-                        <td style={{ ...cellStyle, padding: '12px 16px', textAlign: 'center' }}>
+                        <td style={{ ...cellStyle, padding: '12px 8px', textAlign: 'center' }}>
                           <input
                             type="checkbox"
                             checked={selectedBrands.has(brand.brand_id)}
