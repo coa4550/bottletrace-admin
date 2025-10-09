@@ -35,6 +35,7 @@ export default function ImportSupplierPortfolio() {
   const handleValidate = async () => {
     setLoading(true);
     try {
+      console.log('Validating with rows:', parsed);
       const response = await fetch('/api/import/supplier-portfolio/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -42,6 +43,14 @@ export default function ImportSupplierPortfolio() {
       });
       
       const result = await response.json();
+      console.log('Validation result:', result);
+      
+      if (result.error) {
+        alert('Validation error: ' + result.error);
+        setLoading(false);
+        return;
+      }
+      
       setValidation(result);
       
       // Initialize brand matches with defaults
@@ -55,6 +64,7 @@ export default function ImportSupplierPortfolio() {
           };
         });
       });
+      console.log('Brand matches initialized:', matches);
       setBrandMatches(matches);
     } catch (error) {
       console.error('Validation error:', error);
@@ -132,27 +142,24 @@ export default function ImportSupplierPortfolio() {
         />
       </div>
 
-      {parsed.length > 0 && !validation && !results && (
-        <div style={{ marginTop: 24 }}>
-          <h3>Parsed Rows: {parsed.length}</h3>
-          <button
-            onClick={handleValidate}
-            disabled={loading}
-            style={{
-              marginTop: 16,
-              padding: '10px 20px',
-              background: loading ? '#94a3b8' : '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontWeight: 500
-            }}
-          >
-            {loading ? 'Validating...' : 'Validate & Review Changes'}
-          </button>
-        </div>
-      )}
+      {parsed.length > 0 && <p style={{ marginTop: 16, fontSize: 14, color: '#64748b' }}>Parsed {parsed.length} rows</p>}
+
+      <button
+        onClick={handleValidate}
+        disabled={loading || parsed.length === 0}
+        style={{
+          marginTop: 16,
+          padding: '10px 20px',
+          background: (loading || parsed.length === 0) ? '#94a3b8' : '#3b82f6',
+          color: 'white',
+          border: 'none',
+          borderRadius: 6,
+          cursor: (loading || parsed.length === 0) ? 'not-allowed' : 'pointer',
+          fontWeight: 500
+        }}
+      >
+        {loading ? 'Validating...' : 'Validate & Review Changes'}
+      </button>
 
       {validation && validation.supplierReviews && (
         <div style={{ marginTop: 32 }}>
