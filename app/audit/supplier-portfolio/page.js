@@ -29,12 +29,26 @@ export default function AuditSupplierPortfolioPage() {
         
         // Check for duplicate supplier names
         const nameCounts = {};
+        const suppliersByName = {};
         data?.forEach(s => {
           nameCounts[s.supplier_name] = (nameCounts[s.supplier_name] || 0) + 1;
+          if (!suppliersByName[s.supplier_name]) {
+            suppliersByName[s.supplier_name] = [];
+          }
+          suppliersByName[s.supplier_name].push(s.supplier_id);
         });
         const duplicates = Object.entries(nameCounts).filter(([name, count]) => count > 1);
         if (duplicates.length > 0) {
-          console.warn('Duplicate supplier names found:', duplicates);
+          console.warn('⚠️ DUPLICATE SUPPLIER NAMES FOUND:', duplicates);
+          duplicates.forEach(([name, count]) => {
+            console.warn(`  "${name}" has ${count} entries with IDs:`, suppliersByName[name]);
+          });
+        }
+        
+        // Check specifically for Hotaling
+        const hotalingSuppliers = data?.filter(s => s.supplier_name.includes('Hotaling'));
+        if (hotalingSuppliers && hotalingSuppliers.length > 0) {
+          console.log('🔍 Hotaling suppliers found:', hotalingSuppliers);
         }
       }
     }
