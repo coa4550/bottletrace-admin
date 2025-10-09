@@ -9,6 +9,7 @@ export default function ImportSupplierPortfolio() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [brandMatches, setBrandMatches] = useState({});
+  const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -77,25 +78,100 @@ export default function ImportSupplierPortfolio() {
 
   const handleImport = async () => {
     setLoading(true);
+    setProgress({ current: 0, total: parsed.length, message: 'Starting import...' });
+    
     try {
-      const response = await fetch('/api/import/supplier-portfolio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          rows: parsed,
-          confirmedMatches: brandMatches,
-          fileName: file?.name
-        })
+      // Process in batches for progress updates
+      const BATCH_SIZE = 10;
+      const batches = [];
+      for (let i = 0; i < parsed.length; i += BATCH_SIZE) {
+        batches.push(parsed.slice(i, i + BATCH_SIZE));
+      }
+
+      let totalSuppliersCreated = 0;
+      let totalBrandsCreated = 0;
+      let totalRelationshipsCreated = 0;
+      let totalRelationshipsVerified = 0;
+      let totalRelationshipsOrphaned = 0;
+      let totalSkipped = 0;
+      let allErrors = [];
+      let importLogId = null;
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const batchStartIndex = i * BATCH_SIZE;
+        
+        setProgress({
+          current: batchStartIndex,
+          total: parsed.length,
+          message: `Processing rows ${batchStartIndex + 1}-${Math.min(batchStartIndex + batch.length, parsed.length)} of ${parsed.length}...`
+        });
+
+        // Extract confirmed matches for this batch only
+        const batchMatches = {};
+        batch.forEach((_, idx) => {
+          const originalIndex = batchStartIndex + idx;
+          if (brandMatches[originalIndex]) {
+            batchMatches[idx] = brandMatches[originalIndex];
+          }
+        });
+
+        const response = await fetch('/api/import/supplier-portfolio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            rows: batch,
+            confirmedMatches: batchMatches,
+            fileName: file?.name,
+            isFirstBatch: i === 0,
+            isLastBatch: i === batches.length - 1,
+            existingImportLogId: importLogId
+          })
+        });
+        
+        const result = await response.json();
+        
+        // Save importLogId from first batch
+        if (i === 0 && result.importLogId) {
+          importLogId = result.importLogId;
+        }
+
+        // Accumulate results
+        totalSuppliersCreated += result.suppliersCreated || 0;
+        totalBrandsCreated += result.brandsCreated || 0;
+        totalRelationshipsCreated += result.relationshipsCreated || 0;
+        totalRelationshipsVerified += result.relationshipsVerified || 0;
+        totalRelationshipsOrphaned += result.relationshipsOrphaned || 0;
+        totalSkipped += result.skipped || 0;
+        if (result.errors && result.errors.length > 0) {
+          allErrors = [...allErrors, ...result.errors];
+        }
+      }
+
+      setProgress({
+        current: parsed.length,
+        total: parsed.length,
+        message: 'Import complete!'
+      });
+
+      setResults({
+        suppliersCreated: totalSuppliersCreated,
+        brandsCreated: totalBrandsCreated,
+        relationshipsCreated: totalRelationshipsCreated,
+        relationshipsVerified: totalRelationshipsVerified,
+        relationshipsOrphaned: totalRelationshipsOrphaned,
+        skipped: totalSkipped,
+        errors: allErrors.slice(0, 20), // Show up to 20 errors
+        importLogId
       });
       
-      const result = await response.json();
-      setResults(result);
       setValidation(null);
     } catch (error) {
       console.error('Import error:', error);
       alert('Import failed: ' + error.message);
     } finally {
       setLoading(false);
+      setTimeout(() => setProgress({ current: 0, total: 0, message: '' }), 2000);
     }
   };
 
@@ -334,6 +410,44 @@ export default function ImportSupplierPortfolio() {
           >
             {loading ? 'Importing...' : 'Confirm & Import to Database'}
           </button>
+
+          {/* Progress Bar */}
+          {loading && progress.total > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ marginBottom: 8, fontSize: 14, color: '#64748b' }}>
+                {progress.message}
+              </div>
+              <div style={{ 
+                width: '100%', 
+                height: 24, 
+                background: '#e2e8f0', 
+                borderRadius: 12,
+                overflow: 'hidden',
+                position: 'relative'
+              }}>
+                <div style={{ 
+                  width: `${(progress.current / progress.total) * 100}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #10b981, #059669)',
+                  transition: 'width 0.3s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <span style={{ 
+                    color: 'white', 
+                    fontSize: 12, 
+                    fontWeight: 600,
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)'
+                  }}>
+                    {Math.round((progress.current / progress.total) * 100)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -3,25 +3,36 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function POST(req) {
   try {
-    const { rows, confirmedMatches = {}, fileName } = await req.json();
+    const { 
+      rows, 
+      confirmedMatches = {}, 
+      fileName,
+      isFirstBatch = true,
+      isLastBatch = true,
+      existingImportLogId = null
+    } = await req.json();
     
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: 'No rows provided' }, { status: 400 });
     }
 
-    // Create import log entry
-    const { data: importLog, error: logError } = await supabaseAdmin
-      .from('import_logs')
-      .insert({
-        import_type: 'supplier_portfolio',
-        file_name: fileName || 'unknown',
-        rows_processed: rows.length
-      })
-      .select('import_log_id')
-      .single();
+    // Create import log entry only on first batch
+    let importLogId = existingImportLogId;
+    
+    if (isFirstBatch && !existingImportLogId) {
+      const { data: importLog, error: logError } = await supabaseAdmin
+        .from('import_logs')
+        .insert({
+          import_type: 'supplier_portfolio',
+          file_name: fileName || 'unknown',
+          rows_processed: 0 // Will update at the end
+        })
+        .select('import_log_id')
+        .single();
 
-    if (logError) throw logError;
-    const importLogId = importLog.import_log_id;
+      if (logError) throw logError;
+      importLogId = importLog.import_log_id;
+    }
 
     let suppliersCreated = 0;
     let brandsCreated = 0;
@@ -141,8 +152,8 @@ export async function POST(req) {
           if (stateCode) {
             state = await supabaseAdmin
               .from('core_states')
-              .select('state_id')
-              .eq('state_code', stateCode.toUpperCase())
+              .select('state_id, state_code')
+              .ilike('state_code', stateCode)
               .maybeSingle();
           } else {
             state = await supabaseAdmin
@@ -195,19 +206,51 @@ export async function POST(req) {
                 relationship_source: 'csv_import'
               });
 
-            if (relationship.error) throw relationship.error;
-            relationshipsCreated++;
-            
-            // Log relationship creation
-            changes.push({
-              import_log_id: importLogId,
-              change_type: 'relationship_created',
-              entity_type: 'relationship',
-              entity_id: brandId,
-              entity_name: `${supplierName} → ${brandName}`,
-              new_value: { brand_id: brandId, supplier_id: supplierId, state_id: stateId },
-              source_row: row
-            });
+            // Handle duplicate key errors gracefully (treat as existing relationship)
+            if (relationship.error) {
+              if (relationship.error.code === '23505') { // Postgres duplicate key error code
+                // Relationship already exists, just update it
+                const updateRel = await supabaseAdmin
+                  .from('brand_supplier_state')
+                  .update({
+                    is_verified: true,
+                    last_verified_at: new Date().toISOString(),
+                    relationship_source: 'csv_import'
+                  })
+                  .eq('brand_id', brandId)
+                  .eq('supplier_id', supplierId)
+                  .eq('state_id', stateId);
+
+                if (updateRel.error) throw updateRel.error;
+                relationshipsVerified++;
+                
+                // Log relationship re-verification
+                changes.push({
+                  import_log_id: importLogId,
+                  change_type: 'relationship_verified',
+                  entity_type: 'relationship',
+                  entity_id: brandId,
+                  entity_name: `${supplierName} → ${brandName}`,
+                  new_value: { verified_at: new Date().toISOString() },
+                  source_row: row
+                });
+              } else {
+                throw relationship.error;
+              }
+            } else {
+              relationshipsCreated++;
+              
+              // Log relationship creation
+              changes.push({
+                import_log_id: importLogId,
+                change_type: 'relationship_created',
+                entity_type: 'relationship',
+                entity_id: brandId,
+                entity_name: `${supplierName} → ${brandName}`,
+                new_value: { brand_id: brandId, supplier_id: supplierId, state_id: stateId },
+                source_row: row
+              });
+            }
           } else {
             // Update existing relationship to mark as verified with current timestamp
             const updateRel = await supabaseAdmin
@@ -243,69 +286,71 @@ export async function POST(req) {
       }
     }
 
-    // 5. Handle orphaned relationships (existing in DB but not in import)
-    for (const [supplierId, importedSet] of importedRelationships.entries()) {
-      try {
-        // Get all existing relationships for this supplier
-        const { data: existingRels, error: existingError } = await supabaseAdmin
-          .from('brand_supplier_state')
-          .select('brand_id, state_id, is_verified, last_verified_at, relationship_source')
-          .eq('supplier_id', supplierId);
+    // 5. Handle orphaned relationships (existing in DB but not in import) - only on last batch
+    if (isLastBatch) {
+      for (const [supplierId, importedSet] of importedRelationships.entries()) {
+        try {
+          // Get all existing relationships for this supplier
+          const { data: existingRels, error: existingError } = await supabaseAdmin
+            .from('brand_supplier_state')
+            .select('brand_id, state_id, is_verified, last_verified_at, relationship_source')
+            .eq('supplier_id', supplierId);
 
-        if (existingError) throw existingError;
+          if (existingError) throw existingError;
 
-        // Find relationships that exist in DB but not in import
-        for (const rel of existingRels) {
-          const relKey = `${rel.brand_id}:${rel.state_id}`;
-          
-          if (!importedSet.has(relKey)) {
-            // This relationship is orphaned - move to core_orphans
-            const orphanInsert = await supabaseAdmin
-              .from('core_orphans')
-              .insert({
-                brand_id: rel.brand_id,
-                supplier_id: supplierId,
-                state_id: rel.state_id,
-                was_verified: rel.is_verified,
-                last_verified_at: rel.last_verified_at,
-                relationship_source: rel.relationship_source,
-                reason: 'not_in_import'
-              });
-
-            if (orphanInsert.error) throw orphanInsert.error;
-
-            // Delete from active relationships
-            const deleteRel = await supabaseAdmin
-              .from('brand_supplier_state')
-              .delete()
-              .eq('brand_id', rel.brand_id)
-              .eq('supplier_id', supplierId)
-              .eq('state_id', rel.state_id);
-
-            if (deleteRel.error) throw deleteRel.error;
-
-            relationshipsOrphaned++;
+          // Find relationships that exist in DB but not in import
+          for (const rel of existingRels) {
+            const relKey = `${rel.brand_id}:${rel.state_id}`;
             
-            // Log relationship orphaning
-            changes.push({
-              import_log_id: importLogId,
-              change_type: 'relationship_orphaned',
-              entity_type: 'relationship',
-              entity_id: rel.brand_id,
-              entity_name: `Supplier ${supplierId} → Brand ${rel.brand_id}`,
-              old_value: { 
-                brand_id: rel.brand_id, 
-                supplier_id: supplierId, 
-                state_id: rel.state_id,
-                was_verified: rel.is_verified,
-                last_verified_at: rel.last_verified_at
-              },
-              source_row: { reason: 'not_in_import' }
-            });
+            if (!importedSet.has(relKey)) {
+              // This relationship is orphaned - move to core_orphans
+              const orphanInsert = await supabaseAdmin
+                .from('core_orphans')
+                .insert({
+                  brand_id: rel.brand_id,
+                  supplier_id: supplierId,
+                  state_id: rel.state_id,
+                  was_verified: rel.is_verified,
+                  last_verified_at: rel.last_verified_at,
+                  relationship_source: rel.relationship_source,
+                  reason: 'not_in_import'
+                });
+
+              if (orphanInsert.error) throw orphanInsert.error;
+
+              // Delete from active relationships
+              const deleteRel = await supabaseAdmin
+                .from('brand_supplier_state')
+                .delete()
+                .eq('brand_id', rel.brand_id)
+                .eq('supplier_id', supplierId)
+                .eq('state_id', rel.state_id);
+
+              if (deleteRel.error) throw deleteRel.error;
+
+              relationshipsOrphaned++;
+              
+              // Log relationship orphaning
+              changes.push({
+                import_log_id: importLogId,
+                change_type: 'relationship_orphaned',
+                entity_type: 'relationship',
+                entity_id: rel.brand_id,
+                entity_name: `Supplier ${supplierId} → Brand ${rel.brand_id}`,
+                old_value: { 
+                  brand_id: rel.brand_id, 
+                  supplier_id: supplierId, 
+                  state_id: rel.state_id,
+                  was_verified: rel.is_verified,
+                  last_verified_at: rel.last_verified_at
+                },
+                source_row: { reason: 'not_in_import' }
+              });
+            }
           }
+        } catch (orphanError) {
+          errors.push(`Error handling orphaned relationships: ${orphanError.message}`);
         }
-      } catch (orphanError) {
-        errors.push(`Error handling orphaned relationships: ${orphanError.message}`);
       }
     }
 
@@ -320,20 +365,41 @@ export async function POST(req) {
       }
     }
 
-    // Update import log with final counts
-    await supabaseAdmin
-      .from('import_logs')
-      .update({
-        suppliers_created: suppliersCreated,
-        brands_created: brandsCreated,
-        relationships_created: relationshipsCreated,
-        relationships_verified: relationshipsVerified,
-        relationships_orphaned: relationshipsOrphaned,
-        rows_skipped: skipped,
-        errors_count: errors.length,
-        status: errors.length > 0 ? 'partial' : 'completed'
-      })
-      .eq('import_log_id', importLogId);
+    // Update import log with counts (incremental for batches)
+    if (importLogId) {
+      if (isLastBatch) {
+        // Final update with status
+        await supabaseAdmin
+          .from('import_logs')
+          .update({
+            status: errors.length > 0 ? 'partial' : 'completed'
+          })
+          .eq('import_log_id', importLogId);
+      }
+      
+      // Always increment the counts
+      const { data: currentLog } = await supabaseAdmin
+        .from('import_logs')
+        .select('suppliers_created, brands_created, relationships_created, relationships_verified, relationships_orphaned, rows_skipped, errors_count, rows_processed')
+        .eq('import_log_id', importLogId)
+        .single();
+      
+      if (currentLog) {
+        await supabaseAdmin
+          .from('import_logs')
+          .update({
+            suppliers_created: (currentLog.suppliers_created || 0) + suppliersCreated,
+            brands_created: (currentLog.brands_created || 0) + brandsCreated,
+            relationships_created: (currentLog.relationships_created || 0) + relationshipsCreated,
+            relationships_verified: (currentLog.relationships_verified || 0) + relationshipsVerified,
+            relationships_orphaned: (currentLog.relationships_orphaned || 0) + relationshipsOrphaned,
+            rows_skipped: (currentLog.rows_skipped || 0) + skipped,
+            errors_count: (currentLog.errors_count || 0) + errors.length,
+            rows_processed: (currentLog.rows_processed || 0) + rows.length
+          })
+          .eq('import_log_id', importLogId);
+      }
+    }
 
     return NextResponse.json({
       suppliersCreated,
