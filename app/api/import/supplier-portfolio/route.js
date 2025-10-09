@@ -47,18 +47,54 @@ export async function POST(req) {
     const importedRelationships = new Map(); // Map<supplierId, Set<brandId-stateId>>
     
     // Pre-load all suppliers, brands, and states for this batch to avoid repeated queries
-    const { data: allSuppliers, error: suppliersError } = await supabaseAdmin
-      .from('core_suppliers')
-      .select('supplier_id, supplier_name');
+    // Use pagination to ensure we get ALL records (Supabase defaults to 1000 max)
     
-    if (suppliersError) throw suppliersError;
+    // Load all suppliers
+    let allSuppliers = [];
+    let start = 0;
+    const pageSize = 1000;
+    let hasMore = true;
     
-    const { data: allBrands, error: brandsError } = await supabaseAdmin
-      .from('core_brands')
-      .select('brand_id, brand_name');
+    while (hasMore) {
+      const { data, error } = await supabaseAdmin
+        .from('core_suppliers')
+        .select('supplier_id, supplier_name')
+        .range(start, start + pageSize - 1);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allSuppliers = [...allSuppliers, ...data];
+        start += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
     
-    if (brandsError) throw brandsError;
+    // Load all brands (with pagination)
+    let allBrands = [];
+    start = 0;
+    hasMore = true;
     
+    while (hasMore) {
+      const { data, error } = await supabaseAdmin
+        .from('core_brands')
+        .select('brand_id, brand_name')
+        .range(start, start + pageSize - 1);
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        allBrands = [...allBrands, ...data];
+        start += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+    
+    // Load all states
     const { data: allStates, error: statesError } = await supabaseAdmin
       .from('core_states')
       .select('state_id, state_code, state_name');
@@ -71,6 +107,8 @@ export async function POST(req) {
     const brandIdMap = new Map(allBrands?.map(b => [b.brand_id, b]) || []); // Map by ID for confirmed matches
     const stateCodeMap = new Map(allStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
     const stateNameMap = new Map(allStates?.map(s => [s.state_name?.toLowerCase(), s]) || []);
+    
+    console.log(`Loaded ${allBrands?.length || 0} brands, ${allSuppliers?.length || 0} suppliers, ${allStates?.length || 0} states`);
     
     // Collect all items to create in bulk
     const suppliersToCreate = [];
@@ -102,12 +140,15 @@ export async function POST(req) {
         let targetBrandName = brandName;
         if (confirmedMatches[rowIndex] && confirmedMatches[rowIndex].useExisting) {
           // User manually selected an existing brand - look it up by ID
-          const existingBrand = brandIdMap.get(confirmedMatches[rowIndex].existingBrandId);
+          const matchId = confirmedMatches[rowIndex].existingBrandId;
+          const existingBrand = brandIdMap.get(matchId);
+          
           if (existingBrand) {
             targetBrandName = existingBrand.brand_name;
           } else {
-            // Fallback: try to find by name in case of mismatch
-            errors.push(`Warning: Could not find confirmed brand match for ${brandName} (ID: ${confirmedMatches[rowIndex].existingBrandId}). Creating new brand.`);
+            // Brand ID not found - this shouldn't happen with pagination
+            console.error(`Brand ID ${matchId} not found! Total brands loaded: ${brandIdMap.size}`);
+            errors.push(`Warning: Could not find confirmed brand match for ${brandName} (ID: ${matchId}). Creating new brand.`);
             targetBrandName = brandName;
           }
         }
