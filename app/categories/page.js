@@ -104,7 +104,7 @@ export default function CategoriesPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Categories</h1>
+      <h1>Categories ({categories.length})</h1>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

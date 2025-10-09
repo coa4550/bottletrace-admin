@@ -105,7 +105,7 @@ export default function SuppliersPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Suppliers</h1>
+      <h1>Suppliers ({suppliers.length})</h1>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

@@ -149,7 +149,7 @@ export default function BrandsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Brands</h1>
+      <h1>Brands ({brands.length})</h1>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

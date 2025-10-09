@@ -112,7 +112,7 @@ export default function SubCategoriesPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Sub-Categories</h1>
+      <h1>Sub-Categories ({subCategories.length})</h1>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

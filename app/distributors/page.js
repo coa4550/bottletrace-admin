@@ -105,7 +105,7 @@ export default function DistributorsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Distributors</h1>
+      <h1>Distributors ({distributors.length})</h1>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
