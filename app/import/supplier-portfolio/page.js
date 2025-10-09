@@ -138,6 +138,7 @@ export default function ImportSupplierPortfolio() {
             <p>✅ Suppliers created: {results.suppliersCreated}</p>
             <p>✅ Brands created: {results.brandsCreated}</p>
             <p>✅ Relationships created: {results.relationshipsCreated}</p>
+            <p>🔄 Relationships re-verified: {results.relationshipsVerified}</p>
             <p>⚠️ Rows skipped: {results.skipped}</p>
             {results.errors && results.errors.length > 0 && (
               <div style={{ marginTop: 12 }}>

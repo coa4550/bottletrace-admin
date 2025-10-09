@@ -12,6 +12,7 @@ export async function POST(req) {
     let suppliersCreated = 0;
     let brandsCreated = 0;
     let relationshipsCreated = 0;
+    let relationshipsVerified = 0;
     let skipped = 0;
     const errors = [];
 
@@ -117,11 +118,28 @@ export async function POST(req) {
               brand_id: brandId,
               supplier_id: supplierId,
               state_id: stateId,
+              is_verified: true,
+              last_verified_at: new Date().toISOString(),
               relationship_source: 'csv_import'
             });
 
           if (relationship.error) throw relationship.error;
           relationshipsCreated++;
+        } else {
+          // Update existing relationship to mark as verified with current timestamp
+          const updateRel = await supabaseAdmin
+            .from('brand_supplier_state')
+            .update({
+              is_verified: true,
+              last_verified_at: new Date().toISOString(),
+              relationship_source: 'csv_import'
+            })
+            .eq('brand_id', brandId)
+            .eq('supplier_id', supplierId)
+            .eq('state_id', stateId);
+
+          if (updateRel.error) throw updateRel.error;
+          relationshipsVerified++;
         }
 
       } catch (rowError) {
@@ -134,6 +152,7 @@ export async function POST(req) {
       suppliersCreated,
       brandsCreated,
       relationshipsCreated,
+      relationshipsVerified,
       skipped,
       errors: errors.slice(0, 10) // Limit to first 10 errors
     });
