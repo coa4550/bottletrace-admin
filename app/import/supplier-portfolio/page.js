@@ -60,7 +60,8 @@ export default function ImportSupplierPortfolio() {
           matches[brand.rowIndex] = {
             useExisting: brand.matchType !== 'new',
             existingBrandId: brand.matchedBrand?.brand_id,
-            existingBrandName: brand.matchedBrand?.brand_name
+            existingBrandName: brand.matchedBrand?.brand_name,
+            importBrandName: brand.brandName
           };
         });
       });
@@ -101,11 +102,27 @@ export default function ImportSupplierPortfolio() {
     setBrandMatches(prev => ({
       ...prev,
       [rowIndex]: {
+        ...prev[rowIndex],
         useExisting,
         existingBrandId: brandId,
         existingBrandName: brandName
       }
     }));
+  };
+
+  const handleManualMatch = (rowIndex, selectedBrandId) => {
+    const selectedBrand = validation.allExistingBrands?.find(b => b.brand_id === selectedBrandId);
+    if (selectedBrand) {
+      setBrandMatches(prev => ({
+        ...prev,
+        [rowIndex]: {
+          ...prev[rowIndex],
+          useExisting: true,
+          existingBrandId: selectedBrand.brand_id,
+          existingBrandName: selectedBrand.brand_name
+        }
+      }));
+    }
   };
 
   const getStatusBadge = (brand) => {
@@ -189,57 +206,56 @@ export default function ImportSupplierPortfolio() {
                   {supplier.importBrands.map((brand, brandIdx) => (
                     <div key={brandIdx} style={{ 
                       padding: '12px 16px', 
-                      borderBottom: '1px solid #f1f5f9',
-                      display: 'grid',
-                      gridTemplateColumns: '1fr auto',
-                      gap: 16,
-                      alignItems: 'center'
+                      borderBottom: '1px solid #f1f5f9'
                     }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-                          <strong>{brand.brandName}</strong>
-                          {getStatusBadge(brand)}
-                          <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
-                        </div>
-                        {brand.matchedBrand && (
-                          <div style={{ fontSize: 14, color: '#64748b' }}>
-                            Will match to: <strong>{brand.matchedBrand.brand_name}</strong>
+                      <div style={{ display: 'flex', alignItems: 'start', gap: 16 }}>
+                        {/* Left - Import Brand Info */}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                            <strong style={{ fontSize: 15 }}>{brand.brandName}</strong>
+                            {getStatusBadge(brand)}
+                            <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
                           </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {brand.matchType !== 'exact' && (
-                          <>
-                            <button
-                              onClick={() => updateMatch(brand.rowIndex, brand.matchedBrand ? true : false, brand.matchedBrand?.brand_id, brand.matchedBrand?.brand_name)}
+                          
+                          {/* Manual Match Selector */}
+                          <div style={{ marginTop: 8 }}>
+                            <label style={{ fontSize: 13, color: '#64748b', display: 'block', marginBottom: 4 }}>
+                              Match to existing brand:
+                            </label>
+                            <select
+                              value={brandMatches[brand.rowIndex]?.useExisting ? brandMatches[brand.rowIndex]?.existingBrandId : 'CREATE_NEW'}
+                              onChange={(e) => {
+                                if (e.target.value === 'CREATE_NEW') {
+                                  updateMatch(brand.rowIndex, false);
+                                } else if (e.target.value) {
+                                  handleManualMatch(brand.rowIndex, e.target.value);
+                                }
+                              }}
                               style={{
-                                padding: '6px 12px',
-                                background: brandMatches[brand.rowIndex]?.useExisting ? '#10b981' : '#e2e8f0',
-                                color: brandMatches[brand.rowIndex]?.useExisting ? 'white' : '#475569',
-                                border: 'none',
+                                padding: '6px 10px',
+                                border: '1px solid #cbd5e1',
                                 borderRadius: 4,
-                                fontSize: 13,
-                                cursor: 'pointer'
+                                fontSize: 14,
+                                minWidth: 300,
+                                background: 'white'
                               }}
                             >
-                              Match
-                            </button>
-                            <button
-                              onClick={() => updateMatch(brand.rowIndex, false)}
-                              style={{
-                                padding: '6px 12px',
-                                background: !brandMatches[brand.rowIndex]?.useExisting ? '#3b82f6' : '#e2e8f0',
-                                color: !brandMatches[brand.rowIndex]?.useExisting ? 'white' : '#475569',
-                                border: 'none',
-                                borderRadius: 4,
-                                fontSize: 13,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Create New
-                            </button>
-                          </>
-                        )}
+                              <option value="CREATE_NEW">🆕 Create New Brand: "{brand.brandName}"</option>
+                              <option disabled style={{ color: '#94a3b8' }}>──────────────────────</option>
+                              {validation.allExistingBrands?.map(eb => (
+                                <option key={eb.brand_id} value={eb.brand_id}>
+                                  {eb.brand_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {brandMatches[brand.rowIndex]?.useExisting && brandMatches[brand.rowIndex]?.existingBrandName && (
+                            <div style={{ fontSize: 13, color: '#059669', marginTop: 6, fontWeight: 500 }}>
+                              → Will match to: {brandMatches[brand.rowIndex].existingBrandName}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

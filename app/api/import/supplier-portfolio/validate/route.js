@@ -198,7 +198,8 @@ export async function POST(req) {
     }
 
     return NextResponse.json({
-      supplierReviews
+      supplierReviews,
+      allExistingBrands: existingBrands.sort((a, b) => a.brand_name.localeCompare(b.brand_name))
     });
 
   } catch (error) {
