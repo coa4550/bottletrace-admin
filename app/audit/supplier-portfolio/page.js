@@ -26,6 +26,16 @@ export default function AuditSupplierPortfolioPage() {
         console.error('Error fetching suppliers:', error);
       } else {
         setSuppliers(data || []);
+        
+        // Check for duplicate supplier names
+        const nameCounts = {};
+        data?.forEach(s => {
+          nameCounts[s.supplier_name] = (nameCounts[s.supplier_name] || 0) + 1;
+        });
+        const duplicates = Object.entries(nameCounts).filter(([name, count]) => count > 1);
+        if (duplicates.length > 0) {
+          console.warn('Duplicate supplier names found:', duplicates);
+        }
       }
     }
     fetchSuppliers();
@@ -50,15 +60,20 @@ export default function AuditSupplierPortfolioPage() {
 
         // Fetch brands in this supplier's portfolio
         console.log(`Fetching relationships for supplier: ${selectedSupplier}`);
+        console.log(`Supplier name: ${supplier.supplier_name}`);
 
         const { data: relationships, error: relError } = await supabase
           .from('brand_supplier')
-          .select('brand_id')
+          .select('*')
           .eq('supplier_id', selectedSupplier);
 
-        if (relError) throw relError;
+        if (relError) {
+          console.error('Error fetching relationships:', relError);
+          throw relError;
+        }
 
         console.log(`Total relationships fetched: ${relationships?.length || 0}`);
+        console.log('Sample relationships:', relationships?.slice(0, 3));
 
         // Get brand IDs
         const brandIds = relationships?.map(r => r.brand_id) || [];
