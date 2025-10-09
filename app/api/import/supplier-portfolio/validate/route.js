@@ -115,7 +115,7 @@ export async function POST(req) {
         let matchedBrand = existingBrands.find(b => b.brand_name === brandName);
         let matchType = 'new';
         let suggestedMatch = null;
-        let similarity = 0;
+        let bestSimilarity = 0;
 
         if (matchedBrand) {
           matchType = 'exact';
@@ -128,9 +128,9 @@ export async function POST(req) {
             const normalizedExisting = normalizeName(existing.brand_name);
             const sim = similarity(normalizedImportName, normalizedExisting);
             
-            if (sim >= THRESHOLD && sim > similarity) {
+            if (sim >= THRESHOLD && sim > bestSimilarity) {
               suggestedMatch = existing;
-              similarity = sim;
+              bestSimilarity = sim;
             }
           }
 
@@ -149,7 +149,7 @@ export async function POST(req) {
             brand_id: matchedBrand.brand_id,
             brand_name: matchedBrand.brand_name
           } : null,
-          similarity: matchType === 'fuzzy' ? similarity : null,
+          similarity: matchType === 'fuzzy' ? bestSimilarity : null,
           action: matchType === 'new' ? 'create' : 'match'
         });
 
