@@ -25,7 +25,7 @@ export async function POST(req) {
         .insert({
           import_type: 'supplier_portfolio',
           file_name: fileName || 'unknown',
-          rows_processed: 0 // Will update at the end
+          rows_processed: 0
         })
         .select('import_log_id')
         .single();
@@ -41,15 +41,12 @@ export async function POST(req) {
     let relationshipsOrphaned = 0;
     let skipped = 0;
     const errors = [];
-    const changes = []; // Track all changes for batch insert
+    const changes = [];
     
-    // Track which supplier-brand-state combos are in the import
-    const importedRelationships = new Map(); // Map<supplierId, Set<brandId-stateId>>
+    // Track which brand-supplier combos are in the import
+    const importedRelationships = new Map(); // Map<supplierId, Set<brandId>>
     
-    // Pre-load all suppliers, brands, and states for this batch to avoid repeated queries
-    // Use pagination to ensure we get ALL records (Supabase defaults to 1000 max)
-    
-    // Load all suppliers
+    // Pre-load all suppliers and brands
     let allSuppliers = [];
     let start = 0;
     const pageSize = 1000;
@@ -72,7 +69,6 @@ export async function POST(req) {
       }
     }
     
-    // Load all brands (with pagination)
     let allBrands = [];
     start = 0;
     hasMore = true;
@@ -94,38 +90,25 @@ export async function POST(req) {
       }
     }
     
-    // Load all states
-    const { data: allStates, error: statesError } = await supabaseAdmin
-      .from('core_states')
-      .select('state_id, state_code, state_name');
-    
-    if (statesError) throw statesError;
-    
     // Build lookup maps
     const supplierMap = new Map(allSuppliers?.map(s => [s.supplier_name, s]) || []);
     const brandMap = new Map(allBrands?.map(b => [b.brand_name, b]) || []);
-    const brandIdMap = new Map(allBrands?.map(b => [b.brand_id, b]) || []); // Map by ID for confirmed matches
-    const stateCodeMap = new Map(allStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
-    const stateNameMap = new Map(allStates?.map(s => [s.state_name?.toLowerCase(), s]) || []);
+    const brandIdMap = new Map(allBrands?.map(b => [b.brand_id, b]) || []);
     
-    console.log(`Loaded ${allBrands?.length || 0} brands, ${allSuppliers?.length || 0} suppliers, ${allStates?.length || 0} states`);
+    console.log(`Loaded ${allBrands?.length || 0} brands, ${allSuppliers?.length || 0} suppliers`);
     
-    // Collect all items to create in bulk
+    // Collect items to create
     const suppliersToCreate = [];
     const brandsToCreate = [];
-    const relationshipsToUpsert = [];
-
-    // Step 1: First pass - identify new suppliers and brands, collect relationships
-    const rowData = []; // Store processed row data
+    const rowData = [];
     
+    // Step 1: Process rows and identify what needs to be created
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex];
       const supplierName = (row.supplier_name || '').trim();
       const brandName = (row.brand_name || '').trim();
-      const stateName = (row.state_name || '').trim();
-      const stateCode = (row.state_code || '').trim();
 
-      if (!supplierName || !brandName || (!stateName && !stateCode)) {
+      if (!supplierName || !brandName) {
         skipped++;
         continue;
       }
@@ -139,46 +122,23 @@ export async function POST(req) {
         // Find or queue brand creation (respect user overrides)
         let targetBrandName = brandName;
         if (confirmedMatches[rowIndex] && confirmedMatches[rowIndex].useExisting) {
-          // User manually selected an existing brand - look it up by ID
           const matchId = confirmedMatches[rowIndex].existingBrandId;
           const existingBrand = brandIdMap.get(matchId);
           
           if (existingBrand) {
             targetBrandName = existingBrand.brand_name;
           } else {
-            // Brand ID not found - this shouldn't happen with pagination
-            console.error(`Brand ID ${matchId} not found! Total brands loaded: ${brandIdMap.size}`);
-            errors.push(`Warning: Could not find confirmed brand match for ${brandName} (ID: ${matchId}). Creating new brand.`);
+            console.error(`Brand ID ${matchId} not found!`);
+            errors.push(`Warning: Could not find confirmed brand match for ${brandName}. Creating new brand.`);
             targetBrandName = brandName;
           }
         }
         
-        // Queue for creation if needed (and not already confirmed to exist)
         if (!brandMap.has(targetBrandName) && !brandsToCreate.some(b => b.name === targetBrandName)) {
           brandsToCreate.push({ name: targetBrandName, row });
         }
 
-        // Find states
-        let stateIds = [];
-        if (stateCode && stateCode.toUpperCase() === 'ALL') {
-          stateIds = allStates?.map(s => s.state_id) || [];
-        } else {
-          let state = null;
-          if (stateCode) {
-            state = stateCodeMap.get(stateCode.toLowerCase());
-          } else if (stateName) {
-            state = stateNameMap.get(stateName.toLowerCase());
-          }
-
-          if (!state) {
-            errors.push(`State not found: ${stateName || stateCode} (row: ${supplierName} - ${brandName})`);
-            skipped++;
-            continue;
-          }
-          stateIds = [state.state_id];
-        }
-
-        rowData.push({ rowIndex, row, supplierName, brandName: targetBrandName, stateIds });
+        rowData.push({ rowIndex, row, supplierName, brandName: targetBrandName });
       } catch (rowError) {
         errors.push(`Error processing ${supplierName} - ${brandName}: ${rowError.message}`);
         skipped++;
@@ -197,7 +157,6 @@ export async function POST(req) {
       suppliersCreated += newSuppliers?.length || 0;
       newSuppliers?.forEach(s => supplierMap.set(s.supplier_name, s));
 
-      // Log supplier creations
       newSuppliers?.forEach((s, idx) => {
         changes.push({
           import_log_id: importLogId,
@@ -226,7 +185,6 @@ export async function POST(req) {
         brandIdMap.set(b.brand_id, b);
       });
 
-      // Log brand creations
       newBrands?.forEach((b, idx) => {
         changes.push({
           import_log_id: importLogId,
@@ -240,18 +198,18 @@ export async function POST(req) {
       });
     }
 
-    // Step 4: Load existing relationships for all suppliers to check what exists
+    // Step 4: Load existing relationships for all suppliers
     const allSupplierIds = [...new Set(rowData.map(r => supplierMap.get(r.supplierName)?.supplier_id).filter(Boolean))];
-    const existingRelsMap = new Map(); // Map<supplierId_brandId_stateId, true>
+    const existingRelsMap = new Map(); // Map<supplierId_brandId, true>
     
     if (allSupplierIds.length > 0) {
       const { data: existingRels } = await supabaseAdmin
-        .from('brand_supplier_state')
-        .select('brand_id, supplier_id, state_id')
+        .from('brand_supplier')
+        .select('brand_id, supplier_id')
         .in('supplier_id', allSupplierIds);
 
       existingRels?.forEach(rel => {
-        existingRelsMap.set(`${rel.supplier_id}_${rel.brand_id}_${rel.state_id}`, true);
+        existingRelsMap.set(`${rel.supplier_id}_${rel.brand_id}`, true);
       });
     }
 
@@ -260,18 +218,18 @@ export async function POST(req) {
     const relationshipsToCreate = [];
     const relationshipsToUpdate = [];
 
-    for (const { row, supplierName, brandName, stateIds } of rowData) {
+    for (const { row, supplierName, brandName } of rowData) {
       const supplier = supplierMap.get(supplierName);
       const brand = brandMap.get(brandName);
 
       if (!supplier) {
-        errors.push(`Could not find supplier in map: ${supplierName} (for brand: ${brandName})`);
+        errors.push(`Could not find supplier: ${supplierName}`);
         skipped++;
         continue;
       }
       
       if (!brand) {
-        errors.push(`Could not find brand in map: ${brandName} (for supplier: ${supplierName}). Available brands: ${Array.from(brandMap.keys()).filter(k => k.toLowerCase().includes(brandName.toLowerCase().substring(0, 3))).join(', ')}`);
+        errors.push(`Could not find brand: ${brandName}`);
         skipped++;
         continue;
       }
@@ -280,92 +238,76 @@ export async function POST(req) {
       if (!importedRelationships.has(supplier.supplier_id)) {
         importedRelationships.set(supplier.supplier_id, new Set());
       }
+      importedRelationships.get(supplier.supplier_id).add(brand.brand_id);
 
-      for (const stateId of stateIds) {
-        importedRelationships.get(supplier.supplier_id).add(`${brand.brand_id}:${stateId}`);
-
-        const relKey = `${supplier.supplier_id}_${brand.brand_id}_${stateId}`;
-        
-        if (existingRelsMap.has(relKey)) {
-          // Will update
-          relationshipsToUpdate.push({
-            brand_id: brand.brand_id,
-            supplier_id: supplier.supplier_id,
-            state_id: stateId
-          });
-        } else {
-          // Will create
-          relationshipsToCreate.push({
-            brand_id: brand.brand_id,
-            supplier_id: supplier.supplier_id,
-            state_id: stateId,
-            is_verified: true,
-            last_verified_at: now,
-            relationship_source: 'csv_import'
-          });
-        }
+      const relKey = `${supplier.supplier_id}_${brand.brand_id}`;
+      
+      if (existingRelsMap.has(relKey)) {
+        relationshipsToUpdate.push({
+          brand_id: brand.brand_id,
+          supplier_id: supplier.supplier_id
+        });
+      } else {
+        relationshipsToCreate.push({
+          brand_id: brand.brand_id,
+          supplier_id: supplier.supplier_id,
+          is_verified: true,
+          last_verified_at: now,
+          relationship_source: 'csv_import'
+        });
       }
     }
 
     // Step 6: Bulk insert new relationships
     if (relationshipsToCreate.length > 0) {
       const { error: createError } = await supabaseAdmin
-        .from('brand_supplier_state')
+        .from('brand_supplier')
         .insert(relationshipsToCreate);
 
-      if (createError) {
-        // If duplicate key error, that's okay - they already exist
-        if (createError.code !== '23505') {
-          throw createError;
-        }
+      if (createError && createError.code !== '23505') {
+        throw createError;
       }
       relationshipsCreated += relationshipsToCreate.length;
     }
 
-    // Step 7: Bulk update existing relationships (use upsert)
+    // Step 7: Bulk update existing relationships
     if (relationshipsToUpdate.length > 0) {
       for (const rel of relationshipsToUpdate) {
         const { error: updateError } = await supabaseAdmin
-          .from('brand_supplier_state')
+          .from('brand_supplier')
           .update({
             is_verified: true,
             last_verified_at: now,
             relationship_source: 'csv_import'
           })
           .eq('brand_id', rel.brand_id)
-          .eq('supplier_id', rel.supplier_id)
-          .eq('state_id', rel.state_id);
+          .eq('supplier_id', rel.supplier_id);
 
         if (updateError) throw updateError;
         relationshipsVerified++;
       }
     }
 
-    // 5. Handle orphaned relationships (existing in DB but not in import) - only on last batch
+    // Step 8: Handle orphaned relationships - only on last batch
     if (isLastBatch) {
-      for (const [supplierId, importedSet] of importedRelationships.entries()) {
+      for (const [supplierId, importedBrandIds] of importedRelationships.entries()) {
         try {
-          // Get all existing relationships for this supplier
           const { data: existingRels, error: existingError } = await supabaseAdmin
-            .from('brand_supplier_state')
-            .select('brand_id, state_id, is_verified, last_verified_at, relationship_source')
+            .from('brand_supplier')
+            .select('brand_id, is_verified, last_verified_at, relationship_source')
             .eq('supplier_id', supplierId);
 
           if (existingError) throw existingError;
 
-          // Collect orphaned relationships for batch delete
           const orphanedRels = [];
           const orphanRecords = [];
           
-          for (const rel of existingRels) {
-            const relKey = `${rel.brand_id}:${rel.state_id}`;
-            
-            if (!importedSet.has(relKey)) {
+          for (const rel of existingRels || []) {
+            if (!importedBrandIds.has(rel.brand_id)) {
               orphanedRels.push(rel);
               orphanRecords.push({
                 brand_id: rel.brand_id,
                 supplier_id: supplierId,
-                state_id: rel.state_id,
                 was_verified: rel.is_verified,
                 last_verified_at: rel.last_verified_at,
                 relationship_source: rel.relationship_source,
@@ -374,50 +316,24 @@ export async function POST(req) {
             }
           }
 
-          // Bulk insert orphans (fail gracefully if table doesn't exist)
+          // Bulk insert orphans
           if (orphanRecords.length > 0) {
             try {
-              const orphanInsert = await supabaseAdmin
-                .from('core_orphans')
-                .insert(orphanRecords);
-
-              if (orphanInsert.error && orphanInsert.error.code !== '42P01') { // Not "table doesn't exist"
-                throw orphanInsert.error;
-              }
+              await supabaseAdmin.from('core_orphans').insert(orphanRecords);
             } catch (orphanInsertError) {
-              console.warn('Could not insert into core_orphans (table may not exist):', orphanInsertError.message);
-              // Continue anyway - don't fail the whole import
+              console.warn('Could not insert orphans:', orphanInsertError.message);
             }
 
-            // Bulk delete orphaned relationships
+            // Delete orphaned relationships
             for (const rel of orphanedRels) {
-              const deleteRel = await supabaseAdmin
-                .from('brand_supplier_state')
+              const { error: deleteError } = await supabaseAdmin
+                .from('brand_supplier')
                 .delete()
                 .eq('brand_id', rel.brand_id)
-                .eq('supplier_id', supplierId)
-                .eq('state_id', rel.state_id);
+                .eq('supplier_id', supplierId);
 
-              if (deleteRel.error) throw deleteRel.error;
-
+              if (deleteError) throw deleteError;
               relationshipsOrphaned++;
-              
-              // Log relationship orphaning
-              changes.push({
-                import_log_id: importLogId,
-                change_type: 'relationship_orphaned',
-                entity_type: 'relationship',
-                entity_id: rel.brand_id,
-                entity_name: `Supplier ${supplierId} → Brand ${rel.brand_id}`,
-                old_value: { 
-                  brand_id: rel.brand_id, 
-                  supplier_id: supplierId, 
-                  state_id: rel.state_id,
-                  was_verified: rel.is_verified,
-                  last_verified_at: rel.last_verified_at
-                },
-                source_row: { reason: 'not_in_import' }
-              });
             }
           }
         } catch (orphanError) {
@@ -437,19 +353,15 @@ export async function POST(req) {
       }
     }
 
-    // Update import log with counts (incremental for batches)
+    // Update import log
     if (importLogId) {
       if (isLastBatch) {
-        // Final update with status
         await supabaseAdmin
           .from('import_logs')
-          .update({
-            status: errors.length > 0 ? 'partial' : 'completed'
-          })
+          .update({ status: errors.length > 0 ? 'partial' : 'completed' })
           .eq('import_log_id', importLogId);
       }
       
-      // Always increment the counts
       const { data: currentLog } = await supabaseAdmin
         .from('import_logs')
         .select('suppliers_created, brands_created, relationships_created, relationships_verified, relationships_orphaned, rows_skipped, errors_count, rows_processed')
@@ -480,7 +392,7 @@ export async function POST(req) {
       relationshipsVerified,
       relationshipsOrphaned,
       skipped,
-      errors: errors.slice(0, 10), // Limit to first 10 errors
+      errors: errors.slice(0, 20),
       importLogId
     });
 
@@ -489,4 +401,3 @@ export async function POST(req) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

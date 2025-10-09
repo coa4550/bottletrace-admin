@@ -46,26 +46,11 @@ export default function OrphansAuditPage() {
       console.log(`Total brands: ${allBrands.length}`);
 
       // Fetch all supplier relationships
-      let allSupplierRels = [];
-      start = 0;
-      hasMore = true;
+      const { data: allSupplierRels, error: supplierRelsError } = await supabase
+        .from('brand_supplier')
+        .select('brand_id');
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('brand_supplier_state')
-          .select('brand_id')
-          .range(start, start + pageSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allSupplierRels = [...allSupplierRels, ...data];
-          start += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
+      if (supplierRelsError) throw supplierRelsError;
 
       // Get unique brand IDs with supplier relationships
       const brandsWithSuppliers = new Set(allSupplierRels.map(r => r.brand_id));

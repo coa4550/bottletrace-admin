@@ -123,8 +123,8 @@ export async function POST(req) {
       let existingRelationships = [];
       if (supplierId) {
         const { data: rels } = await supabaseAdmin
-          .from('brand_supplier_state')
-          .select('brand_id, state_id, core_brands(brand_name), core_states(state_code)')
+          .from('brand_supplier')
+          .select('brand_id, core_brands(brand_name)')
           .eq('supplier_id', supplierId);
         
         existingRelationships = rels || [];
@@ -136,7 +136,6 @@ export async function POST(req) {
 
       for (const row of supplierRows) {
         const brandName = (row.brand_name || '').trim();
-        const stateCode = (row.state_code || '').trim();
         
         if (!brandName) continue;
 
@@ -187,7 +186,6 @@ export async function POST(req) {
         importBrands.push({
           rowIndex: row.originalIndex,
           brandName,
-          stateCode: stateCode || 'ALL',
           matchType,
           matchedBrand: matchedBrand ? {
             brand_id: matchedBrand.brand_id,
@@ -216,11 +214,9 @@ export async function POST(req) {
           if (!brandStateMap.has(brandId)) {
             brandStateMap.set(brandId, {
               brand_id: brandId,
-              brand_name: rel.core_brands.brand_name,
-              states: []
+              brand_name: rel.core_brands.brand_name
             });
           }
-          brandStateMap.get(brandId).states.push(rel.core_states.state_code);
         }
 
         console.log(`Unique brands in existing relationships:`, brandStateMap.size);
@@ -232,7 +228,6 @@ export async function POST(req) {
             orphanedBrands.push({
               brand_id: brandId,
               brand_name: brandData.brand_name,
-              states: brandData.states.join(', '),
               action: 'orphan'
             });
           }

@@ -216,10 +216,10 @@ export default function ImportSupplierPortfolio() {
     <div style={{ padding: 20 }}>
       <h1>Import Supplier Portfolio</h1>
       <p style={{ color: '#64748b', marginTop: 8 }}>
-        Upload a spreadsheet with supplier portfolios. Expected columns: supplier_name, brand_name, state_name (or state_code)
+        Upload a spreadsheet with supplier portfolios. Expected columns: supplier_name, brand_name
       </p>
       <p style={{ color: '#64748b', marginTop: 4, fontSize: 14 }}>
-        💡 <strong>Tip:</strong> Use <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>ALL</code> in the state_code column to create relationships for all 50 states + territories automatically.
+        💡 <strong>Note:</strong> All brand-supplier relationships are assumed to be nationwide (no state-level tracking for suppliers).
       </p>
 
       <div style={{ marginTop: 32 }}>
@@ -382,13 +382,6 @@ export default function ImportSupplierPortfolio() {
                       </span>
                     </div>
                     {orphanedBrands.map((brand, brandIdx) => {
-                      // Parse states string to count them
-                      const statesArray = brand.states.split(', ').filter(s => s);
-                      const stateCount = statesArray.length;
-                      const statesDisplay = stateCount > 5 
-                        ? `${stateCount} states (${statesArray.slice(0, 3).join(', ')}...)` 
-                        : brand.states;
-                      
                       return (
                         <div key={brandIdx} style={{ 
                           display: 'grid',
@@ -397,15 +390,12 @@ export default function ImportSupplierPortfolio() {
                           borderBottom: '1px solid #fecaca',
                           background: '#fef2f2'
                         }}>
-                          <div style={{ padding: '12px 16px', borderRight: '2px solid #fecaca' }}>
-                            <span style={{ color: '#94a3b8', fontSize: 14 }}>— Not in import —</span>
-                          </div>
-                          <div style={{ padding: '12px 16px' }}>
-                            <strong>{brand.brand_name}</strong>
-                            <span style={{ fontSize: 13, color: '#991b1b', marginLeft: 8 }} title={brand.states}>
-                              States: {statesDisplay}
-                            </span>
-                          </div>
+                        <div style={{ padding: '12px 16px', borderRight: '2px solid #fecaca' }}>
+                          <span style={{ color: '#94a3b8', fontSize: 14 }}>— Not in import —</span>
+                        </div>
+                        <div style={{ padding: '12px 16px' }}>
+                          <strong>{brand.brand_name}</strong>
+                        </div>
                         </div>
                       );
                     })}
@@ -530,7 +520,6 @@ function TwoColumnBrandRow({ brand, brandMatches, validation, handleManualMatch,
       <div style={{ padding: '12px 16px', borderRight: '2px solid #cbd5e1' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <strong style={{ fontSize: 15 }}>{brand.brandName}</strong>
-          <span style={{ fontSize: 13, color: '#64748b' }}>State: {brand.stateCode}</span>
         </div>
         {isFuzzy && brand.similarity && (
           <div style={{ fontSize: 12, color: '#d97706', marginTop: 4 }}>

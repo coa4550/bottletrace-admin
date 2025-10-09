@@ -48,40 +48,22 @@ export default function AuditSupplierPortfolioPage() {
         if (supplierError) throw supplierError;
         setSupplierInfo(supplier);
 
-        // Fetch brands in this supplier's portfolio (with pagination to get ALL relationships)
-        let allRelationships = [];
-        let start = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-
+        // Fetch brands in this supplier's portfolio
         console.log(`Fetching relationships for supplier: ${selectedSupplier}`);
 
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from('brand_supplier_state')
-            .select('brand_id')
-            .eq('supplier_id', selectedSupplier)
-            .range(start, start + pageSize - 1);
+        const { data: relationships, error: relError } = await supabase
+          .from('brand_supplier')
+          .select('brand_id')
+          .eq('supplier_id', selectedSupplier);
 
-          if (error) throw error;
+        if (relError) throw relError;
 
-          console.log(`Fetched batch ${Math.floor(start / pageSize) + 1}: ${data?.length || 0} relationships`);
+        console.log(`Total relationships fetched: ${relationships?.length || 0}`);
 
-          if (data && data.length > 0) {
-            allRelationships = [...allRelationships, ...data];
-            start += pageSize;
-            hasMore = data.length === pageSize;
-          } else {
-            hasMore = false;
-          }
-        }
-
-        console.log(`Total relationships fetched: ${allRelationships.length}`);
-
-        // Get unique brand IDs
-        const brandIds = [...new Set(allRelationships.map(r => r.brand_id))];
+        // Get brand IDs
+        const brandIds = relationships?.map(r => r.brand_id) || [];
         
-        console.log(`Unique brand IDs: ${brandIds.length}`, brandIds);
+        console.log(`Brand IDs: ${brandIds.length}`, brandIds);
 
         if (brandIds.length === 0) {
           setPortfolioBrands([]);
