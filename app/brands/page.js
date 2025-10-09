@@ -23,25 +23,28 @@ export default function BrandsPage() {
   useEffect(() => {
     async function fetchBrands() {
       try {
-        // Fetch all brands
+        // Fetch all brands (Supabase default is 1000, so we set a higher limit)
         const { data: brandsData, error: brandsError } = await supabase
           .from('core_brands')
           .select('*')
-          .order('brand_name');
+          .order('brand_name')
+          .limit(10000);
 
         if (brandsError) throw brandsError;
 
-        // Fetch brand-category mappings
+        // Fetch brand-category mappings (set high limit to get all)
         const { data: brandCats, error: catsError } = await supabase
           .from('brand_categories')
-          .select('brand_id, categories(category_name)');
+          .select('brand_id, categories(category_name)')
+          .limit(10000);
 
         if (catsError) throw catsError;
 
-        // Fetch brand-subcategory mappings
+        // Fetch brand-subcategory mappings (set high limit to get all)
         const { data: brandSubcats, error: subcatsError } = await supabase
           .from('brand_sub_categories')
-          .select('brand_id, sub_categories(sub_category_name)');
+          .select('brand_id, sub_categories(sub_category_name)')
+          .limit(10000);
 
         if (subcatsError) throw subcatsError;
 
