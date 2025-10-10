@@ -57,10 +57,10 @@ export default function AuditDistributorPortfolioPage() {
         // Fetch brands in this distributor's portfolio via API
         console.log('Fetching relationships for distributor:', selectedDistributor);
 
-        const response = await fetch(`/api/brand-distributor-state?distributor_id=${selectedDistributor}`);
-        const portfolioBrands = await response.json();
+        const portfolioResponse = await fetch(`/api/brand-distributor-state?distributor_id=${selectedDistributor}`);
+        const portfolioBrands = await portfolioResponse.json();
         
-        if (!response.ok) {
+        if (!portfolioResponse.ok) {
           throw new Error(portfolioBrands.error || 'Failed to fetch brand relationships');
         }
 
