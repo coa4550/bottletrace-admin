@@ -17,15 +17,17 @@ export default function AuditDistributorPortfolioPage() {
 
   useEffect(() => {
     async function fetchDistributors() {
-      const { data, error } = await supabase
-        .from('core_distributors')
-        .select('distributor_id, distributor_name')
-        .order('distributor_name');
-      
-      if (error) {
-        console.error('Error fetching distributors:', error);
-      } else {
-        setDistributors(data || []);
+      try {
+        const response = await fetch('/api/distributors');
+        const data = await response.json();
+        
+        if (response.ok) {
+          setDistributors(data || []);
+        } else {
+          console.error('Error fetching distributors:', data.error);
+        }
+      } catch (err) {
+        console.error('Error fetching distributors:', err);
       }
     }
     fetchDistributors();
@@ -37,13 +39,18 @@ export default function AuditDistributorPortfolioPage() {
     async function fetchDistributorData() {
       setLoading(true);
       try {
-        const { data: distributor, error: distributorError } = await supabase
-          .from('core_distributors')
-          .select('*')
-          .eq('distributor_id', selectedDistributor)
-          .single();
-
-        if (distributorError) throw distributorError;
+        const response = await fetch('/api/distributors');
+        const distributorsData = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(distributorsData.error || 'Failed to fetch distributors');
+        }
+        
+        const distributor = distributorsData.find(d => d.distributor_id === selectedDistributor);
+        if (!distributor) {
+          throw new Error('Distributor not found');
+        }
+        
         setDistributorInfo(distributor);
 
         // Fetch brands in this distributor's portfolio (with pagination)
@@ -291,8 +298,8 @@ export default function AuditDistributorPortfolioPage() {
               borderRadius: 8, 
               padding: 20 
             }}>
-              <div style={{ display: 'flex', gap: 40, alignItems: 'start' }}>
-                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 500 }}>
+              <div style={{ display: 'flex', gap: 60, alignItems: 'start' }}>
+                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 500, minWidth: 0 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
                       Distributor Name
