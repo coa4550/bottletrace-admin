@@ -241,24 +241,26 @@ export default function AuditDistributorPortfolioPage() {
               borderRadius: 8, 
               padding: 20 
             }}>
-              <div style={{ display: 'grid', gap: 16, maxWidth: 600 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                    Distributor Name
-                  </label>
-                  <EditableInput
-                    value={distributorInfo.distributor_name}
-                    onChange={(val) => handleDistributorInfoEdit('distributor_name', val)}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                    Distributor URL
-                  </label>
-                  <EditableInput
-                    value={distributorInfo.distributor_url}
-                    onChange={(val) => handleDistributorInfoEdit('distributor_url', val)}
-                  />
+              <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
+                <div style={{ flex: 1, display: 'grid', gap: 16 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                      Distributor Name
+                    </label>
+                    <EditableInput
+                      value={distributorInfo.distributor_name}
+                      onChange={(val) => handleDistributorInfoEdit('distributor_name', val)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                      Distributor URL
+                    </label>
+                    <EditableInput
+                      value={distributorInfo.distributor_url}
+                      onChange={(val) => handleDistributorInfoEdit('distributor_url', val)}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 8 }}>
@@ -275,8 +277,7 @@ export default function AuditDistributorPortfolioPage() {
                       justifyContent: 'center',
                       background: 'white',
                       overflow: 'hidden',
-                      padding: 12,
-                      marginBottom: 8
+                      padding: 12
                     }}>
                       <img 
                         src={distributorInfo.distributor_logo_url} 
@@ -307,22 +308,21 @@ export default function AuditDistributorPortfolioPage() {
                       justifyContent: 'center',
                       background: '#f8fafc',
                       color: '#94a3b8',
-                      fontSize: 13,
-                      marginBottom: 8
+                      fontSize: 13
                     }}>
                       No logo
                     </div>
                   )}
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                    Distributor Logo URL
-                  </label>
-                  <EditableInput
-                    value={distributorInfo.distributor_logo_url}
-                    onChange={(val) => handleDistributorInfoEdit('distributor_logo_url', val)}
-                  />
-                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                  Distributor Logo URL
+                </label>
+                <EditableInput
+                  value={distributorInfo.distributor_logo_url}
+                  onChange={(val) => handleDistributorInfoEdit('distributor_logo_url', val)}
+                />
               </div>
             </div>
           </div>
