@@ -62,18 +62,36 @@ export async function POST(req) {
       if (stateCode && stateCode.toUpperCase() === 'ALL') {
         stateIds = existingStates?.map(s => s.state_id) || [];
       } else {
-        let state = null;
-        if (stateCode) {
-          state = stateCodeMap.get(stateCode.toLowerCase());
-        } else if (stateName) {
-          state = stateNameMap.get(stateName.toLowerCase());
+        // Handle comma-separated state codes
+        const stateCodesToCheck = stateCode ? stateCode.split(',').map(s => s.trim()) : [];
+        const stateNamesToCheck = stateName ? stateName.split(',').map(s => s.trim()) : [];
+        
+        const allStatesToCheck = [...stateCodesToCheck, ...stateNamesToCheck];
+        const foundStates = [];
+        const notFoundStates = [];
+
+        for (const stateToCheck of allStatesToCheck) {
+          let state = null;
+          if (stateToCheck) {
+            state = stateCodeMap.get(stateToCheck.toLowerCase()) || stateNameMap.get(stateToCheck.toLowerCase());
+          }
+          
+          if (state) {
+            foundStates.push(state);
+          } else {
+            notFoundStates.push(stateToCheck);
+          }
         }
 
-        if (!state) {
-          warnings.push(`State not found: ${stateName || stateCode} (row: ${distributorName} - ${supplierName})`);
-          continue;
+        if (notFoundStates.length > 0) {
+          warnings.push(`States not found: ${notFoundStates.join(', ')} (row: ${distributorName} - ${supplierName})`);
         }
-        stateIds = [state.state_id];
+
+        if (foundStates.length === 0) {
+          continue; // Skip this row if no valid states found
+        }
+
+        stateIds = foundStates.map(s => s.state_id);
       }
 
       // Track new distributors

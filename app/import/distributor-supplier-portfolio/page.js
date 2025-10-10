@@ -147,7 +147,9 @@ export default function ImportDistributorSupplierPortfolio() {
         Upload a spreadsheet with distributor-supplier relationships by state. Expected columns: distributor_name, supplier_name, state_code (or state_name)
       </p>
       <p style={{ color: '#64748b', marginTop: 4, fontSize: 14 }}>
-        💡 <strong>Tip:</strong> Use <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>ALL</code> in the state_code column to create relationships for all states automatically.
+        💡 <strong>Tips:</strong> 
+        <br/>• Use <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>ALL</code> for nationwide distribution
+        <br/>• Use comma-separated values like <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>CA, NY, TX</code> for multiple states
       </p>
 
       <div style={{ marginTop: 32 }}>
