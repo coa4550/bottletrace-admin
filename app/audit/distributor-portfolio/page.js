@@ -54,87 +54,23 @@ export default function AuditDistributorPortfolioPage() {
         
         setDistributorInfo(distributor);
 
-        // Fetch brands in this distributor's portfolio (with pagination)
-        let allRelationships = [];
-        let start = 0;
-        const pageSize = 1000;
-        let hasMore = true;
-
+        // Fetch brands in this distributor's portfolio via API
         console.log('Fetching relationships for distributor:', selectedDistributor);
 
-        while (hasMore) {
-          const { data, error } = await supabase
-            .from('brand_distributor_state')
-            .select('brand_id')
-            .eq('distributor_id', selectedDistributor)
-            .range(start, start + pageSize - 1);
-
-          if (error) throw error;
-
-          console.log(`Fetched ${data?.length || 0} relationships, page ${start/pageSize + 1}`);
-
-          if (data && data.length > 0) {
-            allRelationships = [...allRelationships, ...data];
-            start += pageSize;
-            hasMore = data.length === pageSize;
-          } else {
-            hasMore = false;
-          }
+        const response = await fetch(`/api/brand-distributor-state?distributor_id=${selectedDistributor}`);
+        const portfolioBrands = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(portfolioBrands.error || 'Failed to fetch brand relationships');
         }
 
-        console.log('Total relationships found:', allRelationships.length);
-
-        const brandIds = [...new Set(allRelationships.map(r => r.brand_id))];
-
-        if (brandIds.length === 0) {
-          setPortfolioBrands([]);
-          return;
-        }
-
-        // Fetch brand details
-        const { data: brands, error: brandsError } = await supabase
-          .from('core_brands')
-          .select('*')
-          .in('brand_id', brandIds)
-          .order('brand_name');
-
-        if (brandsError) throw brandsError;
-
-        // Fetch categories
-        const { data: brandCats, error: catsError } = await supabase
-          .from('brand_categories')
-          .select('brand_id, categories(category_name)')
-          .in('brand_id', brandIds);
-
-        if (catsError) throw catsError;
-
-        const { data: brandSubcats, error: subcatsError} = await supabase
-          .from('brand_sub_categories')
-          .select('brand_id, sub_categories(sub_category_name)')
-          .in('brand_id', brandIds);
-
-        if (subcatsError) throw subcatsError;
-
-        const catsMap = {};
-        brandCats?.forEach(bc => {
-          if (bc.categories && bc.categories.category_name) {
-            if (!catsMap[bc.brand_id]) catsMap[bc.brand_id] = [];
-            catsMap[bc.brand_id].push(bc.categories.category_name);
-          }
-        });
-
-        const subcatsMap = {};
-        brandSubcats?.forEach(bsc => {
-          if (bsc.sub_categories && bsc.sub_categories.sub_category_name) {
-            if (!subcatsMap[bsc.brand_id]) subcatsMap[bsc.brand_id] = [];
-            subcatsMap[bsc.brand_id].push(bsc.sub_categories.sub_category_name);
-          }
-        });
-
-        const enrichedBrands = brands.map(brand => ({
+        console.log('Total brands found:', portfolioBrands.length);
+        
+        // Transform the data to match expected format
+        const enrichedBrands = portfolioBrands.map(brand => ({
           ...brand,
-          categories: catsMap[brand.brand_id]?.join(', ') || '',
-          sub_categories: subcatsMap[brand.brand_id]?.join(', ') || ''
+          categories: brand.categories?.join(', ') || '',
+          sub_categories: brand.subcategories?.join(', ') || ''
         }));
 
         setPortfolioBrands(enrichedBrands);
