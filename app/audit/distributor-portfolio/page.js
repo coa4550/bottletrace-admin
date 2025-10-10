@@ -18,9 +18,9 @@ export default function AuditDistributorPortfolioPage() {
   useEffect(() => {
     async function fetchDistributors() {
       const { data, error } = await supabase
-        .from('core_suppliers')
-        .select('supplier_id, supplier_name')
-        .order('supplier_name');
+        .from('core_distributors')
+        .select('distributor_id, distributor_name')
+        .order('distributor_name');
       
       if (error) {
         console.error('Error fetching distributors:', error);
@@ -38,9 +38,9 @@ export default function AuditDistributorPortfolioPage() {
       setLoading(true);
       try {
         const { data: distributor, error: distributorError } = await supabase
-          .from('core_suppliers')
+          .from('core_distributors')
           .select('*')
-          .eq('supplier_id', selectedDistributor)
+          .eq('distributor_id', selectedDistributor)
           .single();
 
         if (distributorError) throw distributorError;
@@ -56,7 +56,7 @@ export default function AuditDistributorPortfolioPage() {
           const { data, error } = await supabase
             .from('brand_distributor_state')
             .select('brand_id')
-            .eq('supplier_id', selectedDistributor)
+            .eq('distributor_id', selectedDistributor)
             .range(start, start + pageSize - 1);
 
           if (error) throw error;
@@ -137,9 +137,9 @@ export default function AuditDistributorPortfolioPage() {
   const handleDistributorInfoEdit = async (field, newValue) => {
     try {
       const { error } = await supabase
-        .from('core_suppliers')
+        .from('core_distributors')
         .update({ [field]: newValue })
-        .eq('supplier_id', selectedDistributor);
+        .eq('distributor_id', selectedDistributor);
 
       if (error) throw error;
       setDistributorInfo(prev => ({ ...prev, [field]: newValue }));
@@ -272,8 +272,8 @@ export default function AuditDistributorPortfolioPage() {
         >
           <option value="">-- Choose a distributor --</option>
           {distributors.map(d => (
-            <option key={d.supplier_id} value={d.supplier_id}>
-              {d.supplier_name}
+            <option key={d.distributor_id} value={d.distributor_id}>
+              {d.distributor_name}
             </option>
           ))}
         </select>
@@ -298,8 +298,8 @@ export default function AuditDistributorPortfolioPage() {
                       Distributor Name
                     </label>
                     <EditableInput
-                      value={distributorInfo.supplier_name}
-                      onChange={(val) => handleDistributorInfoEdit('supplier_name', val)}
+                      value={distributorInfo.distributor_name}
+                      onChange={(val) => handleDistributorInfoEdit('distributor_name', val)}
                     />
                   </div>
                   <div>
@@ -307,8 +307,8 @@ export default function AuditDistributorPortfolioPage() {
                       Distributor URL
                     </label>
                     <EditableInput
-                      value={distributorInfo.supplier_url}
-                      onChange={(val) => handleDistributorInfoEdit('supplier_url', val)}
+                      value={distributorInfo.distributor_url}
+                      onChange={(val) => handleDistributorInfoEdit('distributor_url', val)}
                     />
                   </div>
                   <div>
@@ -316,8 +316,8 @@ export default function AuditDistributorPortfolioPage() {
                       Distributor Logo URL
                     </label>
                     <EditableInput
-                      value={distributorInfo.supplier_logo_url}
-                      onChange={(val) => handleDistributorInfoEdit('supplier_logo_url', val)}
+                      value={distributorInfo.distributor_logo_url}
+                      onChange={(val) => handleDistributorInfoEdit('distributor_logo_url', val)}
                     />
                   </div>
                 </div>
@@ -329,7 +329,7 @@ export default function AuditDistributorPortfolioPage() {
                   <label style={{ display: 'block', fontSize: 14, color: '#475569', fontWeight: 600, marginBottom: 8 }}>
                     Distributor Logo
                   </label>
-                  {distributorInfo.supplier_logo_url ? (
+                  {distributorInfo.distributor_logo_url ? (
                     <div style={{
                       width: '100%',
                       height: 200,
@@ -343,15 +343,15 @@ export default function AuditDistributorPortfolioPage() {
                       padding: 16
                     }}>
                       <img 
-                        src={distributorInfo.supplier_logo_url} 
-                        alt={distributorInfo.supplier_name}
+                        src={distributorInfo.distributor_logo_url} 
+                        alt={distributorInfo.distributor_name}
                         style={{ 
                           maxWidth: '100%', 
                           maxHeight: '100%',
                           objectFit: 'contain'
                         }}
                         onError={(e) => {
-                          console.error('Failed to load logo:', distributorInfo.supplier_logo_url);
+                          console.error('Failed to load logo:', distributorInfo.distributor_logo_url);
                           e.target.parentElement.innerHTML = `
                             <div style="color: #ef4444; font-size: 13px; text-align: center; padding: 16px;">
                               ⚠️ Failed to load logo

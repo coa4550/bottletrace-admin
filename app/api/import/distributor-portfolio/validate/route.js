@@ -92,10 +92,10 @@ export async function POST(req) {
       }
     }
 
-    // Fetch all existing distributors (using core_suppliers table)
+    // Fetch all existing distributors
     const { data: existingDistributors, error: distributorsError } = await supabaseAdmin
-      .from('core_suppliers')
-      .select('supplier_id, supplier_name');
+      .from('core_distributors')
+      .select('distributor_id, distributor_name');
 
     if (distributorsError) throw distributorsError;
 
@@ -108,8 +108,8 @@ export async function POST(req) {
     const distributorReviews = [];
 
     for (const distributorName of distributorNames) {
-      let distributor = existingDistributors.find(d => d.supplier_name === distributorName);
-      let distributorId = distributor?.supplier_id;
+      let distributor = existingDistributors.find(d => d.distributor_name === distributorName);
+      let distributorId = distributor?.distributor_id;
 
       const distributorRows = rows
         .map((row, index) => ({ ...row, originalIndex: index }))
@@ -121,7 +121,7 @@ export async function POST(req) {
         const { data: rels } = await supabaseAdmin
           .from('brand_distributor_state')
           .select('brand_id, state_id, core_brands(brand_name), core_states(state_code)')
-          .eq('supplier_id', distributorId);
+          .eq('distributor_id', distributorId);
         
         existingRelationships = rels || [];
       }

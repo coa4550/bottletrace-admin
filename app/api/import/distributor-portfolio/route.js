@@ -50,8 +50,8 @@ export async function POST(req) {
     
     while (hasMore) {
       const { data, error } = await supabaseAdmin
-        .from('core_suppliers')
-        .select('supplier_id, supplier_name')
+        .from('core_distributors')
+        .select('distributor_id, distributor_name')
         .range(start, start + pageSize - 1);
       
       if (error) throw error;
@@ -93,7 +93,7 @@ export async function POST(req) {
     if (statesError) throw statesError;
     
     // Build lookup maps
-    const distributorMap = new Map(allDistributors?.map(d => [d.supplier_name, d]) || []);
+    const distributorMap = new Map(allDistributors?.map(d => [d.distributor_name, d]) || []);
     const brandMap = new Map(allBrands?.map(b => [b.brand_name, b]) || []);
     const brandIdMap = new Map(allBrands?.map(b => [b.brand_id, b]) || []);
     const stateCodeMap = new Map(allStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
@@ -171,23 +171,23 @@ export async function POST(req) {
     // Step 2: Bulk create distributors
     if (distributorsToCreate.length > 0) {
       const { data: newDistributors, error: distributorError } = await supabaseAdmin
-        .from('core_suppliers')
-        .insert(distributorsToCreate.map(d => ({ supplier_name: d.name })))
-        .select('supplier_id, supplier_name');
+        .from('core_distributors')
+        .insert(distributorsToCreate.map(d => ({ distributor_name: d.name })))
+        .select('distributor_id, distributor_name');
 
       if (distributorError) throw distributorError;
 
       distributorsCreated += newDistributors?.length || 0;
-      newDistributors?.forEach(d => distributorMap.set(d.supplier_name, d));
+      newDistributors?.forEach(d => distributorMap.set(d.distributor_name, d));
 
       newDistributors?.forEach((d, idx) => {
         changes.push({
           import_log_id: importLogId,
           change_type: 'distributor_created',
           entity_type: 'distributor',
-          entity_id: d.supplier_id,
-          entity_name: d.supplier_name,
-          new_value: { supplier_name: d.supplier_name },
+          entity_id: d.distributor_id,
+          entity_name: d.distributor_name,
+          new_value: { distributor_name: d.distributor_name },
           source_row: distributorsToCreate[idx].row
         });
       });
@@ -222,7 +222,7 @@ export async function POST(req) {
     }
 
     // Step 4: Load existing relationships for all distributors
-    const allDistributorIds = [...new Set(rowData.map(r => distributorMap.get(r.distributorName)?.supplier_id).filter(Boolean))];
+    const allDistributorIds = [...new Set(rowData.map(r => distributorMap.get(r.distributorName)?.distributor_id).filter(Boolean))];
     const existingRelsMap = new Map();
     
     if (allDistributorIds.length > 0) {
@@ -233,8 +233,8 @@ export async function POST(req) {
       while (hasMore) {
         const { data, error } = await supabaseAdmin
           .from('brand_distributor_state')
-          .select('brand_id, supplier_id, state_id')
-          .in('supplier_id', allDistributorIds)
+          .select('brand_id, distributor_id, state_id')
+          .in('distributor_id', allDistributorIds)
           .range(start, start + pageSize - 1);
 
         if (error) throw error;
@@ -249,7 +249,7 @@ export async function POST(req) {
       }
 
       allExistingRels?.forEach(rel => {
-        existingRelsMap.set(`${rel.supplier_id}_${rel.brand_id}_${rel.state_id}`, true);
+        existingRelsMap.set(`${rel.distributor_id}_${rel.brand_id}_${rel.state_id}`, true);
       });
     }
 
@@ -275,18 +275,18 @@ export async function POST(req) {
       }
 
       for (const stateId of stateIds) {
-        const relKey = `${distributor.supplier_id}_${brand.brand_id}_${stateId}`;
+        const relKey = `${distributor.distributor_id}_${brand.brand_id}_${stateId}`;
         
         if (existingRelsMap.has(relKey)) {
           relationshipsToUpdate.push({
             brand_id: brand.brand_id,
-            supplier_id: distributor.supplier_id,
+            distributor_id: distributor.distributor_id,
             state_id: stateId
           });
         } else {
           relationshipsToCreate.push({
             brand_id: brand.brand_id,
-            supplier_id: distributor.supplier_id,
+            distributor_id: distributor.distributor_id,
             state_id: stateId,
             is_verified: true,
             last_verified_at: now,
@@ -319,7 +319,7 @@ export async function POST(req) {
             relationship_source: 'csv_import'
           })
           .eq('brand_id', rel.brand_id)
-          .eq('supplier_id', rel.supplier_id)
+          .eq('distributor_id', rel.distributor_id)
           .eq('state_id', rel.state_id);
 
         if (updateError) throw updateError;
