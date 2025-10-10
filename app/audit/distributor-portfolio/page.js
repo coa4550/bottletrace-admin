@@ -11,9 +11,9 @@ export default function AuditDistributorPortfolioPage() {
   const [distributors, setDistributors] = useState([]);
   const [selectedDistributor, setSelectedDistributor] = useState(null);
   const [distributorInfo, setDistributorInfo] = useState(null);
-  const [portfolioBrands, setPortfolioBrands] = useState([]);
+  const [portfolioSuppliers, setPortfolioSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedBrands, setSelectedBrands] = useState(new Set());
+  const [selectedSuppliers, setSelectedSuppliers] = useState(new Set());
 
   useEffect(() => {
     async function fetchDistributors() {
@@ -54,26 +54,58 @@ export default function AuditDistributorPortfolioPage() {
         
         setDistributorInfo(distributor);
 
-        // Fetch brands in this distributor's portfolio via API
-        console.log('Fetching relationships for distributor:', selectedDistributor);
+        // Fetch suppliers for this distributor
+        console.log('Fetching supplier relationships for distributor:', selectedDistributor);
 
-        const portfolioResponse = await fetch(`/api/brand-distributor-state?distributor_id=${selectedDistributor}`);
-        const portfolioBrands = await portfolioResponse.json();
-        
-        if (!portfolioResponse.ok) {
-          throw new Error(portfolioBrands.error || 'Failed to fetch brand relationships');
+        // First get all brands for this distributor
+        const { data: brandRelationships, error: brandError } = await supabase
+          .from('brand_distributor_state')
+          .select('brand_id')
+          .eq('distributor_id', selectedDistributor);
+
+        if (brandError) {
+          throw new Error('Failed to fetch brand relationships');
         }
 
-        console.log('Total brands found:', portfolioBrands.length);
-        
-        // Transform the data to match expected format
-        const enrichedBrands = portfolioBrands.map(brand => ({
-          ...brand,
-          categories: brand.categories?.join(', ') || '',
-          sub_categories: brand.subcategories?.join(', ') || ''
-        }));
+        const brandIds = [...new Set(brandRelationships?.map(r => r.brand_id) || [])];
+        console.log('Total unique brands for distributor:', brandIds.length);
 
-        setPortfolioBrands(enrichedBrands);
+        if (brandIds.length === 0) {
+          setPortfolioSuppliers([]);
+          return;
+        }
+
+        // Get suppliers for those brands
+        const { data: supplierRelationships, error: supplierError } = await supabase
+          .from('brand_supplier')
+          .select('supplier_id')
+          .in('brand_id', brandIds);
+
+        if (supplierError) {
+          throw new Error('Failed to fetch supplier relationships');
+        }
+
+        const supplierIds = [...new Set(supplierRelationships?.map(r => r.supplier_id) || [])];
+        console.log('Total unique suppliers:', supplierIds.length);
+
+        if (supplierIds.length === 0) {
+          setPortfolioSuppliers([]);
+          return;
+        }
+
+        // Fetch supplier details
+        const { data: suppliers, error: suppliersError } = await supabase
+          .from('core_suppliers')
+          .select('*')
+          .in('supplier_id', supplierIds)
+          .order('supplier_name');
+
+        if (suppliersError) {
+          throw new Error('Failed to fetch supplier details');
+        }
+
+        console.log('Total suppliers found:', suppliers?.length || 0);
+        setPortfolioSuppliers(suppliers || []);
       } catch (error) {
         console.error('Error fetching distributor data:', error);
       } finally {
@@ -99,104 +131,104 @@ export default function AuditDistributorPortfolioPage() {
     }
   };
 
-  const handleBrandEdit = async (brandId, field, newValue) => {
+  const handleSupplierEdit = async (supplierId, field, newValue) => {
     try {
       const { error } = await supabase
-        .from('core_brands')
+        .from('core_suppliers')
         .update({ [field]: newValue })
-        .eq('brand_id', brandId);
+        .eq('supplier_id', supplierId);
 
       if (error) throw error;
-      setPortfolioBrands(prev =>
-        prev.map(b => (b.brand_id === brandId ? { ...b, [field]: newValue } : b))
+      setPortfolioSuppliers(prev =>
+        prev.map(s => (s.supplier_id === supplierId ? { ...s, [field]: newValue } : s))
       );
     } catch (err) {
       console.error('Update error:', err.message);
-      alert('Failed to update brand.');
+      alert('Failed to update supplier.');
     }
   };
 
-  const handleDeleteBrand = async (brandId, brandName) => {
-    if (!confirm(`Delete "${brandName}" from the database?\n\nThis will remove the brand and all its relationships permanently.`)) {
+  const handleDeleteSupplier = async (supplierId, supplierName) => {
+    if (!confirm(`Delete "${supplierName}" from the database?\n\nThis will remove the supplier and all its relationships permanently.`)) {
       return;
     }
 
     try {
       const { error } = await supabase
-        .from('core_brands')
+        .from('core_suppliers')
         .delete()
-        .eq('brand_id', brandId);
+        .eq('supplier_id', supplierId);
 
       if (error) throw error;
 
-      setPortfolioBrands(prev => prev.filter(b => b.brand_id !== brandId));
-      setSelectedBrands(prev => {
+      setPortfolioSuppliers(prev => prev.filter(s => s.supplier_id !== supplierId));
+      setSelectedSuppliers(prev => {
         const updated = new Set(prev);
-        updated.delete(brandId);
+        updated.delete(supplierId);
         return updated;
       });
-      alert('Brand deleted successfully!');
+      alert('Supplier deleted successfully!');
     } catch (err) {
       console.error('Delete error:', err.message);
-      alert('Failed to delete brand: ' + err.message);
+      alert('Failed to delete supplier: ' + err.message);
     }
   };
 
   const handleBulkDelete = async () => {
-    if (selectedBrands.size === 0) {
-      alert('No brands selected');
+    if (selectedSuppliers.size === 0) {
+      alert('No suppliers selected');
       return;
     }
 
-    const brandNames = portfolioBrands
-      .filter(b => selectedBrands.has(b.brand_id))
-      .map(b => b.brand_name)
+    const supplierNames = portfolioSuppliers
+      .filter(s => selectedSuppliers.has(s.supplier_id))
+      .map(s => s.supplier_name)
       .join('\n• ');
 
-    if (!confirm(`Delete ${selectedBrands.size} brands from the database?\n\n• ${brandNames}\n\nThis will remove all selected brands and their relationships permanently.`)) {
+    if (!confirm(`Delete ${selectedSuppliers.size} suppliers from the database?\n\n• ${supplierNames}\n\nThis will remove all selected suppliers and their relationships permanently.`)) {
       return;
     }
 
     try {
-      const brandIdsToDelete = Array.from(selectedBrands);
+      const supplierIdsToDelete = Array.from(selectedSuppliers);
       
       const batchSize = 10;
-      for (let i = 0; i < brandIdsToDelete.length; i += batchSize) {
-        const batch = brandIdsToDelete.slice(i, i + batchSize);
+      for (let i = 0; i < supplierIdsToDelete.length; i += batchSize) {
+        const batch = supplierIdsToDelete.slice(i, i + batchSize);
         const { error } = await supabase
-          .from('core_brands')
+          .from('core_suppliers')
           .delete()
-          .in('brand_id', batch);
+          .in('supplier_id', batch);
 
         if (error) throw error;
       }
 
-      setPortfolioBrands(prev => prev.filter(b => !selectedBrands.has(b.brand_id)));
-      setSelectedBrands(new Set());
-      alert(`Successfully deleted ${brandIdsToDelete.length} brands!`);
+      setPortfolioSuppliers(prev => prev.filter(s => !selectedSuppliers.has(s.supplier_id)));
+      setSelectedSuppliers(new Set());
+      alert(`Successfully deleted ${supplierIdsToDelete.length} suppliers!`);
     } catch (err) {
       console.error('Bulk delete error:', err.message);
-      alert('Failed to delete brands: ' + err.message);
+      alert('Failed to delete suppliers: ' + err.message);
     }
   };
 
-  const toggleBrandSelection = (brandId) => {
-    setSelectedBrands(prev => {
+  const toggleSupplierSelection = (supplierId) => {
+    setSelectedSuppliers(prev => {
       const updated = new Set(prev);
-      if (updated.has(brandId)) {
-        updated.delete(brandId);
+      if (updated.has(supplierId)) {
+        updated.delete(supplierId);
       } else {
-        updated.add(brandId);
+        updated.add(supplierId);
       }
       return updated;
     });
   };
 
   const toggleSelectAll = () => {
-    if (selectedBrands.size === portfolioBrands.length) {
-      setSelectedBrands(new Set());
+    if (selectedSuppliers.size === portfolioSuppliers.length) {
+      setSelectedSuppliers(new Set());
     } else {
-      setSelectedBrands(new Set(portfolioBrands.map(b => b.brand_id)));
+      setSelectedSuppliers(new Set(portfolioSuppliers.map(s => s.supplier_id)));
     }
   };
 
@@ -330,9 +362,9 @@ export default function AuditDistributorPortfolioPage() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ fontSize: 20, margin: 0, color: '#1e293b' }}>
-                Distributor Portfolio ({portfolioBrands.length} brands)
+                Distributor Supplier Relationships ({portfolioSuppliers.length} suppliers)
               </h2>
-              {selectedBrands.size > 0 && (
+              {selectedSuppliers.size > 0 && (
                 <button
                   onClick={handleBulkDelete}
                   style={{
@@ -346,12 +378,12 @@ export default function AuditDistributorPortfolioPage() {
                     fontSize: 14
                   }}
                 >
-                  Delete {selectedBrands.size} Selected Brand{selectedBrands.size > 1 ? 's' : ''}
+                  Delete {selectedSuppliers.size} Selected Supplier{selectedSuppliers.size > 1 ? 's' : ''}
                 </button>
               )}
             </div>
-            {portfolioBrands.length === 0 ? (
-              <p style={{ color: '#64748b' }}>No brands found in this distributor's portfolio.</p>
+            {portfolioSuppliers.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No suppliers found for this distributor.</p>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ 
@@ -367,60 +399,56 @@ export default function AuditDistributorPortfolioPage() {
                       <th style={{ padding: '8px', textAlign: 'center', width: '30px', fontSize: 13, fontWeight: 600, color: '#475569' }}>
                         <input
                           type="checkbox"
-                          checked={selectedBrands.size === portfolioBrands.length && portfolioBrands.length > 0}
+                          checked={selectedSuppliers.size === portfolioSuppliers.length && portfolioSuppliers.length > 0}
                           onChange={toggleSelectAll}
                           style={{ cursor: 'pointer' }}
-                          title="Select all brands"
+                          title="Select all suppliers"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Brand Name</th>
-                      <th style={{ ...headerStyle, width: '15%' }}>Categories</th>
-                      <th style={{ ...headerStyle, width: '15%' }}>Sub-Categories</th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Brand URL</th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '25%' }}>Supplier Name</th>
+                      <th style={{ ...headerStyle, width: '25%' }}>Supplier URL</th>
+                      <th style={{ ...headerStyle, width: '25%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {portfolioBrands.map(brand => (
+                    {portfolioSuppliers.map(supplier => (
                       <tr 
-                        key={brand.brand_id} 
+                        key={supplier.supplier_id} 
                         style={{ 
                           borderBottom: '1px solid #f1f5f9',
-                          background: selectedBrands.has(brand.brand_id) ? '#eff6ff' : 'transparent'
+                          background: selectedSuppliers.has(supplier.supplier_id) ? '#eff6ff' : 'transparent'
                         }}
                       >
                         <td style={{ padding: '8px', textAlign: 'center' }}>
                           <input
                             type="checkbox"
-                            checked={selectedBrands.has(brand.brand_id)}
-                            onChange={() => toggleBrandSelection(brand.brand_id)}
+                            checked={selectedSuppliers.has(supplier.supplier_id)}
+                            onChange={() => toggleSupplierSelection(supplier.supplier_id)}
                             style={{ cursor: 'pointer' }}
                           />
                         </td>
                         <td style={cellStyle}>
                           <EditableCell
-                            value={brand.brand_name}
-                            onChange={(val) => handleBrandEdit(brand.brand_id, 'brand_name', val)}
-                          />
-                        </td>
-                        <td style={cellStyle}>{brand.categories || '—'}</td>
-                        <td style={cellStyle}>{brand.sub_categories || '—'}</td>
-                        <td style={cellStyle}>
-                          <EditableCell
-                            value={brand.brand_url}
-                            onChange={(val) => handleBrandEdit(brand.brand_id, 'brand_url', val)}
+                            value={supplier.supplier_name}
+                            onChange={(val) => handleSupplierEdit(supplier.supplier_id, 'supplier_name', val)}
                           />
                         </td>
                         <td style={cellStyle}>
                           <EditableCell
-                            value={brand.brand_logo_url}
-                            onChange={(val) => handleBrandEdit(brand.brand_id, 'brand_logo_url', val)}
+                            value={supplier.supplier_url}
+                            onChange={(val) => handleSupplierEdit(supplier.supplier_id, 'supplier_url', val)}
+                          />
+                        </td>
+                        <td style={cellStyle}>
+                          <EditableCell
+                            value={supplier.supplier_logo_url}
+                            onChange={(val) => handleSupplierEdit(supplier.supplier_id, 'supplier_logo_url', val)}
                           />
                         </td>
                         <td style={cellStyle}>
                           <button
-                            onClick={() => handleDeleteBrand(brand.brand_id, brand.brand_name)}
+                            onClick={() => handleDeleteSupplier(supplier.supplier_id, supplier.supplier_name)}
                             style={{
                               padding: '4px 12px',
                               fontSize: 13,
