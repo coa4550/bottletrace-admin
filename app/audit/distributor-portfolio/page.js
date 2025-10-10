@@ -22,7 +22,7 @@ export default function AuditDistributorPortfolioPage() {
         const data = await response.json();
         
         if (response.ok) {
-          console.log('Fetched distributors:', data?.length || 0);
+          console.log('Fetched distributors:', data?.length || 0, 'at', new Date().toISOString());
           setDistributors(data || []);
         } else {
           console.error('Error fetching distributors:', data.error);
