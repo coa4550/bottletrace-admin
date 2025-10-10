@@ -157,12 +157,71 @@ export async function POST(req) {
       });
     });
 
+    // Get detailed lists for review
+    const newDistributorsList = Array.from(newDistributorNames);
+    const newSuppliersList = Array.from(newSupplierNames);
+    const existingDistributorsList = [];
+    const existingSuppliersList = [];
+    
+    // Find existing distributors and suppliers from the import
+    const importDistributorNames = new Set();
+    const importSupplierNames = new Set();
+    
+    for (const row of rows) {
+      const distributorName = (row.distributor_name || '').trim();
+      const supplierName = (row.supplier_name || '').trim();
+      if (distributorName) importDistributorNames.add(distributorName);
+      if (supplierName) importSupplierNames.add(supplierName);
+    }
+    
+    importDistributorNames.forEach(name => {
+      if (!newDistributorNames.has(name)) {
+        existingDistributorsList.push(name);
+      }
+    });
+    
+    importSupplierNames.forEach(name => {
+      if (!newSupplierNames.has(name)) {
+        existingSuppliersList.push(name);
+      }
+    });
+
+    // Build relationship details for the UI
+    const relationshipDetails = [];
+    importRelationships.forEach((suppliers, distributorName) => {
+      suppliers.forEach((stateIds, supplierName) => {
+        const distExists = !newDistributorNames.has(distributorName);
+        const suppExists = !newSupplierNames.has(supplierName);
+        
+        relationshipDetails.push({
+          distributorName,
+          supplierName,
+          distributorExists: distExists,
+          supplierExists: suppExists,
+          stateCount: stateIds.size,
+          states: Array.from(stateIds).map(stateId => {
+            const state = existingStates.find(s => s.state_id === stateId);
+            return state ? { id: state.state_id, code: state.state_code, name: state.state_name } : null;
+          }).filter(Boolean)
+        });
+      });
+    });
+
     return NextResponse.json({
       totalRows: rows.length,
       newDistributors: newDistributorNames.size,
       newSuppliers: newSupplierNames.size,
+      existingDistributors: existingDistributorsList.length,
+      existingSuppliers: existingSuppliersList.length,
       newRelationships: newRelationships.size,
       existingRelationships: existingRelationships.size,
+      newDistributorsList,
+      newSuppliersList,
+      existingDistributorsList,
+      existingSuppliersList,
+      relationshipDetails,
+      allExistingDistributors: existingDistributors,
+      allExistingSuppliers: existingSuppliers,
       warnings: warnings.slice(0, 50)
     });
 

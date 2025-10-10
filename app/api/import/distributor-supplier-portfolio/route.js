@@ -5,6 +5,7 @@ export async function POST(req) {
   try {
     const { 
       rows, 
+      manualMatches = {},
       fileName,
       isFirstBatch = true,
       isLastBatch = true,
@@ -117,11 +118,22 @@ export async function POST(req) {
       }
 
       try {
-        if (!distributorMap.has(distributorName) && !distributorsToCreate.some(d => d.name === distributorName)) {
+        // Check for manual matches first
+        const distributorMatch = manualMatches[`distributor_${distributorName}`];
+        const supplierMatch = manualMatches[`supplier_${supplierName}`];
+        
+        // Use manual match if available, otherwise check if exists or needs to be created
+        if (distributorMatch) {
+          // Manual match found - use the existing distributor
+          distributorMap.set(distributorName, distributorMatch);
+        } else if (!distributorMap.has(distributorName) && !distributorsToCreate.some(d => d.name === distributorName)) {
           distributorsToCreate.push({ name: distributorName, row });
         }
 
-        if (!supplierMap.has(supplierName) && !suppliersToCreate.some(s => s.name === supplierName)) {
+        if (supplierMatch) {
+          // Manual match found - use the existing supplier
+          supplierMap.set(supplierName, supplierMatch);
+        } else if (!supplierMap.has(supplierName) && !suppliersToCreate.some(s => s.name === supplierName)) {
           suppliersToCreate.push({ name: supplierName, row });
         }
 
