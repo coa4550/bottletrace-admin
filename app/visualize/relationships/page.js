@@ -20,7 +20,7 @@ export default function RelationshipsVisualizationPage() {
     async function fetchStates() {
       const { data, error } = await supabase
         .from('core_states')
-        .select('state_id, state_name, state_abbr')
+        .select('state_id, state_name, state_code')
         .order('state_name');
       
       if (error) {
@@ -217,7 +217,7 @@ export default function RelationshipsVisualizationPage() {
           <option value="">-- Choose a state --</option>
           {states.map(s => (
             <option key={s.state_id} value={s.state_id}>
-              {s.state_name} ({s.state_abbr})
+              {s.state_name} ({s.state_code})
             </option>
           ))}
         </select>
