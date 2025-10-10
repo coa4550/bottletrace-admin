@@ -320,9 +320,8 @@ export default function AuditSupplierPortfolioPage() {
               borderRadius: 8, 
               padding: 20 
             }}>
-              <div style={{ display: 'flex', gap: 40, alignItems: 'start' }}>
-                {/* Left side - Form fields */}
-                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 500 }}>
+              <div style={{ display: 'flex', gap: 24, marginBottom: 16 }}>
+                <div style={{ flex: 1, display: 'grid', gap: 16 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
                       Supplier Name
@@ -341,29 +340,15 @@ export default function AuditSupplierPortfolioPage() {
                       onChange={(val) => handleSupplierInfoEdit('supplier_url', val)}
                     />
                   </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
-                      Supplier Logo URL
-                    </label>
-                    <EditableInput
-                      value={supplierInfo.supplier_logo_url}
-                      onChange={(val) => handleSupplierInfoEdit('supplier_logo_url', val)}
-                    />
-                  </div>
                 </div>
-                
-                {/* Right side - Logo preview */}
-                <div style={{ 
-                  width: 200,
-                  flexShrink: 0
-                }}>
-                  <label style={{ display: 'block', fontSize: 14, color: '#475569', fontWeight: 600, marginBottom: 8 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 8 }}>
                     Supplier Logo
                   </label>
                   {supplierInfo.supplier_logo_url ? (
                     <div style={{
-                      width: '100%',
-                      height: 200,
+                      width: 120,
+                      height: 120,
                       border: '2px solid #e2e8f0',
                       borderRadius: 8,
                       display: 'flex',
@@ -371,7 +356,7 @@ export default function AuditSupplierPortfolioPage() {
                       justifyContent: 'center',
                       background: 'white',
                       overflow: 'hidden',
-                      padding: 16
+                      padding: 12
                     }}>
                       <img 
                         src={supplierInfo.supplier_logo_url} 
@@ -393,8 +378,8 @@ export default function AuditSupplierPortfolioPage() {
                     </div>
                   ) : (
                     <div style={{
-                      width: '100%',
-                      height: 200,
+                      width: 120,
+                      height: 120,
                       border: '2px dashed #cbd5e1',
                       borderRadius: 8,
                       display: 'flex',
@@ -404,10 +389,19 @@ export default function AuditSupplierPortfolioPage() {
                       color: '#94a3b8',
                       fontSize: 13
                     }}>
-                      No logo URL set
+                      No logo
                     </div>
                   )}
                 </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                  Supplier Logo URL
+                </label>
+                <EditableInput
+                  value={supplierInfo.supplier_logo_url}
+                  onChange={(val) => handleSupplierInfoEdit('supplier_logo_url', val)}
+                />
               </div>
             </div>
           </div>
@@ -597,6 +591,8 @@ function EditableInput({ value, onChange, style }) {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
+        width: '100%',
+        maxWidth: '100%',
         ...style
       }}
       onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
