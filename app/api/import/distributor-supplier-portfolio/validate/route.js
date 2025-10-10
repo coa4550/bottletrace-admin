@@ -12,14 +12,14 @@ export async function POST(req) {
     // Fetch all existing distributors
     const { data: existingDistributors, error: distributorsError } = await supabaseAdmin
       .from('core_distributors')
-      .select('distributor_id, distributor_name');
+      .select('distributor_id, distributor_name, distributor_logo_url');
 
     if (distributorsError) throw distributorsError;
 
     // Fetch all existing suppliers
     const { data: existingSuppliers, error: suppliersError } = await supabaseAdmin
       .from('core_suppliers')
-      .select('supplier_id, supplier_name');
+      .select('supplier_id, supplier_name, supplier_logo_url');
 
     if (suppliersError) throw suppliersError;
 
@@ -33,6 +33,8 @@ export async function POST(req) {
     // Build lookup maps
     const distributorMap = new Map(existingDistributors?.map(d => [d.distributor_name.toLowerCase(), d]) || []);
     const supplierMap = new Map(existingSuppliers?.map(s => [s.supplier_name.toLowerCase(), s]) || []);
+    const distributorNameMap = new Map(existingDistributors?.map(d => [d.distributor_name, d]) || []);
+    const supplierNameMap = new Map(existingSuppliers?.map(s => [s.supplier_name, s]) || []);
     const stateCodeMap = new Map(existingStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
     const stateNameMap = new Map(existingStates?.map(s => [s.state_name?.toLowerCase(), s]) || []);
 
@@ -193,11 +195,16 @@ export async function POST(req) {
         const distExists = !newDistributorNames.has(distributorName);
         const suppExists = !newSupplierNames.has(supplierName);
         
+        const distributorInfo = distributorNameMap.get(distributorName);
+        const supplierInfo = supplierNameMap.get(supplierName);
+        
         relationshipDetails.push({
           distributorName,
           supplierName,
           distributorExists: distExists,
           supplierExists: suppExists,
+          distributorLogoUrl: distributorInfo?.distributor_logo_url || null,
+          supplierLogoUrl: supplierInfo?.supplier_logo_url || null,
           stateCount: stateIds.size,
           states: Array.from(stateIds).map(stateId => {
             const state = existingStates.find(s => s.state_id === stateId);
@@ -220,8 +227,8 @@ export async function POST(req) {
       existingDistributorsList,
       existingSuppliersList,
       relationshipDetails,
-      allExistingDistributors: existingDistributors,
-      allExistingSuppliers: existingSuppliers,
+      allExistingDistributors: existingDistributors.sort((a, b) => a.distributor_name.localeCompare(b.distributor_name)),
+      allExistingSuppliers: existingSuppliers.sort((a, b) => a.supplier_name.localeCompare(b.supplier_name)),
       warnings: warnings.slice(0, 50)
     });
 

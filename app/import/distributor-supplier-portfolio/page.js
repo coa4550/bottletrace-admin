@@ -13,6 +13,7 @@ export default function ImportDistributorSupplierPortfolio() {
   const [manualMatches, setManualMatches] = useState({});
 
   const handleMatch = (itemName, existingItem, type) => {
+    console.log('Matching:', itemName, 'to', existingItem, 'type:', type);
     setManualMatches(prev => ({
       ...prev,
       [`${type}_${itemName}`]: existingItem
@@ -238,6 +239,34 @@ export default function ImportDistributorSupplierPortfolio() {
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>Distributor</div>
+                  {rel.distributorLogoUrl ? (
+                    <img 
+                      src={rel.distributorLogoUrl} 
+                      alt={rel.distributorName}
+                      style={{ 
+                        width: 40, 
+                        height: 40, 
+                        objectFit: 'contain', 
+                        marginBottom: 8,
+                        borderRadius: 4
+                      }}
+                    />
+                  ) : (
+                    <div style={{ 
+                      width: 40, 
+                      height: 40, 
+                      background: '#e2e8f0', 
+                      margin: '0 auto 8px auto',
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      color: '#94a3b8'
+                    }}>
+                      📦
+                    </div>
+                  )}
                   <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
                     {rel.distributorName}
                   </div>
@@ -273,6 +302,34 @@ export default function ImportDistributorSupplierPortfolio() {
                   textAlign: 'center'
                 }}>
                   <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>Supplier</div>
+                  {rel.supplierLogoUrl ? (
+                    <img 
+                      src={rel.supplierLogoUrl} 
+                      alt={rel.supplierName}
+                      style={{ 
+                        width: 40, 
+                        height: 40, 
+                        objectFit: 'contain', 
+                        marginBottom: 8,
+                        borderRadius: 4
+                      }}
+                    />
+                  ) : (
+                    <div style={{ 
+                      width: 40, 
+                      height: 40, 
+                      background: '#e2e8f0', 
+                      margin: '0 auto 8px auto',
+                      borderRadius: 4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      color: '#94a3b8'
+                    }}>
+                      🏭
+                    </div>
+                  )}
                   <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
                     {rel.supplierName}
                   </div>
@@ -446,8 +503,12 @@ export default function ImportDistributorSupplierPortfolio() {
         type={getModalData()?.type}
         items={getModalData()?.items}
         existingItems={getModalData()?.existingItems}
+        manualMatches={manualMatches}
         onMatch={(itemName, existingItem) => {
-          handleMatch(itemName, existingItem, getModalData()?.type);
+          const modalData = getModalData();
+          if (modalData?.type) {
+            handleMatch(itemName, existingItem, modalData.type);
+          }
         }}
       />
     </div>
@@ -494,7 +555,7 @@ function SummaryItem({ label, count, items, type, existingItems, onClick }) {
   );
 }
 
-function MatchModal({ isOpen, onClose, type, items, existingItems, onMatch }) {
+function MatchModal({ isOpen, onClose, type, items, existingItems, onMatch, manualMatches }) {
   if (!isOpen) return null;
 
   return (
@@ -529,17 +590,31 @@ function MatchModal({ isOpen, onClose, type, items, existingItems, onMatch }) {
           </p>
         </div>
 
-        {items?.map((item, index) => (
-          <div key={index} style={{
-            padding: 12,
-            border: '1px solid #e2e8f0',
-            borderRadius: 6,
-            marginBottom: 8,
-            background: '#f8fafc'
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>
-              {item}
-            </div>
+        {items?.map((item, index) => {
+          const matchKey = `${type}_${item}`;
+          const currentMatch = manualMatches[matchKey];
+          
+          return (
+            <div key={index} style={{
+              padding: 12,
+              border: '1px solid #e2e8f0',
+              borderRadius: 6,
+              marginBottom: 8,
+              background: currentMatch ? '#f0fdf4' : '#f8fafc'
+            }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                {item}
+                {currentMatch && (
+                  <span style={{ 
+                    marginLeft: 8, 
+                    fontSize: 12, 
+                    color: '#059669',
+                    fontWeight: 'normal'
+                  }}>
+                    ✓ Matched to: {currentMatch[`${type}_name`]}
+                  </span>
+                )}
+              </div>
             
             <div style={{ display: 'grid', gap: 8 }}>
               <button
@@ -582,8 +657,9 @@ function MatchModal({ isOpen, onClose, type, items, existingItems, onMatch }) {
                 ))}
               </div>
             </div>
-          </div>
-        ))}
+            </div>
+          );
+        })}
 
         <div style={{ marginTop: 20, textAlign: 'right' }}>
           <button
