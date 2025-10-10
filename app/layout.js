@@ -43,6 +43,7 @@ export default function RootLayout({ children }) {
   <a href="/import/brand" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Import Brand</a>
   <a href="/import/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Import Supplier Portfolio</a>
   <a href="/import/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Import Distributor Portfolio</a>
+  <a href="/import/distributor-supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Import Distributor-Supplier Portfolio</a>
   <a href="/import/logs" style={{ color:'#22d3ee', textDecoration:'none', paddingLeft: 12, marginTop: 8 }}>📋 Import History</a>
 </nav>
           </aside>
