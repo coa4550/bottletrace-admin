@@ -242,8 +242,8 @@ export default function AuditDistributorPortfolioPage() {
               padding: 20 
             }}>
               <div style={{ display: 'flex', gap: 60, alignItems: 'start' }}>
-                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 500, minWidth: 0 }}>
-                  <div>
+                <div style={{ flex: 1, display: 'grid', gap: 16, maxWidth: 500, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ minWidth: 0 }}>
                     <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
                       Distributor Name
                     </label>
@@ -252,7 +252,7 @@ export default function AuditDistributorPortfolioPage() {
                       onChange={(val) => handleDistributorInfoEdit('distributor_name', val)}
                     />
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
                       Distributor URL
                     </label>
@@ -261,7 +261,7 @@ export default function AuditDistributorPortfolioPage() {
                       onChange={(val) => handleDistributorInfoEdit('distributor_url', val)}
                     />
                   </div>
-                  <div>
+                  <div style={{ minWidth: 0 }}>
                     <label style={{ display: 'block', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
                       Distributor Logo URL
                     </label>
@@ -515,6 +515,8 @@ function EditableInput({ value, onChange, style }) {
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
+        width: '100%',
+        maxWidth: '100%',
         ...style
       }}
       onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
