@@ -33,6 +33,11 @@ export default function RootLayout({ children }) {
   <a href="/audit/orphans" style={{ color:'#fbbf24', textDecoration:'none', paddingLeft: 12 }}>Orphaned Brands</a>
 
   <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+    Visualization
+  </h4>
+  <a href="/visualize/relationships" style={{ color:'#a78bfa', textDecoration:'none', paddingLeft: 12 }}>📊 Relationship Network</a>
+
+  <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
     Data Import
   </h4>
   <a href="/import/brand" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Import Brand</a>
