@@ -22,6 +22,7 @@ export default function AuditDistributorPortfolioPage() {
         const data = await response.json();
         
         if (response.ok) {
+          console.log('Fetched distributors:', data?.length || 0);
           setDistributors(data || []);
         } else {
           console.error('Error fetching distributors:', data.error);
@@ -59,6 +60,8 @@ export default function AuditDistributorPortfolioPage() {
         const pageSize = 1000;
         let hasMore = true;
 
+        console.log('Fetching relationships for distributor:', selectedDistributor);
+
         while (hasMore) {
           const { data, error } = await supabase
             .from('brand_distributor_state')
@@ -68,6 +71,8 @@ export default function AuditDistributorPortfolioPage() {
 
           if (error) throw error;
 
+          console.log(`Fetched ${data?.length || 0} relationships, page ${start/pageSize + 1}`);
+
           if (data && data.length > 0) {
             allRelationships = [...allRelationships, ...data];
             start += pageSize;
@@ -76,6 +81,8 @@ export default function AuditDistributorPortfolioPage() {
             hasMore = false;
           }
         }
+
+        console.log('Total relationships found:', allRelationships.length);
 
         const brandIds = [...new Set(allRelationships.map(r => r.brand_id))];
 
