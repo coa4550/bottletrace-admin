@@ -4,8 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 import { ResponsiveSankey } from '@nivo/sankey';
 
 const supabase = createClient(
-  'https://pgycxpmqnrjsusgoinxz.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBneWN4cG1xbnJqc3VzZ29pbnh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyNTMxNjIsImV4cCI6MjA3MjgyOTE2Mn0.GB-HMHWn7xy5uoXpHhTv8TBO6CNl3a877K5DBIH7ekE'
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://pgycxpmqnrjsusgoinxz.supabase.co',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBneWN4cG1xbnJqc3VzZ29pbnh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyNTMxNjIsImV4cCI6MjA3MjgyOTE2Mn0.GB-HMHWn7xy5uoXpHhTv8TBO6CNl3a877K5DBIH7ekE'
 );
 
 export default function RelationshipsVisualizationPage() {
@@ -146,6 +146,19 @@ export default function RelationshipsVisualizationPage() {
         console.log('Selected distributor:', selectedDistributor);
         console.log('Selected supplier:', selectedSupplier);
         
+        // Test basic Supabase connection first
+        console.log('Testing Supabase connection...');
+        const { data: testData, error: testError } = await supabase
+          .from('core_states')
+          .select('state_id, state_name')
+          .limit(1);
+        
+        if (testError) {
+          console.error('Supabase connection test failed:', testError);
+        } else {
+          console.log('Supabase connection test successful:', testData);
+        }
+        
         // First try without joins to see if basic query works
         let distSupplierQuery = supabase
           .from('distributor_supplier_state')
@@ -166,6 +179,7 @@ export default function RelationshipsVisualizationPage() {
 
         if (dsError) {
           console.error('Error fetching distributor-supplier relationships:', dsError);
+          console.error('Full error details:', JSON.stringify(dsError, null, 2));
           throw dsError;
         }
 
