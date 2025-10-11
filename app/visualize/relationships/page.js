@@ -214,6 +214,7 @@ export default function RelationshipsVisualizationPage() {
         console.log('Supplier-Brand relationships:', supplierBrands?.length);
         console.log('Raw supplier-brand data:', supplierBrands);
         console.log('First supplier-brand item structure:', supplierBrands?.[0]);
+        console.log('First distributor-supplier item structure:', distSuppliers?.[0]);
 
         // Build nodes and links
         const nodes = new Set();
@@ -515,7 +516,7 @@ export default function RelationshipsVisualizationPage() {
 
           {/* Sankey Diagram */}
           <div style={{ 
-            height: 800, 
+            height: 600, 
             background: 'white',
             border: '1px solid #e2e8f0',
             borderRadius: 8,
