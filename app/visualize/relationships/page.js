@@ -14,6 +14,7 @@ export default function RelationshipsVisualizationPage() {
   const [sankeyData, setSankeyData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ distributors: 0, suppliers: 0, brands: 0 });
+  const [dataLimited, setDataLimited] = useState(false);
   
   // Filter options and selections
   const [availableDistributors, setAvailableDistributors] = useState([]);
@@ -275,9 +276,38 @@ export default function RelationshipsVisualizationPage() {
         console.log('Nodes:', uniqueNodes.length);
         console.log('Links:', links.length);
 
+        // Limit nodes if too many to prevent overcrowding
+        let finalNodes = uniqueNodes;
+        let finalLinks = links;
+        let wasLimited = false;
+        
+        if (uniqueNodes.length > 50) {
+          wasLimited = true;
+          // Sort nodes by type and take the most important ones
+          const distributors = uniqueNodes.filter(n => n.type === 'distributor');
+          const suppliers = uniqueNodes.filter(n => n.type === 'supplier');
+          const brands = uniqueNodes.filter(n => n.type === 'brand');
+          
+          // Keep all distributors and suppliers, limit brands
+          const maxBrands = Math.max(20, 50 - distributors.length - suppliers.length);
+          const limitedBrands = brands.slice(0, maxBrands);
+          
+          finalNodes = [...distributors, ...suppliers, ...limitedBrands];
+          
+          // Filter links to only include the limited nodes
+          const nodeIds = new Set(finalNodes.map(n => n.id));
+          finalLinks = links.filter(link => 
+            nodeIds.has(link.source) && nodeIds.has(link.target)
+          );
+          
+          console.log(`Limited to ${finalNodes.length} nodes (${limitedBrands.length} brands shown)`);
+        }
+        
+        setDataLimited(wasLimited);
+
         setSankeyData({
-          nodes: uniqueNodes,
-          links: links
+          nodes: finalNodes,
+          links: finalLinks
         });
 
         setStats({
@@ -442,6 +472,19 @@ export default function RelationshipsVisualizationPage() {
 
       {loading && <p>Loading relationship data...</p>}
 
+      {dataLimited && (
+        <div style={{ 
+          marginBottom: 16, 
+          padding: 12, 
+          background: '#fef3c7', 
+          border: '1px solid #fbbf24', 
+          borderRadius: 6,
+          fontSize: 14
+        }}>
+          ⚠️ <strong>Display Limited:</strong> Too many relationships to show clearly. Only the first 20 brands are displayed. Use the filters above to narrow down the view.
+        </div>
+      )}
+
       {!loading && sankeyData && sankeyData.nodes.length === 0 && (
         <p style={{ color: '#64748b' }}>No relationships found for this state.</p>
       )}
@@ -490,44 +533,55 @@ export default function RelationshipsVisualizationPage() {
           }}>
             <ResponsiveSankey
               data={sankeyData}
-              margin={{ top: 20, right: 160, bottom: 20, left: 160 }}
+              margin={{ top: 40, right: 200, bottom: 40, left: 200 }}
               align="justify"
               colors={{ scheme: 'category10' }}
               nodeOpacity={1}
               nodeHoverOthersOpacity={0.35}
-              nodeThickness={18}
-              nodeSpacing={24}
-              nodeBorderWidth={0}
+              nodeThickness={20}
+              nodeSpacing={40}
+              nodeBorderWidth={1}
               nodeBorderColor={{
                 from: 'color',
                 modifiers: [['darker', 0.8]]
               }}
-              nodeBorderRadius={3}
-              linkOpacity={0.5}
+              nodeBorderRadius={4}
+              linkOpacity={0.6}
               linkHoverOthersOpacity={0.1}
-              linkContract={3}
+              linkContract={5}
               enableLinkGradient={true}
-              label={node => node.label || node.id}
+              label={node => {
+                // Truncate long labels to prevent overlap
+                const label = node.label || node.id;
+                return label.length > 15 ? label.substring(0, 12) + '...' : label;
+              }}
               labelPosition="outside"
               labelOrientation="horizontal"
-              labelPadding={16}
+              labelPadding={20}
               labelTextColor={{
                 from: 'color',
-                modifiers: [['darker', 1]]
+                modifiers: [['darker', 1.2]]
               }}
+              enableLabels={true}
+              animate={false}
               tooltip={({ node }) => (
                 <div
                   style={{
                     background: 'white',
-                    padding: '9px 12px',
+                    padding: '12px 16px',
                     border: '1px solid #ccc',
-                    borderRadius: 4,
-                    fontSize: 13
+                    borderRadius: 6,
+                    fontSize: 14,
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                    maxWidth: 200,
+                    wordWrap: 'break-word'
                   }}
                 >
                   <strong>{node.label || node.id}</strong>
                   <br />
-                  Value: {node.value}
+                  Type: {node.type || 'Unknown'}
+                  <br />
+                  Value: {node.value || 1}
                 </div>
               )}
             />
