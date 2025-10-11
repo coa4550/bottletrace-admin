@@ -222,6 +222,25 @@ export default function RelationshipsVisualizationPage() {
         const supplierSet = new Set();
         const brandSet = new Set();
 
+        // Create a cleaner visualization by grouping brands by supplier
+        const supplierGroups = new Map();
+        
+        // Group brands by supplier
+        supplierBrands?.forEach(sb => {
+          const suppId = `supp_${sb.supplier_id}`;
+          if (!supplierGroups.has(suppId)) {
+            supplierGroups.set(suppId, {
+              supplier_id: sb.supplier_id,
+              supplier_name: sb.core_suppliers.supplier_name,
+              brands: []
+            });
+          }
+          supplierGroups.get(suppId).brands.push({
+            brand_id: sb.brand_id,
+            brand_name: sb.core_brands.brand_name
+          });
+        });
+
         // Create distributor -> supplier links
         distSuppliers.forEach(ds => {
           const distId = `dist_${ds.distributor_id}`;
@@ -229,37 +248,57 @@ export default function RelationshipsVisualizationPage() {
           const suppId = `supp_${ds.supplier_id}`;
           const suppName = ds.core_suppliers.supplier_name;
 
-          nodes.add(JSON.stringify({ id: distId, label: distName, type: 'distributor' }));
-          nodes.add(JSON.stringify({ id: suppId, label: suppName, type: 'supplier' }));
+          nodes.add(JSON.stringify({ 
+            id: distId, 
+            label: distName, 
+            type: 'distributor',
+            color: '#3B82F6' // Blue for distributors
+          }));
           
           distributorSet.add(ds.distributor_id);
           supplierSet.add(ds.supplier_id);
 
-          // Add link from distributor to supplier
+          // Create supplier node with brand count
+          const supplierGroup = supplierGroups.get(suppId);
+          const brandCount = supplierGroup ? supplierGroup.brands.length : 0;
+          
+          nodes.add(JSON.stringify({ 
+            id: suppId, 
+            label: `${suppName} (${brandCount} brands)`, 
+            type: 'supplier',
+            color: '#10B981' // Green for suppliers
+          }));
+
+          // Add link from distributor to supplier with brand count as value
           links.push({
             source: distId,
             target: suppId,
-            value: 1
+            value: brandCount || 1
           });
         });
 
-        // Create supplier -> brand links
-        supplierBrands?.forEach(sb => {
-          const suppId = `supp_${sb.supplier_id}`;
-          const brandId = `brand_${sb.brand_id}`;
-          const brandName = sb.core_brands.brand_name;
+        // Create a summary brand node instead of individual brands
+        const totalBrands = supplierBrands?.length || 0;
+        if (totalBrands > 0) {
+          const brandSummaryId = 'brand_summary';
+          nodes.add(JSON.stringify({ 
+            id: brandSummaryId, 
+            label: `${totalBrands} Brands`, 
+            type: 'brands',
+            color: '#F59E0B' // Orange for brands
+          }));
 
-          nodes.add(JSON.stringify({ id: brandId, label: brandName, type: 'brand' }));
+          // Create links from suppliers to brand summary
+          supplierGroups.forEach((group, suppId) => {
+            links.push({
+              source: suppId,
+              target: brandSummaryId,
+              value: group.brands.length
+            });
+          });
           
-          brandSet.add(sb.brand_id);
-
-          // Add link from supplier to brand
-          links.push({
-            source: suppId,
-            target: brandId,
-            value: 1
-          });
-        });
+          brandSet.add('summary');
+        }
 
         const uniqueNodes = Array.from(nodes).map(n => JSON.parse(n));
 
@@ -268,7 +307,8 @@ export default function RelationshipsVisualizationPage() {
 
         setSankeyData({
           nodes: uniqueNodes,
-          links: links
+          links: links,
+          brandDetails: Array.from(supplierGroups.values())
         });
 
         setStats({
@@ -481,69 +521,121 @@ export default function RelationshipsVisualizationPage() {
           }}>
             <ResponsiveSankey
               data={sankeyData}
-              margin={{ top: 20, right: 160, bottom: 20, left: 160 }}
+              margin={{ top: 40, right: 200, bottom: 40, left: 200 }}
               align="justify"
-              colors={{ scheme: 'category10' }}
+              colors={node => node.color || '#94A3B8'}
               nodeOpacity={1}
-              nodeHoverOthersOpacity={0.35}
-              nodeThickness={18}
-              nodeSpacing={24}
+              nodeHoverOthersOpacity={0.2}
+              nodeThickness={24}
+              nodeSpacing={32}
               nodeBorderWidth={0}
-              nodeBorderColor={{
-                from: 'color',
-                modifiers: [['darker', 0.8]]
-              }}
-              nodeBorderRadius={3}
-              linkOpacity={0.5}
-              linkHoverOthersOpacity={0.1}
-              linkContract={3}
-              enableLinkGradient={true}
+              nodeBorderColor="transparent"
+              nodeBorderRadius={8}
+              linkOpacity={0.6}
+              linkHoverOthersOpacity={0.05}
+              linkContract={2}
+              enableLinkGradient={false}
+              linkColor="rgba(148, 163, 184, 0.3)"
               label={node => node.label || node.id}
               labelPosition="outside"
               labelOrientation="horizontal"
-              labelPadding={16}
-              labelTextColor={{
-                from: 'color',
-                modifiers: [['darker', 1]]
+              labelPadding={20}
+              labelTextColor="#374151"
+              labelStyle={{
+                fontSize: 14,
+                fontWeight: 500,
+                fill: '#374151'
               }}
-              legends={[
-                {
-                  anchor: 'bottom-right',
-                  direction: 'column',
-                  translateX: 130,
-                  itemWidth: 100,
-                  itemHeight: 14,
-                  itemDirection: 'right-to-left',
-                  itemsSpacing: 2,
-                  itemTextColor: '#999',
-                  symbolSize: 14,
-                  effects: [
-                    {
-                      on: 'hover',
-                      style: {
-                        itemTextColor: '#000'
-                      }
-                    }
-                  ]
-                }
-              ]}
               tooltip={({ node }) => (
                 <div
                   style={{
                     background: 'white',
-                    padding: '9px 12px',
-                    border: '1px solid #ccc',
-                    borderRadius: 4,
-                    fontSize: 13
+                    padding: '12px 16px',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    minWidth: 200
                   }}
                 >
-                  <strong>{node.label || node.id}</strong>
-                  <br />
-                  Value: {node.value}
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                    {node.label || node.id}
+                  </div>
+                  <div style={{ color: '#6B7280', fontSize: 13 }}>
+                    {node.type === 'distributor' && 'Distributor'}
+                    {node.type === 'supplier' && 'Supplier'}
+                    {node.type === 'brands' && 'Total Brands'}
+                  </div>
+                  {node.value && (
+                    <div style={{ color: '#6B7280', fontSize: 13, marginTop: 4 }}>
+                      Value: {node.value}
+                    </div>
+                  )}
                 </div>
               )}
+              theme={{
+                background: 'transparent',
+                text: {
+                  fontSize: 14,
+                  fill: '#374151',
+                  fontWeight: 500
+                }
+              }}
             />
           </div>
+
+          {/* Brand Details Section */}
+          {sankeyData && sankeyData.brandDetails && sankeyData.brandDetails.length > 0 && (
+            <div style={{ 
+              marginTop: 32,
+              background: 'white',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: 24
+            }}>
+              <h3 style={{ 
+                margin: '0 0 20px 0', 
+                fontSize: 18, 
+                fontWeight: 600, 
+                color: '#1e293b' 
+              }}>
+                Brand Portfolio Details
+              </h3>
+              
+              {sankeyData.brandDetails.map((group, index) => (
+                <div key={index} style={{ marginBottom: 24 }}>
+                  <h4 style={{ 
+                    margin: '0 0 12px 0', 
+                    fontSize: 16, 
+                    fontWeight: 500, 
+                    color: '#374151',
+                    borderBottom: '1px solid #f1f5f9',
+                    paddingBottom: 8
+                  }}>
+                    {group.supplier_name} ({group.brands.length} brands)
+                  </h4>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+                    gap: 8 
+                  }}>
+                    {group.brands.map((brand, brandIndex) => (
+                      <div key={brandIndex} style={{
+                        padding: '8px 12px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        color: '#475569'
+                      }}>
+                        {brand.brand_name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
 
