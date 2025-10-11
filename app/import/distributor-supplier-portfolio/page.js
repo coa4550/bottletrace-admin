@@ -50,9 +50,18 @@ export default function ImportDistributorSupplierPortfolio() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
+      const workbook = XLSX.read(data, { 
+        type: 'array',
+        codepage: 65001, // UTF-8 encoding
+        cellDates: true,
+        cellNF: false,
+        cellText: false
+      });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json(firstSheet);
+      const json = XLSX.utils.sheet_to_json(firstSheet, {
+        raw: false,
+        defval: ''
+      });
       setParsed(json);
     };
     reader.readAsArrayBuffer(file);
