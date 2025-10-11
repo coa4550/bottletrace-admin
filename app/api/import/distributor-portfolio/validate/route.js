@@ -74,16 +74,16 @@ export async function POST(req) {
 
     // Calculate summary stats
     const newDistributors = distributorReviews.filter(d => d.isNew).length;
-    const existingDistributors = distributorReviews.filter(d => !d.isNew).length;
+    const existingDistributorsCount = distributorReviews.filter(d => !d.isNew).length;
     
     let newSuppliers = 0;
-    let existingSuppliers = 0;
+    let existingSuppliersCount = 0;
     let totalRelationships = 0;
 
     distributorReviews.forEach(d => {
       d.suppliers.forEach(s => {
         if (s.isNew) newSuppliers++;
-        else existingSuppliers++;
+        else existingSuppliersCount++;
         totalRelationships++;
       });
     });
@@ -92,9 +92,9 @@ export async function POST(req) {
       distributorReviews,
       summary: {
         newDistributors,
-        existingDistributors,
+        existingDistributors: existingDistributorsCount,
         newSuppliers,
-        existingSuppliers,
+        existingSuppliers: existingSuppliersCount,
         totalRelationships
       },
       allStates
