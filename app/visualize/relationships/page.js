@@ -164,9 +164,13 @@ export default function RelationshipsVisualizationPage() {
 
         const { data: distSuppliers, error: dsError } = await distSupplierQuery;
 
-        if (dsError) throw dsError;
+        if (dsError) {
+          console.error('Error fetching distributor-supplier relationships:', dsError);
+          throw dsError;
+        }
 
         console.log('Distributor-Supplier relationships:', distSuppliers?.length);
+        console.log('Raw distributor-supplier data:', distSuppliers);
 
         if (!distSuppliers || distSuppliers.length === 0) {
           setSankeyData({ nodes: [], links: [] });
@@ -187,9 +191,13 @@ export default function RelationshipsVisualizationPage() {
           `)
           .in('supplier_id', supplierIds);
 
-        if (sbError) throw sbError;
+        if (sbError) {
+          console.error('Error fetching supplier-brand relationships:', sbError);
+          throw sbError;
+        }
 
         console.log('Supplier-Brand relationships:', supplierBrands?.length);
+        console.log('Raw supplier-brand data:', supplierBrands);
 
         // Build nodes and links
         const nodes = new Set();
