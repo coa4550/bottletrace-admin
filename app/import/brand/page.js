@@ -273,9 +273,9 @@ export default function ImportBrandPage() {
                 {exactMatches.length > 0 && (
                   <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
                     <div style={{ padding: '12px 16px', background: '#d1fae5', borderBottom: '1px solid #10b981' }}>
-                      <strong style={{ color: '#065f46' }}>✓ Exact Match - Ignore ({exactMatches.length})</strong>
+                      <strong style={{ color: '#065f46' }}>✓ Exact Match - Enrich ({exactMatches.length})</strong>
                       <span style={{ fontSize: 13, color: '#065f46', marginLeft: 8 }}>
-                        - Will update these brands
+                        - Will add missing data (URL, logo, categories) without replacing existing data
                       </span>
                     </div>
                     {exactMatches.map((brand, idx) => (
@@ -407,7 +407,7 @@ export default function ImportBrandPage() {
           <h3 style={{ marginTop: 0, color: '#166534' }}>Import Complete</h3>
           <div style={{ display: 'grid', gap: 8, fontSize: 14, color: '#166534' }}>
             <p>✅ Brands created: {results.brandsCreated}</p>
-            <p>✅ Brands updated: {results.brandsUpdated}</p>
+            <p>✅ Brands enriched: {results.brandsUpdated}</p>
             <p>✅ Categories linked: {results.categoriesLinked}</p>
             <p>✅ Sub-categories linked: {results.subCategoriesLinked}</p>
             <p>⚠️ Rows skipped: {results.skipped}</p>

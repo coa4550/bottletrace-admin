@@ -67,14 +67,30 @@ export async function POST(req) {
 
         // Check if user wants to use existing brand or create new
         if (match?.useExisting && match?.existingBrandId) {
-          // Use existing brand - update it
+          // Use existing brand - enrich it with new data
           brandId = match.existingBrandId;
           
-          // Update brand details if provided
+          // Fetch existing brand to check what fields are empty
+          const { data: existingBrand, error: fetchError } = await supabaseAdmin
+            .from('core_brands')
+            .select('brand_url, brand_logo_url, data_source')
+            .eq('brand_id', brandId)
+            .single();
+
+          if (fetchError) throw fetchError;
+
+          // Only update fields that are currently null/empty in the database
           const updateData = {};
-          if (brandUrl) updateData.brand_url = brandUrl;
-          if (brandLogoUrl) updateData.brand_logo_url = brandLogoUrl;
-          if (dataSource) updateData.data_source = dataSource;
+          if (brandUrl && !existingBrand.brand_url) {
+            updateData.brand_url = brandUrl;
+          }
+          if (brandLogoUrl && !existingBrand.brand_logo_url) {
+            updateData.brand_logo_url = brandLogoUrl;
+          }
+          // Always update data_source if provided to reflect latest import
+          if (dataSource) {
+            updateData.data_source = dataSource;
+          }
 
           if (Object.keys(updateData).length > 0) {
             const { error: updateError } = await supabaseAdmin
@@ -85,26 +101,21 @@ export async function POST(req) {
             if (updateError) throw updateError;
             wasUpdated = true;
             brandsUpdated++;
-          }
 
-          // Log the update
-          await supabaseAdmin
-            .from('import_changes')
-            .insert({
-              import_log_id: importLogId,
-              change_type: 'updated',
-              entity_type: 'brand',
-              entity_id: brandId,
-              entity_name: brandName,
-              old_value: match.existingBrandName ? { brand_name: match.existingBrandName } : null,
-              new_value: { 
-                brand_name: brandName,
-                brand_url: brandUrl,
-                brand_logo_url: brandLogoUrl,
-                data_source: dataSource
-              },
-              source_row: row
-            });
+            // Log the enrichment
+            await supabaseAdmin
+              .from('import_changes')
+              .insert({
+                import_log_id: importLogId,
+                change_type: 'enriched',
+                entity_type: 'brand',
+                entity_id: brandId,
+                entity_name: brandName,
+                old_value: existingBrand,
+                new_value: updateData,
+                source_row: row
+              });
+          }
 
         } else {
           // Create new brand
@@ -163,7 +174,8 @@ export async function POST(req) {
           }
         }
 
-        // Process categories
+        // Process categories and sub-categories (enrichment)
+        // This runs for both new and existing brands, adding categories/sub-categories that don't exist
         if (brandId) {
           const categoriesArray = (row.brand_categories || '')
             .split(',')
