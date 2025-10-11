@@ -254,8 +254,7 @@ export default function RelationshipsVisualizationPage() {
           nodes.add(JSON.stringify({ 
             id: distId, 
             label: distName, 
-            type: 'distributor',
-            color: '#3B82F6' // Blue for distributors
+            type: 'distributor'
           }));
           
           distributorSet.add(ds.distributor_id);
@@ -268,8 +267,7 @@ export default function RelationshipsVisualizationPage() {
           nodes.add(JSON.stringify({ 
             id: suppId, 
             label: `${suppName} (${brandCount} brands)`, 
-            type: 'supplier',
-            color: '#10B981' // Green for suppliers
+            type: 'supplier'
           }));
 
           // Add link from distributor to supplier with brand count as value
@@ -287,8 +285,7 @@ export default function RelationshipsVisualizationPage() {
           nodes.add(JSON.stringify({ 
             id: brandSummaryId, 
             label: `${totalBrands} Brands`, 
-            type: 'brands',
-            color: '#F59E0B' // Orange for brands
+            type: 'brands'
           }));
 
           // Create links from suppliers to brand summary
@@ -526,7 +523,7 @@ export default function RelationshipsVisualizationPage() {
               data={sankeyData}
               margin={{ top: 40, right: 200, bottom: 40, left: 200 }}
               align="justify"
-              colors={node => node.color || '#94A3B8'}
+              colors={{ scheme: 'category10' }}
               nodeOpacity={1}
               nodeHoverOthersOpacity={0.2}
               nodeThickness={24}
