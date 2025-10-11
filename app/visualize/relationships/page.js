@@ -159,10 +159,15 @@ export default function RelationshipsVisualizationPage() {
           console.log('Supabase connection test successful:', testData);
         }
         
-        // First try without joins to see if basic query works
+        // Use the same query structure that works for dropdowns
         let distSupplierQuery = supabase
           .from('distributor_supplier_state')
-          .select('*')
+          .select(`
+            distributor_id,
+            supplier_id,
+            core_distributors(distributor_name),
+            core_suppliers(supplier_name)
+          `)
           .eq('state_id', selectedState);
 
         // Apply distributor filter if selected
