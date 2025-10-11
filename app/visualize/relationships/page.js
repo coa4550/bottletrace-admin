@@ -246,9 +246,9 @@ export default function RelationshipsVisualizationPage() {
         // Create distributor -> supplier links
         distSuppliers.forEach(ds => {
           const distId = `dist_${ds.distributor_id}`;
-          const distName = ds.core_distributors.distributor_name;
+          const distName = ds.core_distributors?.distributor_name || 'Unknown Distributor';
           const suppId = `supp_${ds.supplier_id}`;
-          const suppName = ds.core_suppliers.supplier_name;
+          const suppName = ds.core_suppliers?.supplier_name || 'Unknown Supplier';
 
           nodes.add(JSON.stringify({ 
             id: distId, 
