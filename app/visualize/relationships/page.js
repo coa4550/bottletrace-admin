@@ -51,7 +51,7 @@ export default function RelationshipsVisualizationPage() {
         .from('distributor_supplier_state')
         .select(`
           distributor_id,
-          core_distributors!inner(distributor_name)
+          core_distributors(distributor_name)
         `)
         .eq('state_id', selectedState);
 
@@ -98,7 +98,7 @@ export default function RelationshipsVisualizationPage() {
         .from('distributor_supplier_state')
         .select(`
           supplier_id,
-          core_suppliers!inner(supplier_name)
+          core_suppliers(supplier_name)
         `)
         .eq('state_id', selectedState);
 
@@ -147,8 +147,8 @@ export default function RelationshipsVisualizationPage() {
           .select(`
             distributor_id,
             supplier_id,
-            core_distributors!inner(distributor_name),
-            core_suppliers!inner(supplier_name)
+            core_distributors(distributor_name),
+            core_suppliers(supplier_name)
           `)
           .eq('state_id', selectedState);
 
@@ -187,7 +187,7 @@ export default function RelationshipsVisualizationPage() {
           .select(`
             supplier_id,
             brand_id,
-            core_brands!inner(brand_name)
+            core_brands(brand_name)
           `)
           .in('supplier_id', supplierIds);
 
