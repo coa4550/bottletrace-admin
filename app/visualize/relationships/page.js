@@ -142,14 +142,14 @@ export default function RelationshipsVisualizationPage() {
       setLoading(true);
       try {
         // 1. Get distributor-supplier relationships for this state
+        console.log('Selected state ID:', selectedState);
+        console.log('Selected distributor:', selectedDistributor);
+        console.log('Selected supplier:', selectedSupplier);
+        
+        // First try without joins to see if basic query works
         let distSupplierQuery = supabase
           .from('distributor_supplier_state')
-          .select(`
-            distributor_id,
-            supplier_id,
-            core_distributors(distributor_name),
-            core_suppliers(supplier_name)
-          `)
+          .select('*')
           .eq('state_id', selectedState);
 
         // Apply distributor filter if selected
