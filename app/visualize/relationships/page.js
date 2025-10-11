@@ -201,7 +201,8 @@ export default function RelationshipsVisualizationPage() {
           .select(`
             supplier_id,
             brand_id,
-            core_brands(brand_name)
+            core_brands(brand_name),
+            core_suppliers(supplier_name)
           `)
           .in('supplier_id', supplierIds);
 
@@ -231,13 +232,13 @@ export default function RelationshipsVisualizationPage() {
           if (!supplierGroups.has(suppId)) {
             supplierGroups.set(suppId, {
               supplier_id: sb.supplier_id,
-              supplier_name: sb.core_suppliers.supplier_name,
+              supplier_name: sb.core_suppliers?.supplier_name || 'Unknown Supplier',
               brands: []
             });
           }
           supplierGroups.get(suppId).brands.push({
             brand_id: sb.brand_id,
-            brand_name: sb.core_brands.brand_name
+            brand_name: sb.core_brands?.brand_name || 'Unknown Brand'
           });
         });
 
