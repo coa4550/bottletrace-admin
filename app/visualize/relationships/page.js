@@ -213,6 +213,7 @@ export default function RelationshipsVisualizationPage() {
 
         console.log('Supplier-Brand relationships:', supplierBrands?.length);
         console.log('Raw supplier-brand data:', supplierBrands);
+        console.log('First supplier-brand item structure:', supplierBrands?.[0]);
 
         // Build nodes and links
         const nodes = new Set();
