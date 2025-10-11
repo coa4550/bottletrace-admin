@@ -14,6 +14,12 @@ export default function RelationshipsVisualizationPage() {
   const [sankeyData, setSankeyData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ distributors: 0, suppliers: 0, brands: 0 });
+  
+  // Filter options and selections
+  const [availableDistributors, setAvailableDistributors] = useState([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState([]);
+  const [selectedDistributor, setSelectedDistributor] = useState(null);
+  const [selectedSupplier, setSelectedSupplier] = useState(null);
 
   // Fetch states on mount
   useEffect(() => {
@@ -32,7 +38,100 @@ export default function RelationshipsVisualizationPage() {
     fetchStates();
   }, []);
 
-  // Fetch and build Sankey data when state is selected
+  // Fetch available distributors when state changes
+  useEffect(() => {
+    if (!selectedState) {
+      setAvailableDistributors([]);
+      setSelectedDistributor(null);
+      return;
+    }
+
+    async function fetchDistributors() {
+      const { data, error } = await supabase
+        .from('distributor_supplier_state')
+        .select(`
+          distributor_id,
+          core_distributors!inner(distributor_name)
+        `)
+        .eq('state_id', selectedState);
+
+      if (error) {
+        console.error('Error fetching distributors:', error);
+        return;
+      }
+
+      // Get unique distributors
+      const uniqueDistributors = [];
+      const seen = new Set();
+      data?.forEach(item => {
+        if (!seen.has(item.distributor_id)) {
+          seen.add(item.distributor_id);
+          uniqueDistributors.push({
+            distributor_id: item.distributor_id,
+            distributor_name: item.core_distributors.distributor_name
+          });
+        }
+      });
+
+      uniqueDistributors.sort((a, b) => 
+        a.distributor_name.localeCompare(b.distributor_name)
+      );
+
+      setAvailableDistributors(uniqueDistributors);
+      setSelectedDistributor(null);
+    }
+
+    fetchDistributors();
+  }, [selectedState]);
+
+  // Fetch available suppliers when state changes
+  useEffect(() => {
+    if (!selectedState) {
+      setAvailableSuppliers([]);
+      setSelectedSupplier(null);
+      return;
+    }
+
+    async function fetchSuppliers() {
+      // Get suppliers from distributor_supplier_state for this state
+      const { data, error } = await supabase
+        .from('distributor_supplier_state')
+        .select(`
+          supplier_id,
+          core_suppliers!inner(supplier_name)
+        `)
+        .eq('state_id', selectedState);
+
+      if (error) {
+        console.error('Error fetching suppliers:', error);
+        return;
+      }
+
+      // Get unique suppliers
+      const uniqueSuppliers = [];
+      const seen = new Set();
+      data?.forEach(item => {
+        if (!seen.has(item.supplier_id)) {
+          seen.add(item.supplier_id);
+          uniqueSuppliers.push({
+            supplier_id: item.supplier_id,
+            supplier_name: item.core_suppliers.supplier_name
+          });
+        }
+      });
+
+      uniqueSuppliers.sort((a, b) => 
+        a.supplier_name.localeCompare(b.supplier_name)
+      );
+
+      setAvailableSuppliers(uniqueSuppliers);
+      setSelectedSupplier(null);
+    }
+
+    fetchSuppliers();
+  }, [selectedState]);
+
+  // Fetch and build Sankey data when state or filters change
   useEffect(() => {
     if (!selectedState) {
       setSankeyData(null);
@@ -42,39 +141,51 @@ export default function RelationshipsVisualizationPage() {
     async function buildSankeyData() {
       setLoading(true);
       try {
-        // 1. Get all distributor-brand relationships for this state
-        const { data: distributorBrands, error: dbError } = await supabase
-          .from('brand_distributor_state')
+        // 1. Get distributor-supplier relationships for this state
+        let distSupplierQuery = supabase
+          .from('distributor_supplier_state')
           .select(`
             distributor_id,
-            brand_id,
+            supplier_id,
             core_distributors!inner(distributor_name),
-            core_brands!inner(brand_name)
+            core_suppliers!inner(supplier_name)
           `)
           .eq('state_id', selectedState);
 
-        if (dbError) throw dbError;
+        // Apply distributor filter if selected
+        if (selectedDistributor) {
+          distSupplierQuery = distSupplierQuery.eq('distributor_id', selectedDistributor);
+        }
 
-        console.log('Distributor-Brand relationships:', distributorBrands?.length);
+        // Apply supplier filter if selected
+        if (selectedSupplier) {
+          distSupplierQuery = distSupplierQuery.eq('supplier_id', selectedSupplier);
+        }
 
-        if (!distributorBrands || distributorBrands.length === 0) {
+        const { data: distSuppliers, error: dsError } = await distSupplierQuery;
+
+        if (dsError) throw dsError;
+
+        console.log('Distributor-Supplier relationships:', distSuppliers?.length);
+
+        if (!distSuppliers || distSuppliers.length === 0) {
           setSankeyData({ nodes: [], links: [] });
           setStats({ distributors: 0, suppliers: 0, brands: 0 });
           return;
         }
 
-        // Extract unique brand IDs
-        const brandIds = [...new Set(distributorBrands.map(db => db.brand_id))];
+        // Extract unique supplier IDs
+        const supplierIds = [...new Set(distSuppliers.map(ds => ds.supplier_id))];
         
-        // 2. Get all supplier-brand relationships for these brands
+        // 2. Get supplier-brand relationships for these suppliers
         const { data: supplierBrands, error: sbError } = await supabase
           .from('brand_supplier')
           .select(`
             supplier_id,
             brand_id,
-            core_suppliers!inner(supplier_name)
+            core_brands!inner(brand_name)
           `)
-          .in('brand_id', brandIds);
+          .in('supplier_id', supplierIds);
 
         if (sbError) throw sbError;
 
@@ -89,77 +200,42 @@ export default function RelationshipsVisualizationPage() {
         const supplierSet = new Set();
         const brandSet = new Set();
 
-        // Create distributor -> brand links (we'll connect through suppliers)
-        const distributorBrandMap = new Map(); // distributor -> brands
-        distributorBrands.forEach(db => {
-          const distId = `dist_${db.distributor_id}`;
-          const distName = db.core_distributors.distributor_name;
-          const brandId = `brand_${db.brand_id}`;
-          const brandName = db.core_brands.brand_name;
+        // Create distributor -> supplier links
+        distSuppliers.forEach(ds => {
+          const distId = `dist_${ds.distributor_id}`;
+          const distName = ds.core_distributors.distributor_name;
+          const suppId = `supp_${ds.supplier_id}`;
+          const suppName = ds.core_suppliers.supplier_name;
 
           nodes.add(JSON.stringify({ id: distId, label: distName, type: 'distributor' }));
-          nodes.add(JSON.stringify({ id: brandId, label: brandName, type: 'brand' }));
-          
-          distributorSet.add(db.distributor_id);
-          brandSet.add(db.brand_id);
-
-          if (!distributorBrandMap.has(distId)) {
-            distributorBrandMap.set(distId, new Set());
-          }
-          distributorBrandMap.get(distId).add(brandId);
-        });
-
-        // Create supplier -> brand links
-        const supplierBrandMap = new Map(); // supplier -> brands
-        supplierBrands.forEach(sb => {
-          const suppId = `supp_${sb.supplier_id}`;
-          const suppName = sb.core_suppliers.supplier_name;
-          const brandId = `brand_${sb.brand_id}`;
-
           nodes.add(JSON.stringify({ id: suppId, label: suppName, type: 'supplier' }));
           
-          supplierSet.add(sb.supplier_id);
+          distributorSet.add(ds.distributor_id);
+          supplierSet.add(ds.supplier_id);
 
-          if (!supplierBrandMap.has(suppId)) {
-            supplierBrandMap.set(suppId, new Set());
-          }
-          supplierBrandMap.get(suppId).add(brandId);
-        });
-
-        // Create distributor -> supplier links (through shared brands)
-        distributorBrandMap.forEach((brands, distId) => {
-          const sharedSuppliers = new Map(); // supplier -> count of shared brands
-          
-          brands.forEach(brandId => {
-            // Find suppliers for this brand
-            supplierBrandMap.forEach((supplierBrands, suppId) => {
-              if (supplierBrands.has(brandId)) {
-                sharedSuppliers.set(suppId, (sharedSuppliers.get(suppId) || 0) + 1);
-              }
-            });
-          });
-
-          // Create links from distributor to suppliers
-          sharedSuppliers.forEach((count, suppId) => {
-            links.push({
-              source: distId,
-              target: suppId,
-              value: count
-            });
+          // Add link from distributor to supplier
+          links.push({
+            source: distId,
+            target: suppId,
+            value: 1
           });
         });
 
         // Create supplier -> brand links
-        supplierBrandMap.forEach((brands, suppId) => {
-          brands.forEach(brandId => {
-            // Check if this brand is in our filtered set
-            if ([...distributorBrandMap.values()].some(brandSet => brandSet.has(brandId))) {
-              links.push({
-                source: suppId,
-                target: brandId,
-                value: 1
-              });
-            }
+        supplierBrands?.forEach(sb => {
+          const suppId = `supp_${sb.supplier_id}`;
+          const brandId = `brand_${sb.brand_id}`;
+          const brandName = sb.core_brands.brand_name;
+
+          nodes.add(JSON.stringify({ id: brandId, label: brandName, type: 'brand' }));
+          
+          brandSet.add(sb.brand_id);
+
+          // Add link from supplier to brand
+          links.push({
+            source: suppId,
+            target: brandId,
+            value: 1
           });
         });
 
@@ -188,7 +264,7 @@ export default function RelationshipsVisualizationPage() {
     }
 
     buildSankeyData();
-  }, [selectedState]);
+  }, [selectedState, selectedDistributor, selectedSupplier]);
 
   return (
     <div style={{ padding: 20 }}>
@@ -197,30 +273,140 @@ export default function RelationshipsVisualizationPage() {
         Visualize distributor → supplier → brand relationships by state
       </p>
 
-      {/* State Selector */}
+      {/* Filters */}
       <div style={{ marginBottom: 32 }}>
-        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          Select State:
-        </label>
-        <select
-          value={selectedState || ''}
-          onChange={(e) => setSelectedState(e.target.value)}
-          style={{
-            padding: '8px 12px',
-            fontSize: 14,
-            border: '1px solid #cbd5e1',
-            borderRadius: 6,
-            minWidth: 300,
-            background: 'white'
-          }}
-        >
-          <option value="">-- Choose a state --</option>
-          {states.map(s => (
-            <option key={s.state_id} value={s.state_id}>
-              {s.state_name} ({s.state_code})
-            </option>
-          ))}
-        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+          {/* State Selector */}
+          <div>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+              Select State:
+            </label>
+            <select
+              value={selectedState || ''}
+              onChange={(e) => {
+                setSelectedState(e.target.value);
+                setSelectedDistributor(null);
+                setSelectedSupplier(null);
+              }}
+              style={{
+                padding: '8px 12px',
+                fontSize: 14,
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                width: '100%',
+                background: 'white'
+              }}
+            >
+              <option value="">-- Choose a state --</option>
+              {states.map(s => (
+                <option key={s.state_id} value={s.state_id}>
+                  {s.state_name} ({s.state_code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Distributor Filter */}
+          <div>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+              Filter by Distributor (Optional):
+            </label>
+            <select
+              value={selectedDistributor || ''}
+              onChange={(e) => setSelectedDistributor(e.target.value || null)}
+              disabled={!selectedState || availableDistributors.length === 0}
+              style={{
+                padding: '8px 12px',
+                fontSize: 14,
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                width: '100%',
+                background: 'white',
+                opacity: !selectedState || availableDistributors.length === 0 ? 0.5 : 1,
+                cursor: !selectedState || availableDistributors.length === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <option value="">-- All distributors --</option>
+              {availableDistributors.map(d => (
+                <option key={d.distributor_id} value={d.distributor_id}>
+                  {d.distributor_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Supplier Filter */}
+          <div>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+              Filter by Supplier (Optional):
+            </label>
+            <select
+              value={selectedSupplier || ''}
+              onChange={(e) => setSelectedSupplier(e.target.value || null)}
+              disabled={!selectedState || availableSuppliers.length === 0}
+              style={{
+                padding: '8px 12px',
+                fontSize: 14,
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                width: '100%',
+                background: 'white',
+                opacity: !selectedState || availableSuppliers.length === 0 ? 0.5 : 1,
+                cursor: !selectedState || availableSuppliers.length === 0 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <option value="">-- All suppliers --</option>
+              {availableSuppliers.map(s => (
+                <option key={s.supplier_id} value={s.supplier_id}>
+                  {s.supplier_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Active Filters Display */}
+        {(selectedDistributor || selectedSupplier) && (
+          <div style={{ marginTop: 16, padding: 12, background: '#f1f5f9', borderRadius: 6, fontSize: 13 }}>
+            <strong>Active Filters:</strong>
+            {selectedDistributor && (
+              <span style={{ marginLeft: 8, padding: '4px 8px', background: '#e0e7ff', borderRadius: 4 }}>
+                Distributor: {availableDistributors.find(d => d.distributor_id === selectedDistributor)?.distributor_name}
+                <button
+                  onClick={() => setSelectedDistributor(null)}
+                  style={{
+                    marginLeft: 6,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    color: '#6366f1'
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {selectedSupplier && (
+              <span style={{ marginLeft: 8, padding: '4px 8px', background: '#fef3c7', borderRadius: 4 }}>
+                Supplier: {availableSuppliers.find(s => s.supplier_id === selectedSupplier)?.supplier_name}
+                <button
+                  onClick={() => setSelectedSupplier(null)}
+                  style={{
+                    marginLeft: 6,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    color: '#f59e0b'
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {loading && <p>Loading relationship data...</p>}
