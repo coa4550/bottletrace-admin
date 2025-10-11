@@ -215,6 +215,7 @@ export default function RelationshipsVisualizationPage() {
         console.log('Raw supplier-brand data:', supplierBrands);
         console.log('First supplier-brand item structure:', supplierBrands?.[0]);
         console.log('First distributor-supplier item structure:', distSuppliers?.[0]);
+        console.log('Full distributor-supplier data:', JSON.stringify(distSuppliers?.[0], null, 2));
 
         // Build nodes and links - go back to original working structure
         const nodes = new Set();
