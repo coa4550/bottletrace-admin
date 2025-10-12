@@ -213,10 +213,144 @@ export default function BrandsPage() {
     }
   };
 
+  const handleCategoriesEdit = async (brandId, newValue) => {
+    try {
+      // Parse comma-separated category names
+      const categoryNames = newValue
+        .split(',')
+        .map(c => c.trim())
+        .filter(Boolean);
+
+      // Get or create categories
+      const categoryIds = [];
+      for (const name of categoryNames) {
+        // Try to find existing category
+        let { data: existing, error: findError } = await supabase
+          .from('categories')
+          .select('category_id')
+          .eq('category_name', name)
+          .maybeSingle();
+
+        if (findError) throw findError;
+
+        if (existing) {
+          categoryIds.push(existing.category_id);
+        } else {
+          // Create new category
+          const { data: created, error: createError } = await supabase
+            .from('categories')
+            .insert({ category_name: name })
+            .select('category_id')
+            .single();
+
+          if (createError) throw createError;
+          categoryIds.push(created.category_id);
+        }
+      }
+
+      // Delete existing brand-category relationships
+      const { error: deleteError } = await supabase
+        .from('brand_categories')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new relationships
+      if (categoryIds.length > 0) {
+        const relationships = categoryIds.map(categoryId => ({
+          brand_id: brandId,
+          category_id: categoryId
+        }));
+
+        const { error: insertError } = await supabase
+          .from('brand_categories')
+          .insert(relationships);
+
+        if (insertError) throw insertError;
+      }
+
+      // Update local state
+      setBrands((prev) =>
+        prev.map((b) => (b.brand_id === brandId ? { ...b, categories: newValue } : b))
+      );
+    } catch (err) {
+      console.error('Update categories error:', err.message);
+      alert('Failed to update categories: ' + err.message);
+    }
+  };
+
+  const handleSubCategoriesEdit = async (brandId, newValue) => {
+    try {
+      // Parse comma-separated sub-category names
+      const subCategoryNames = newValue
+        .split(',')
+        .map(c => c.trim())
+        .filter(Boolean);
+
+      // Get or create sub-categories
+      const subCategoryIds = [];
+      for (const name of subCategoryNames) {
+        // Try to find existing sub-category
+        let { data: existing, error: findError } = await supabase
+          .from('sub_categories')
+          .select('sub_category_id')
+          .eq('sub_category_name', name)
+          .maybeSingle();
+
+        if (findError) throw findError;
+
+        if (existing) {
+          subCategoryIds.push(existing.sub_category_id);
+        } else {
+          // Create new sub-category
+          const { data: created, error: createError } = await supabase
+            .from('sub_categories')
+            .insert({ sub_category_name: name })
+            .select('sub_category_id')
+            .single();
+
+          if (createError) throw createError;
+          subCategoryIds.push(created.sub_category_id);
+        }
+      }
+
+      // Delete existing brand-subcategory relationships
+      const { error: deleteError } = await supabase
+        .from('brand_sub_categories')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new relationships
+      if (subCategoryIds.length > 0) {
+        const relationships = subCategoryIds.map(subCategoryId => ({
+          brand_id: brandId,
+          sub_category_id: subCategoryId
+        }));
+
+        const { error: insertError } = await supabase
+          .from('brand_sub_categories')
+          .insert(relationships);
+
+        if (insertError) throw insertError;
+      }
+
+      // Update local state
+      setBrands((prev) =>
+        prev.map((b) => (b.brand_id === brandId ? { ...b, sub_categories: newValue } : b))
+      );
+    } catch (err) {
+      console.error('Update sub-categories error:', err.message);
+      alert('Failed to update sub-categories: ' + err.message);
+    }
+  };
+
   const columns = [
     { key: 'brand_name', label: 'Brand Name', editable: true },
-    { key: 'categories', label: 'Categories' },
-    { key: 'sub_categories', label: 'Sub-Categories' },
+    { key: 'categories', label: 'Categories', editable: true, editHandler: 'categories' },
+    { key: 'sub_categories', label: 'Sub-Categories', editable: true, editHandler: 'sub_categories' },
     { key: 'is_verified', label: 'Verified' },
     { key: 'last_verified_at', label: 'Verified Date' },
     { key: 'data_source', label: 'Data Source', editable: true },
@@ -330,15 +464,23 @@ export default function BrandsPage() {
                     );
                   }
 
-                  if (editable)
+                  if (editable) {
+                    // Use special handler for categories and sub-categories
+                    const handleChange = col.editHandler === 'categories'
+                      ? (val) => handleCategoriesEdit(b.brand_id, val)
+                      : col.editHandler === 'sub_categories'
+                      ? (val) => handleSubCategoriesEdit(b.brand_id, val)
+                      : (val) => handleEdit(b.brand_id, col.key, val);
+
                     return (
                       <td key={col.key} style={cellStyle}>
                         <EditableCell
                           value={value}
-                          onChange={(val) => handleEdit(b.brand_id, col.key, val)}
+                          onChange={handleChange}
                         />
                       </td>
                     );
+                  }
 
                   return (
                     <td key={col.key} style={cellStyle}>
