@@ -16,12 +16,12 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
       .attr("width", width)
       .attr("height", height);
 
-    // Set up the Sankey generator
+    // Set up the Sankey generator with better spacing
     const sankeyGenerator = sankey()
       .nodeId(d => d.id)
-      .nodeWidth(15)
-      .nodePadding(10)
-      .extent([[1, 1], [width - 1, height - 1]]);
+      .nodeWidth(20)
+      .nodePadding(20)
+      .extent([[80, 20], [width - 80, height - 20]]);
 
     // Generate the Sankey layout
     const { nodes, links } = sankeyGenerator(data);
@@ -60,20 +60,25 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
     node.append("title")
       .text(d => `${d.label} (Value: ${d.value || 0})`);
 
-    // Create the labels
+    // Create the labels with better positioning
     const label = svg.append("g")
       .selectAll("text")
       .data(nodes)
       .enter().append("text")
-      .attr("x", d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+      .attr("x", d => d.x0 < width / 2 ? d.x1 + 12 : d.x0 - 12)
       .attr("y", d => (d.y1 + d.y0) / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end")
-      .text(d => d.label)
-      .style("font-size", "12px")
+      .text(d => {
+        // Truncate very long labels to prevent overlap
+        const label = d.label;
+        return label.length > 20 ? label.substring(0, 17) + '...' : label;
+      })
+      .style("font-size", "11px")
       .style("font-weight", "500")
       .style("fill", "#333")
-      .style("pointer-events", "none");
+      .style("pointer-events", "none")
+      .style("text-shadow", "1px 1px 2px rgba(255,255,255,0.8)");
 
     // Add hover effects
     node

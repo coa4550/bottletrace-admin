@@ -529,12 +529,12 @@ export default function RelationshipsVisualizationPage() {
             border: '1px solid #e2e8f0',
             borderRadius: 8,
             padding: 20,
-            minHeight: 600
+            minHeight: 800
           }}>
             <D3Sankey 
               data={sankeyData} 
-              width={800} 
-              height={600} 
+              width={1000} 
+              height={800} 
             />
           </div>
 
