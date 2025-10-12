@@ -525,7 +525,7 @@ export default function RelationshipsVisualizationPage() {
 
           {/* Sankey Diagram */}
           <div style={{ 
-            height: 800, 
+            height: 600, 
             background: 'white',
             border: '1px solid #e2e8f0',
             borderRadius: 8,
@@ -533,38 +533,31 @@ export default function RelationshipsVisualizationPage() {
           }}>
             <ResponsiveSankey
               data={sankeyData}
-              margin={{ top: 80, right: 350, bottom: 80, left: 350 }}
+              margin={{ top: 20, right: 160, bottom: 20, left: 160 }}
               align="justify"
               colors={{ scheme: 'category10' }}
               nodeOpacity={1}
               nodeHoverOthersOpacity={0.35}
-              nodeThickness={20}
-              nodeSpacing={40}
-              nodeBorderWidth={1}
+              nodeThickness={18}
+              nodeSpacing={24}
+              nodeBorderWidth={0}
               nodeBorderColor={{
                 from: 'color',
                 modifiers: [['darker', 0.8]]
               }}
-              nodeBorderRadius={4}
-              linkOpacity={0.6}
+              nodeBorderRadius={3}
+              linkOpacity={0.5}
               linkHoverOthersOpacity={0.1}
-              linkContract={5}
+              linkContract={3}
               enableLinkGradient={true}
               label={node => node.label || node.id}
               labelPosition="outside"
               labelOrientation="horizontal"
-              labelPadding={50}
+              labelPadding={16}
               labelTextColor={{
                 from: 'color',
-                modifiers: [['darker', 1.2]]
+                modifiers: [['darker', 1]]
               }}
-              labelStyle={{
-                fontSize: 13,
-                fontWeight: 500,
-                textAnchor: 'middle',
-                dominantBaseline: 'middle'
-              }}
-              enableLabels={true}
               animate={false}
               tooltip={({ node }) => (
                 <div
