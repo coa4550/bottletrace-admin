@@ -495,6 +495,7 @@ export default function OrphansAuditPage() {
               ))}
             </tbody>
           </table>
+        </div>
           )}
         </>
       )}
