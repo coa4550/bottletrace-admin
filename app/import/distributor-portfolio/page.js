@@ -70,7 +70,7 @@ export default function ImportDistributorSupplierPortfolio() {
   const handleValidate = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/import/distributor-supplier-portfolio/validate', {
+      const response = await fetch('/api/import/distributor-portfolio/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rows: parsed })
@@ -122,7 +122,7 @@ export default function ImportDistributorSupplierPortfolio() {
           message: `Processing rows ${batchStartIndex + 1}-${Math.min(batchStartIndex + batch.length, parsed.length)} of ${parsed.length}...`
         });
 
-        const response = await fetch('/api/import/distributor-supplier-portfolio', {
+        const response = await fetch('/api/import/distributor-portfolio', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
