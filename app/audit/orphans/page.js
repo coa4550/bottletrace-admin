@@ -8,16 +8,29 @@ const supabase = createClient(
 );
 
 export default function OrphansAuditPage() {
+  const [activeTab, setActiveTab] = useState('brands'); // 'brands' or 'suppliers'
   const [orphanedBrands, setOrphanedBrands] = useState([]);
+  const [orphanedSuppliers, setOrphanedSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'no_supplier', 'no_distributor', 'none'
 
   useEffect(() => {
-    fetchOrphanedBrands();
+    fetchOrphanedData();
   }, []);
 
-  const fetchOrphanedBrands = async () => {
+  const fetchOrphanedData = async () => {
     setLoading(true);
+    try {
+      await Promise.all([fetchOrphanedBrands(), fetchOrphanedSuppliers()]);
+    } catch (error) {
+      console.error('Error fetching orphaned data:', error);
+      alert('Failed to load orphaned data: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchOrphanedBrands = async () => {
     try {
       // Fetch ALL brands with pagination
       let allBrands = [];
@@ -108,9 +121,132 @@ export default function OrphansAuditPage() {
       setOrphanedBrands(orphaned);
     } catch (error) {
       console.error('Error fetching orphaned brands:', error);
-      alert('Failed to load orphaned brands: ' + error.message);
-    } finally {
-      setLoading(false);
+      throw error;
+    }
+  };
+
+  const fetchOrphanedSuppliers = async () => {
+    try {
+      // Fetch ALL suppliers with pagination
+      let allSuppliers = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('core_suppliers')
+          .select('supplier_id, supplier_name, supplier_url, created_at')
+          .order('supplier_name')
+          .range(start, start + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allSuppliers = [...allSuppliers, ...data];
+          start += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`Total suppliers: ${allSuppliers.length}`);
+
+      // Fetch all distributor relationships for suppliers
+      const { data: allDistributorRels, error: distributorRelsError } = await supabase
+        .from('distributor_supplier_state')
+        .select('supplier_id');
+
+      if (distributorRelsError) throw distributorRelsError;
+
+      // Get unique supplier IDs with distributor relationships
+      const suppliersWithDistributors = new Set(allDistributorRels.map(r => r.supplier_id));
+      console.log(`Suppliers with distributor relationships: ${suppliersWithDistributors.size}`);
+
+      // Find suppliers with no distributor relationships
+      const orphaned = allSuppliers.filter(supplier => {
+        return !suppliersWithDistributors.has(supplier.supplier_id);
+      });
+
+      console.log(`Orphaned suppliers: ${orphaned.length}`);
+      setOrphanedSuppliers(orphaned);
+    } catch (error) {
+      console.error('Error fetching orphaned suppliers:', error);
+      throw error;
+    }
+  };
+
+  const handleMoveBrand = async (brand) => {
+    if (!confirm(`Move the brand "${brand.brand_name}" to orphan brands table?\n\nThis will remove it from core_brands and add it to core_orphan_brands.`)) {
+      return;
+    }
+
+    try {
+      // Insert into orphan brands table
+      const { error: insertError } = await supabase
+        .from('core_orphan_brands')
+        .insert({
+          brand_name: brand.brand_name,
+          brand_url: brand.brand_url,
+          brand_logo_url: brand.brand_logo_url,
+          original_brand_id: brand.brand_id,
+          orphaned_at: new Date().toISOString(),
+          reason: brand.orphanType === 'none' ? 'No relationships at all' : 
+                  brand.orphanType === 'no_supplier' ? 'No supplier relationship' : 
+                  'No distributor relationship'
+        });
+
+      if (insertError) throw insertError;
+
+      // Delete from core brands table
+      const { error: deleteError } = await supabase
+        .from('core_brands')
+        .delete()
+        .eq('brand_id', brand.brand_id);
+
+      if (deleteError) throw deleteError;
+
+      alert('Brand moved to orphan table successfully!');
+      fetchOrphanedData(); // Refresh the list
+    } catch (error) {
+      console.error('Error moving brand:', error);
+      alert('Failed to move brand: ' + error.message);
+    }
+  };
+
+  const handleMoveSupplier = async (supplier) => {
+    if (!confirm(`Move the supplier "${supplier.supplier_name}" to orphan suppliers table?\n\nThis will remove it from core_suppliers and add it to core_orphan_suppliers.`)) {
+      return;
+    }
+
+    try {
+      // Insert into orphan suppliers table
+      const { error: insertError } = await supabase
+        .from('core_orphan_suppliers')
+        .insert({
+          supplier_name: supplier.supplier_name,
+          supplier_url: supplier.supplier_url,
+          original_supplier_id: supplier.supplier_id,
+          orphaned_at: new Date().toISOString(),
+          reason: 'No distributor relationship'
+        });
+
+      if (insertError) throw insertError;
+
+      // Delete from core suppliers table
+      const { error: deleteError } = await supabase
+        .from('core_suppliers')
+        .delete()
+        .eq('supplier_id', supplier.supplier_id);
+
+      if (deleteError) throw deleteError;
+
+      alert('Supplier moved to orphan table successfully!');
+      fetchOrphanedData(); // Refresh the list
+    } catch (error) {
+      console.error('Error moving supplier:', error);
+      alert('Failed to move supplier: ' + error.message);
     }
   };
 
@@ -128,10 +264,31 @@ export default function OrphansAuditPage() {
       if (error) throw error;
 
       alert('Brand deleted successfully!');
-      fetchOrphanedBrands(); // Refresh the list
+      fetchOrphanedData(); // Refresh the list
     } catch (error) {
       console.error('Error deleting brand:', error);
       alert('Failed to delete brand: ' + error.message);
+    }
+  };
+
+  const handleDeleteSupplier = async (supplier) => {
+    if (!confirm(`Permanently delete the supplier "${supplier.supplier_name}"?\n\nThis will remove it from the database entirely.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('core_suppliers')
+        .delete()
+        .eq('supplier_id', supplier.supplier_id);
+
+      if (error) throw error;
+
+      alert('Supplier deleted successfully!');
+      fetchOrphanedData(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting supplier:', error);
+      alert('Failed to delete supplier: ' + error.message);
     }
   };
 
@@ -141,11 +298,15 @@ export default function OrphansAuditPage() {
     return brand.orphanType === filter;
   });
 
-  const stats = {
+  const brandStats = {
     total: orphanedBrands.length,
     none: orphanedBrands.filter(b => b.orphanType === 'none').length,
     noSupplier: orphanedBrands.filter(b => b.orphanType === 'no_supplier').length,
     noDistributor: orphanedBrands.filter(b => b.orphanType === 'no_distributor').length
+  };
+
+  const supplierStats = {
+    total: orphanedSuppliers.length
   };
 
   if (loading) {
@@ -154,61 +315,103 @@ export default function OrphansAuditPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Orphaned Brands</h1>
-      <p style={{ color: '#64748b', marginTop: 8 }}>
-        Brands that exist in the database but have no supplier or distributor relationships.
+      <h1>Orphaned Records</h1>
+      <p style={{ color: '#64748b', marginTop: 8, marginBottom: 24 }}>
+        Records that exist in the database but have no relationships (brands with no suppliers, suppliers with no distributors).
       </p>
 
-      {/* Filter */}
-      <div style={{ marginTop: 24, marginBottom: 24 }}>
-        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 14 }}>
-          Filter by Type:
-        </label>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+      {/* Tabs */}
+      <div style={{ 
+        display: 'flex', 
+        borderBottom: '1px solid #e2e8f0', 
+        marginBottom: 24,
+        gap: 0
+      }}>
+        <button
+          onClick={() => setActiveTab('brands')}
           style={{
-            padding: '8px 12px',
-            fontSize: 14,
-            border: '1px solid #cbd5e1',
-            borderRadius: 6,
-            minWidth: 300,
-            background: 'white'
+            padding: '12px 24px',
+            background: activeTab === 'brands' ? 'white' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'brands' ? '2px solid #3b82f6' : '2px solid transparent',
+            color: activeTab === 'brands' ? '#3b82f6' : '#64748b',
+            fontWeight: activeTab === 'brands' ? 600 : 400,
+            cursor: 'pointer',
+            fontSize: 14
           }}
         >
-          <option value="all">All Orphaned Brands ({stats.total})</option>
-          <option value="none">No Relationships At All ({stats.none})</option>
-          <option value="no_supplier">Has Distributor, No Supplier ({stats.noSupplier})</option>
-          <option value="no_distributor">Has Supplier, No Distributor ({stats.noDistributor})</option>
-        </select>
+          Orphaned Brands ({brandStats.total})
+        </button>
+        <button
+          onClick={() => setActiveTab('suppliers')}
+          style={{
+            padding: '12px 24px',
+            background: activeTab === 'suppliers' ? 'white' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'suppliers' ? '2px solid #3b82f6' : '2px solid transparent',
+            color: activeTab === 'suppliers' ? '#3b82f6' : '#64748b',
+            fontWeight: activeTab === 'suppliers' ? 600 : 400,
+            cursor: 'pointer',
+            fontSize: 14
+          }}
+        >
+          Orphaned Suppliers ({supplierStats.total})
+        </button>
       </div>
 
-      {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
-        <div style={{ padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8 }}>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#991b1b' }}>{stats.none}</div>
-          <div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>No Relationships</div>
-        </div>
-        <div style={{ padding: 16, background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 8 }}>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#92400e' }}>{stats.noSupplier}</div>
-          <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>No Supplier</div>
-        </div>
-        <div style={{ padding: 16, background: '#dbeafe', border: '1px solid #60a5fa', borderRadius: 8 }}>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#1e40af' }}>{stats.noDistributor}</div>
-          <div style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>No Distributor</div>
-        </div>
-        <div style={{ padding: 16, background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8 }}>
-          <div style={{ fontSize: 24, fontWeight: 600, color: '#475569' }}>{stats.total}</div>
-          <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Total Orphaned</div>
-        </div>
-      </div>
+      {/* Brands Tab Content */}
+      {activeTab === 'brands' && (
+        <>
+          {/* Filter */}
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 14 }}>
+              Filter by Type:
+            </label>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                fontSize: 14,
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                minWidth: 300,
+                background: 'white'
+              }}
+            >
+              <option value="all">All Orphaned Brands ({brandStats.total})</option>
+              <option value="none">No Relationships At All ({brandStats.none})</option>
+              <option value="no_supplier">Has Distributor, No Supplier ({brandStats.noSupplier})</option>
+              <option value="no_distributor">Has Supplier, No Distributor ({brandStats.noDistributor})</option>
+            </select>
+          </div>
 
-      {/* Brands Table */}
-      {loading ? (
-        <p>Loading orphaned brands...</p>
-      ) : filteredBrands.length === 0 ? (
-        <p style={{ color: '#64748b', fontSize: 14 }}>No orphaned brands found.</p>
-      ) : (
+          {/* Stats Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+            <div style={{ padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8 }}>
+              <div style={{ fontSize: 24, fontWeight: 600, color: '#991b1b' }}>{brandStats.none}</div>
+              <div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>No Relationships</div>
+            </div>
+            <div style={{ padding: 16, background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 8 }}>
+              <div style={{ fontSize: 24, fontWeight: 600, color: '#92400e' }}>{brandStats.noSupplier}</div>
+              <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>No Supplier</div>
+            </div>
+            <div style={{ padding: 16, background: '#dbeafe', border: '1px solid #60a5fa', borderRadius: 8 }}>
+              <div style={{ fontSize: 24, fontWeight: 600, color: '#1e40af' }}>{brandStats.noDistributor}</div>
+              <div style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>No Distributor</div>
+            </div>
+            <div style={{ padding: 16, background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8 }}>
+              <div style={{ fontSize: 24, fontWeight: 600, color: '#475569' }}>{brandStats.total}</div>
+              <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Total Orphaned</div>
+            </div>
+          </div>
+
+          {/* Brands Table */}
+          {loading ? (
+            <p>Loading orphaned brands...</p>
+          ) : filteredBrands.length === 0 ? (
+            <p style={{ color: '#64748b', fontSize: 14 }}>No orphaned brands found.</p>
+          ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ 
             width: '100%', 
@@ -257,26 +460,136 @@ export default function OrphansAuditPage() {
                     {brand.created_at ? new Date(brand.created_at).toLocaleDateString() : '—'}
                   </td>
                   <td style={cellStyle}>
-                    <button
-                      onClick={() => handleDeleteBrand(brand)}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: 13,
-                        background: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Delete Brand
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => handleMoveBrand(brand)}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: 13,
+                          background: '#f59e0b',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Move to Orphan
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBrand(brand)}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: 13,
+                          background: '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+          )}
+        </>
+      )}
+
+      {/* Suppliers Tab Content */}
+      {activeTab === 'suppliers' && (
+        <>
+          {/* Stats Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+            <div style={{ padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8 }}>
+              <div style={{ fontSize: 24, fontWeight: 600, color: '#991b1b' }}>{supplierStats.total}</div>
+              <div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>No Distributor</div>
+            </div>
+          </div>
+
+          {/* Suppliers Table */}
+          {loading ? (
+            <p>Loading orphaned suppliers...</p>
+          ) : orphanedSuppliers.length === 0 ? (
+            <p style={{ color: '#64748b', fontSize: 14 }}>No orphaned suppliers found.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse',
+                background: 'white',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8
+              }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={headerStyle}>Supplier Name</th>
+                    <th style={headerStyle}>Has Distributor?</th>
+                    <th style={headerStyle}>Created</th>
+                    <th style={headerStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orphanedSuppliers.map(supplier => (
+                    <tr key={supplier.supplier_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={cellStyle}>
+                        <strong>{supplier.supplier_name}</strong>
+                        {supplier.supplier_url && (
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                            <a href={supplier.supplier_url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>
+                              {supplier.supplier_url}
+                            </a>
+                          </div>
+                        )}
+                      </td>
+                      <td style={cellStyle}>
+                        <span style={{ color: '#ef4444' }}>❌ No</span>
+                      </td>
+                      <td style={cellStyle}>
+                        {supplier.created_at ? new Date(supplier.created_at).toLocaleDateString() : '—'}
+                      </td>
+                      <td style={cellStyle}>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            onClick={() => handleMoveSupplier(supplier)}
+                            style={{
+                              padding: '4px 12px',
+                              fontSize: 13,
+                              background: '#f59e0b',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Move to Orphan
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSupplier(supplier)}
+                            style={{
+                              padding: '4px 12px',
+                              fontSize: 13,
+                              background: '#ef4444',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: 4,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
