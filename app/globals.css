@@ -100,3 +100,13 @@ th {
 th::-webkit-resizer {
   background-color: transparent;
 }
+
+/* Pulse animation for notifications */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

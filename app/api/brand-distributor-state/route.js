@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = 'https://pgycxpmqnrjsusgoinxz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBneWN4cG1xbnJqc3VzZ29pbnh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyNTMxNjIsImV4cCI6MjA3MjgyOTE2Mn0.GB-HMHWn7xy5uoXpHhTv8TBO6CNl3a877K5DBIH7ekE';
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,41 +12,42 @@ export async function GET(request) {
       return NextResponse.json({ error: 'distributor_id parameter is required' }, { status: 400 });
     }
 
-    // Fetch relationships with pagination
-    let allRelationships = [];
-    let start = 0;
-    const pageSize = 1000;
-    let hasMore = true;
+    // Step 1: Get all suppliers for this distributor (via distributor_supplier_state)
+    const { data: distSupplierRels, error: distSupplierError } = await supabaseAdmin
+      .from('distributor_supplier_state')
+      .select('supplier_id')
+      .eq('distributor_id', distributorId);
 
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('brand_distributor_state')
-        .select('brand_id')
-        .eq('distributor_id', distributorId)
-        .range(start, start + pageSize - 1);
-
-      if (error) {
-        console.error('Error fetching relationships:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      if (data && data.length > 0) {
-        allRelationships = [...allRelationships, ...data];
-        start += pageSize;
-        hasMore = data.length === pageSize;
-      } else {
-        hasMore = false;
-      }
+    if (distSupplierError) {
+      console.error('Error fetching distributor-supplier relationships:', distSupplierError);
+      return NextResponse.json({ error: distSupplierError.message }, { status: 500 });
     }
 
-    const brandIds = [...new Set(allRelationships.map(r => r.brand_id))];
+    const supplierIds = [...new Set(distSupplierRels?.map(r => r.supplier_id) || [])];
+
+    if (supplierIds.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    // Step 2: Get all brands for those suppliers (via brand_supplier)
+    const { data: brandSupplierRels, error: brandSupplierError } = await supabaseAdmin
+      .from('brand_supplier')
+      .select('brand_id')
+      .in('supplier_id', supplierIds);
+
+    if (brandSupplierError) {
+      console.error('Error fetching brand-supplier relationships:', brandSupplierError);
+      return NextResponse.json({ error: brandSupplierError.message }, { status: 500 });
+    }
+
+    const brandIds = [...new Set(brandSupplierRels?.map(r => r.brand_id) || [])];
 
     if (brandIds.length === 0) {
       return NextResponse.json([]);
     }
 
-    // Fetch brand details
-    const { data: brands, error: brandsError } = await supabase
+    // Step 3: Fetch brand details
+    const { data: brands, error: brandsError } = await supabaseAdmin
       .from('core_brands')
       .select('*')
       .in('brand_id', brandIds)
@@ -62,8 +58,8 @@ export async function GET(request) {
       return NextResponse.json({ error: brandsError.message }, { status: 500 });
     }
 
-    // Fetch categories
-    const { data: brandCats, error: catsError } = await supabase
+    // Step 4: Fetch categories
+    const { data: brandCats, error: catsError } = await supabaseAdmin
       .from('brand_categories')
       .select('brand_id, categories(category_name)')
       .in('brand_id', brandIds);
@@ -73,7 +69,8 @@ export async function GET(request) {
       return NextResponse.json({ error: catsError.message }, { status: 500 });
     }
 
-    const { data: brandSubcats, error: subcatsError} = await supabase
+    // Step 5: Fetch subcategories
+    const { data: brandSubcats, error: subcatsError } = await supabaseAdmin
       .from('brand_sub_categories')
       .select('brand_id, sub_categories(sub_category_name)')
       .in('brand_id', brandIds);
@@ -83,7 +80,7 @@ export async function GET(request) {
       return NextResponse.json({ error: subcatsError.message }, { status: 500 });
     }
 
-    // Combine data
+    // Step 6: Combine data
     const portfolioBrands = brands?.map(brand => {
       const categories = brandCats
         ?.filter(bc => bc.brand_id === brand.brand_id)

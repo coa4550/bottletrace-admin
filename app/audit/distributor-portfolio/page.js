@@ -54,39 +54,20 @@ export default function AuditDistributorPortfolioPage() {
         
         setDistributorInfo(distributor);
 
-        // Fetch suppliers for this distributor
+        // Fetch suppliers for this distributor directly via distributor_supplier_state
         console.log('Fetching supplier relationships for distributor:', selectedDistributor);
 
-        // First get all brands for this distributor
-        const { data: brandRelationships, error: brandError } = await supabase
-          .from('brand_distributor_state')
-          .select('brand_id')
+        const { data: distSupplierRels, error: distSupplierError } = await supabase
+          .from('distributor_supplier_state')
+          .select('supplier_id')
           .eq('distributor_id', selectedDistributor);
 
-        if (brandError) {
-          throw new Error('Failed to fetch brand relationships');
+        if (distSupplierError) {
+          throw new Error('Failed to fetch distributor-supplier relationships');
         }
 
-        const brandIds = [...new Set(brandRelationships?.map(r => r.brand_id) || [])];
-        console.log('Total unique brands for distributor:', brandIds.length);
-
-        if (brandIds.length === 0) {
-          setPortfolioSuppliers([]);
-          return;
-        }
-
-        // Get suppliers for those brands
-        const { data: supplierRelationships, error: supplierError } = await supabase
-          .from('brand_supplier')
-          .select('supplier_id')
-          .in('brand_id', brandIds);
-
-        if (supplierError) {
-          throw new Error('Failed to fetch supplier relationships');
-        }
-
-        const supplierIds = [...new Set(supplierRelationships?.map(r => r.supplier_id) || [])];
-        console.log('Total unique suppliers:', supplierIds.length);
+        const supplierIds = [...new Set(distSupplierRels?.map(r => r.supplier_id) || [])];
+        console.log('Total unique suppliers for distributor:', supplierIds.length);
 
         if (supplierIds.length === 0) {
           setPortfolioSuppliers([]);

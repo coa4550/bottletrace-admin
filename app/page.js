@@ -147,6 +147,18 @@ export default function DashboardPage() {
     }
   };
 
+  const getCategoryLabel = (category) => {
+    switch (category) {
+      case 'brand': return 'Brand';
+      case 'supplier': return 'Supplier';
+      case 'distributor': return 'Distributor';
+      case 'brand_supplier': return 'Brand ↔ Supplier';
+      case 'brand_distributor': return 'Brand ↔ Distributor';
+      case 'supplier_distributor': return 'Supplier ↔ Distributor';
+      default: return category;
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return '#fbbf24';
@@ -256,46 +268,135 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Reviews Section - Prominent */}
+      {(metrics.submissions.pending > 0 || metrics.submissions.under_review > 0) && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{
+            padding: 24,
+            background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+            border: '3px solid #fbbf24',
+            borderRadius: 12,
+            boxShadow: '0 4px 12px rgba(251, 191, 36, 0.2)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+              <div style={{ fontSize: 48 }}>🔔</div>
+              <div style={{ flex: 1 }}>
+                <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#92400e' }}>
+                  Reviews Needed
+                </h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: 15, color: '#92400e' }}>
+                  User submissions are waiting for your review
+                </p>
+              </div>
+              <a 
+                href="/admin/submissions"
+                style={{
+                  padding: '12px 24px',
+                  background: '#92400e',
+                  color: 'white',
+                  borderRadius: 8,
+                  textDecoration: 'none',
+                  fontSize: 16,
+                  fontWeight: 600,
+                  boxShadow: '0 2px 8px rgba(146, 64, 14, 0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#78350f';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = '#92400e';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                Review Now →
+              </a>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+              <div style={{
+                padding: 16,
+                background: 'rgba(255, 255, 255, 0.7)',
+                borderRadius: 8,
+                backdropFilter: 'blur(10px)'
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+                  PENDING
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#92400e' }}>
+                  {metrics.submissions.pending}
+                </div>
+              </div>
+              <div style={{
+                padding: 16,
+                background: 'rgba(255, 255, 255, 0.7)',
+                borderRadius: 8,
+                backdropFilter: 'blur(10px)'
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>
+                  IN REVIEW
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#1e40af' }}>
+                  {metrics.submissions.under_review}
+                </div>
+              </div>
+              <div style={{
+                padding: 16,
+                background: 'rgba(255, 255, 255, 0.7)',
+                borderRadius: 8,
+                backdropFilter: 'blur(10px)'
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', marginBottom: 4 }}>
+                  APPROVED TODAY
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#065f46' }}>
+                  {metrics.submissions.approved_today}
+                </div>
+              </div>
+              <div style={{
+                padding: 16,
+                background: 'rgba(255, 255, 255, 0.7)',
+                borderRadius: 8,
+                backdropFilter: 'blur(10px)'
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+                  REJECTED TODAY
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: '#991b1b' }}>
+                  {metrics.submissions.rejected_today}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Submissions & Data Quality Row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 32 }}>
-        {/* Pending Submissions Alert */}
+        {/* Pending Submissions Summary (Compact) */}
         <div style={{
           padding: 20,
-          background: metrics.submissions.pending > 0 ? '#fef3c7' : '#f8fafc',
-          border: `2px solid ${metrics.submissions.pending > 0 ? '#fbbf24' : '#e2e8f0'}`,
+          background: 'white',
+          border: '2px solid #e2e8f0',
           borderRadius: 8
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Pending Review
+                Submissions Overview
               </div>
-              <div style={{ fontSize: 36, fontWeight: 700, color: metrics.submissions.pending > 0 ? '#92400e' : '#64748b', marginTop: 4 }}>
-                {metrics.submissions.pending}
+              <div style={{ fontSize: 36, fontWeight: 700, color: '#0f172a', marginTop: 4 }}>
+                {metrics.submissions.pending + metrics.submissions.under_review}
               </div>
             </div>
             <div style={{ fontSize: 32 }}>📝</div>
           </div>
-          <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
-            {metrics.submissions.under_review} under review
+          <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
+            {metrics.submissions.pending} pending · {metrics.submissions.under_review} in review
           </div>
-          <a 
-            href="/admin/submissions"
-            style={{
-              display: 'inline-block',
-              padding: '8px 16px',
-              background: metrics.submissions.pending > 0 ? '#92400e' : '#64748b',
-              color: 'white',
-              borderRadius: 6,
-              textDecoration: 'none',
-              fontSize: 14,
-              fontWeight: 500
-            }}
-          >
-            Review Submissions →
-          </a>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 12, paddingTop: 12, borderTop: '1px solid #d1d5db' }}>
-            Today: {metrics.submissions.approved_today} approved, {metrics.submissions.rejected_today} rejected
+          <div style={{ fontSize: 12, color: '#64748b', paddingTop: 12, borderTop: '1px solid #e2e8f0' }}>
+            Today: {metrics.submissions.approved_today} approved · {metrics.submissions.rejected_today} rejected
           </div>
         </div>
 
@@ -344,55 +445,103 @@ export default function DashboardPage() {
       {/* Recent Submissions */}
       {recentSubmissions.length > 0 && (
         <div style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>Recent Submissions</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Recent Submissions</h2>
+            <a 
+              href="/admin/submissions" 
+              style={{ 
+                color: '#3b82f6', 
+                textDecoration: 'none', 
+                fontSize: 14, 
+                fontWeight: 500,
+                padding: '6px 12px',
+                border: '1px solid #3b82f6',
+                borderRadius: 6,
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#3b82f6';
+                e.currentTarget.style.color = 'white';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = '#3b82f6';
+              }}
+            >
+              View All →
+            </a>
+          </div>
           <div style={{
             background: 'white',
-            border: '1px solid #e2e8f0',
+            border: '2px solid #e2e8f0',
             borderRadius: 8,
             overflow: 'hidden'
           }}>
             {recentSubmissions.map((submission, index) => (
-              <div 
+              <a
                 key={submission.brand_submission_id}
+                href="/admin/submissions"
                 style={{
-                  padding: '12px 16px',
+                  display: 'block',
+                  padding: '16px 20px',
                   borderBottom: index < recentSubmissions.length - 1 ? '1px solid #f1f5f9' : 'none',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'white';
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 14 }}>{getSubmissionTypeLabel(submission.submission_type)}</span>
-                  <span style={{ fontSize: 14, color: '#64748b' }}>
-                    {submission.brand_name_submitted || submission.supplier_name_submitted || submission.distributor_name_submitted || 'Unknown'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 12, color: '#94a3b8' }}>
-                    {new Date(submission.submitted_at).toLocaleDateString()}
-                  </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                    <span style={{ 
+                      fontSize: 13,
+                      fontWeight: 600,
+                      padding: '3px 8px',
+                      background: '#dbeafe',
+                      color: '#1e40af',
+                      borderRadius: 4
+                    }}>
+                      {getSubmissionTypeLabel(submission.submission_type)}
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 500, color: '#0f172a' }}>
+                      {submission.brand_name_submitted || submission.supplier_name_submitted || submission.distributor_name_submitted || 'Unknown'}
+                    </span>
+                  </div>
                   <span style={{
-                    padding: '2px 8px',
+                    padding: '4px 10px',
                     background: getStatusColor(submission.status) + '20',
                     color: getStatusColor(submission.status),
                     borderRadius: 4,
                     fontSize: 12,
-                    fontWeight: 500
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
                   }}>
                     {submission.status}
                   </span>
                 </div>
-              </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 13, color: '#64748b' }}>
+                  <span>📅 {new Date(submission.submitted_at).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}</span>
+                  {submission.brand_category && (
+                    <span>📁 {getCategoryLabel(submission.brand_category)}</span>
+                  )}
+                  {submission.user_first_name && (
+                    <span>👤 {submission.user_first_name} {submission.user_last_name}</span>
+                  )}
+                </div>
+              </a>
             ))}
-          </div>
-          <div style={{ marginTop: 12, textAlign: 'center' }}>
-            <a 
-              href="/admin/submissions" 
-              style={{ color: '#3b82f6', textDecoration: 'none', fontSize: 14, fontWeight: 500 }}
-            >
-              View All Submissions →
-            </a>
           </div>
         </div>
       )}
@@ -405,6 +554,7 @@ export default function DashboardPage() {
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
           gap: 12 
         }}>
+          <QuickActionButton href="/admin/submissions" icon="✅" label="Review Submissions" highlight={metrics.submissions.pending > 0} />
           <QuickActionButton href="/import/brand" icon="📥" label="Import Brands" />
           <QuickActionButton href="/import/supplier-portfolio" icon="📥" label="Import Portfolio" />
           <QuickActionButton href="/audit/orphans" icon="🍾" label="Fix Orphans" />
@@ -488,7 +638,7 @@ function SmallMetricCard({ title, value, link }) {
   );
 }
 
-function QuickActionButton({ href, icon, label }) {
+function QuickActionButton({ href, icon, label, highlight = false }) {
   return (
     <a
       href={href}
@@ -497,26 +647,39 @@ function QuickActionButton({ href, icon, label }) {
         alignItems: 'center',
         gap: 10,
         padding: '12px 16px',
-        background: 'white',
-        border: '1px solid #e2e8f0',
+        background: highlight ? '#fef3c7' : 'white',
+        border: highlight ? '2px solid #fbbf24' : '1px solid #e2e8f0',
         borderRadius: 6,
         textDecoration: 'none',
-        color: '#0f172a',
+        color: highlight ? '#92400e' : '#0f172a',
         fontSize: 14,
-        fontWeight: 500,
-        transition: 'all 0.2s'
+        fontWeight: highlight ? 600 : 500,
+        transition: 'all 0.2s',
+        boxShadow: highlight ? '0 2px 8px rgba(251, 191, 36, 0.2)' : 'none'
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = '#f8fafc';
-        e.currentTarget.style.borderColor = '#3b82f6';
+        e.currentTarget.style.background = highlight ? '#fde68a' : '#f8fafc';
+        e.currentTarget.style.borderColor = highlight ? '#f59e0b' : '#3b82f6';
+        e.currentTarget.style.transform = 'translateY(-2px)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'white';
-        e.currentTarget.style.borderColor = '#e2e8f0';
+        e.currentTarget.style.background = highlight ? '#fef3c7' : 'white';
+        e.currentTarget.style.borderColor = highlight ? '#fbbf24' : '#e2e8f0';
+        e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
       <span style={{ fontSize: 20 }}>{icon}</span>
       <span>{label}</span>
+      {highlight && (
+        <span style={{
+          marginLeft: 'auto',
+          width: 8,
+          height: 8,
+          background: '#ef4444',
+          borderRadius: '50%',
+          animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+        }} />
+      )}
     </a>
   );
 }
