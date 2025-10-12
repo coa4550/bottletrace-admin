@@ -6,7 +6,17 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
   const svgRef = useRef();
 
   useEffect(() => {
-    if (!data || !data.nodes || !data.links) return;
+    if (!data || !data.nodes || !data.links) {
+      console.log('D3Sankey: No data available', { data });
+      return;
+    }
+    
+    console.log('D3Sankey: Rendering with data', { 
+      nodes: data.nodes.length, 
+      links: data.links.length,
+      sampleNode: data.nodes[0],
+      sampleLink: data.links[0]
+    });
 
     // Clear previous content
     d3.select(svgRef.current).selectAll("*").remove();
@@ -16,21 +26,28 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
       .attr("width", width)
       .attr("height", height);
 
-    // Set up the Sankey generator with varying node widths
+    // Set up the Sankey generator with fixed node width (d3-sankey doesn't support dynamic widths)
     const sankeyGenerator = sankey()
       .nodeId(d => d.id)
-      .nodeWidth(d => {
-        // Vary node width based on type: distributors (thickest), suppliers (medium), brands (thinnest)
-        if (d.type === 'distributor') return 40;
-        if (d.type === 'supplier') return 25;
-        if (d.type === 'brand') return 15;
-        return 20;
-      })
+      .nodeWidth(25)
       .nodePadding(15)
       .extent([[100, 30], [width - 100, height - 30]]);
 
     // Generate the Sankey layout
-    const { nodes, links } = sankeyGenerator(data);
+    let nodes, links;
+    try {
+      const result = sankeyGenerator(data);
+      nodes = result.nodes;
+      links = result.links;
+      console.log('D3Sankey: Generated layout', { 
+        nodes: nodes.length, 
+        links: links.length,
+        sampleNode: nodes[0]
+      });
+    } catch (error) {
+      console.error('D3Sankey: Error generating layout', error);
+      return;
+    }
 
     // Color scale with Monarch Money-style colors
     const color = d3.scaleOrdinal([
@@ -53,10 +70,11 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
       .enter().append("path")
       .attr("d", sankeyLinkHorizontal())
       .attr("stroke", d => {
-        // Use source node color with opacity
-        const sourceNode = nodes.find(n => n.id === d.source.id);
-        const colorIndex = nodes.indexOf(sourceNode);
-        return color(colorIndex);
+        // Use source node type for color
+        if (d.source.type === 'distributor') return '#3B82F6';
+        if (d.source.type === 'supplier') return '#10B981';
+        if (d.source.type === 'brand') return '#F59E0B';
+        return '#94A3B8';
       })
       .attr("stroke-opacity", 0.7)
       .style("fill", "none")
