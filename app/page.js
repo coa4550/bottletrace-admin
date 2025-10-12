@@ -20,7 +20,15 @@ export default function DashboardPage() {
       pending: 0,
       under_review: 0,
       approved_today: 0,
-      rejected_today: 0
+      rejected_today: 0,
+      by_category: {
+        brand: 0,
+        supplier: 0,
+        distributor: 0,
+        brand_supplier: 0,
+        brand_distributor: 0,
+        supplier_distributor: 0
+      }
     },
     categories: { total: 0 },
     sub_categories: { total: 0 },
@@ -64,7 +72,13 @@ export default function DashboardPage() {
         submissionsPending,
         submissionsUnderReview,
         submissionsApprovedToday,
-        submissionsRejectedToday
+        submissionsRejectedToday,
+        submissionsBrand,
+        submissionsSupplier,
+        submissionsDistributor,
+        submissionsBrandSupplier,
+        submissionsBrandDistributor,
+        submissionsSupplierDistributor
       ] = await Promise.all([
         supabase.from('core_brands').select('*', { count: 'exact', head: true }),
         supabase.from('core_brands').select('*', { count: 'exact', head: true }).eq('is_orphaned', true),
@@ -79,7 +93,13 @@ export default function DashboardPage() {
         supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'under_review'),
         supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('reviewed_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'rejected').gte('reviewed_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'rejected').gte('reviewed_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand'),
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier'),
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'distributor'),
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_supplier'),
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_distributor'),
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier_distributor')
       ]);
 
       setMetrics({
@@ -104,7 +124,15 @@ export default function DashboardPage() {
           pending: submissionsPending.count || 0,
           under_review: submissionsUnderReview.count || 0,
           approved_today: submissionsApprovedToday.count || 0,
-          rejected_today: submissionsRejectedToday.count || 0
+          rejected_today: submissionsRejectedToday.count || 0,
+          by_category: {
+            brand: submissionsBrand.count || 0,
+            supplier: submissionsSupplier.count || 0,
+            distributor: submissionsDistributor.count || 0,
+            brand_supplier: submissionsBrandSupplier.count || 0,
+            brand_distributor: submissionsBrandDistributor.count || 0,
+            supplier_distributor: submissionsSupplierDistributor.count || 0
+          }
         },
         categories: {
           total: categoriesTotal.count || 0
@@ -314,7 +342,7 @@ export default function DashboardPage() {
               </a>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
               <div style={{
                 padding: 16,
                 background: 'rgba(255, 255, 255, 0.7)',
@@ -365,6 +393,58 @@ export default function DashboardPage() {
                 </div>
                 <div style={{ fontSize: 28, fontWeight: 700, color: '#991b1b' }}>
                   {metrics.submissions.rejected_today}
+                </div>
+              </div>
+            </div>
+
+            {/* Reviews by Category */}
+            <div style={{
+              padding: 16,
+              background: 'rgba(255, 255, 255, 0.8)',
+              borderRadius: 8,
+              backdropFilter: 'blur(10px)'
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e', marginBottom: 12 }}>
+                Pending Reviews by Type:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 13, color: '#78350f', fontWeight: 500 }}>🏷️ Brands</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                    {metrics.submissions.by_category.brand}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 13, color: '#78350f', fontWeight: 500 }}>🏭 Suppliers</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                    {metrics.submissions.by_category.supplier}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 13, color: '#78350f', fontWeight: 500 }}>🚚 Distributors</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                    {metrics.submissions.by_category.distributor}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: '#78350f', fontWeight: 500 }}>🔗 Brand-Supplier</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                    {metrics.submissions.by_category.brand_supplier}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: '#78350f', fontWeight: 500 }}>🔗 Brand-Dist.</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                    {metrics.submissions.by_category.brand_distributor}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.5)', borderRadius: 6 }}>
+                  <span style={{ fontSize: 12, color: '#78350f', fontWeight: 500 }}>🔗 Supplier-Dist.</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: '#92400e' }}>
+                    {metrics.submissions.by_category.supplier_distributor}
+                  </span>
                 </div>
               </div>
             </div>
