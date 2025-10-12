@@ -26,11 +26,21 @@ export default function RootLayout({ children }) {
   <a href="/sub-categories" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Sub-Categories</a>
 
   <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+    User Portal
+  </h4>
+  <a href="/lost-bottles" style={{ color:'#fbbf24', textDecoration:'none', paddingLeft: 12 }}>🍾 Lost Bottles</a>
+
+  <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+    Admin
+  </h4>
+  <a href="/admin/submissions" style={{ color:'#34d399', textDecoration:'none', paddingLeft: 12 }}>📝 Submissions Dashboard</a>
+  <a href="/audit/orphans" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Orphaned Records</a>
+
+  <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
     Audits
   </h4>
   <a href="/audit/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Audit Supplier Portfolio</a>
   <a href="/audit/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Audit Distributor Portfolio</a>
-  <a href="/audit/orphans" style={{ color:'#fbbf24', textDecoration:'none', paddingLeft: 12 }}>Orphaned Brands</a>
 
   <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
     Visualization

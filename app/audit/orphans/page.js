@@ -76,29 +76,17 @@ export default function OrphansAuditPage() {
 
   const fetchOrphanedBrands = async () => {
     try {
-      // Fetch all brands
-      const { data: allBrands, error: brandsError } = await supabase
+      // Fetch brands marked as orphaned using the new status flag
+      const { data, error } = await supabase
         .from('core_brands')
-        .select('brand_id, brand_name, brand_url, brand_logo_url, created_at')
-        .order('brand_name');
+        .select('brand_id, brand_name, brand_url, brand_logo_url, created_at, orphaned_at, orphaned_reason')
+        .eq('is_orphaned', true)
+        .order('orphaned_at', { ascending: false, nullsFirst: false });
 
-      if (brandsError) throw brandsError;
+      if (error) throw error;
 
-      // Fetch all brand-supplier relationships
-      const { data: brandSupplierRels, error: relsError } = await supabase
-        .from('brand_supplier')
-        .select('brand_id');
-
-      if (relsError) throw relsError;
-
-      // Create set of brand IDs that have suppliers
-      const brandsWithSuppliers = new Set(brandSupplierRels?.map(r => r.brand_id) || []);
-
-      // Filter to only brands without suppliers
-      const orphaned = allBrands?.filter(brand => !brandsWithSuppliers.has(brand.brand_id)) || [];
-
-      console.log(`Orphaned brands: ${orphaned.length}`);
-      setOrphanedBrands(orphaned);
+      console.log(`Orphaned brands: ${data?.length || 0}`);
+      setOrphanedBrands(data || []);
     } catch (error) {
       console.error('Error fetching orphaned brands:', error);
       throw error;
@@ -107,29 +95,17 @@ export default function OrphansAuditPage() {
 
   const fetchOrphanedSuppliers = async () => {
     try {
-      // Fetch all suppliers
-      const { data: allSuppliers, error: suppliersError } = await supabase
+      // Fetch suppliers marked as orphaned using the new status flag
+      const { data, error } = await supabase
         .from('core_suppliers')
-        .select('supplier_id, supplier_name, supplier_url, created_at')
-        .order('supplier_name');
+        .select('supplier_id, supplier_name, supplier_url, created_at, orphaned_at, orphaned_reason')
+        .eq('is_orphaned', true)
+        .order('orphaned_at', { ascending: false, nullsFirst: false });
 
-      if (suppliersError) throw suppliersError;
+      if (error) throw error;
 
-      // Fetch all distributor-supplier relationships
-      const { data: distSupplierRels, error: relsError } = await supabase
-        .from('distributor_supplier_state')
-        .select('supplier_id');
-
-      if (relsError) throw relsError;
-
-      // Create set of supplier IDs that have distributors
-      const suppliersWithDistributors = new Set(distSupplierRels?.map(r => r.supplier_id) || []);
-
-      // Filter to only suppliers without distributors
-      const orphaned = allSuppliers?.filter(supplier => !suppliersWithDistributors.has(supplier.supplier_id)) || [];
-
-      console.log(`Orphaned suppliers: ${orphaned.length}`);
-      setOrphanedSuppliers(orphaned);
+      console.log(`Orphaned suppliers: ${data?.length || 0}`);
+      setOrphanedSuppliers(data || []);
     } catch (error) {
       console.error('Error fetching orphaned suppliers:', error);
       throw error;
@@ -155,7 +131,7 @@ export default function OrphansAuditPage() {
 
       if (linkError) throw linkError;
 
-      alert('Brand linked to supplier successfully!');
+      alert('Brand linked to supplier successfully! The orphan status has been automatically cleared.');
       fetchOrphanedData(); // Refresh the list
     } catch (error) {
       console.error('Error linking brand to supplier:', error);
@@ -217,10 +193,22 @@ export default function OrphansAuditPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Orphaned Records</h1>
-      <p style={{ color: '#64748b', marginTop: 8, marginBottom: 24 }}>
+      <h1>Orphaned Records (Admin)</h1>
+      <p style={{ color: '#64748b', marginTop: 8, marginBottom: 16 }}>
         Records that exist in the database but have no relationships (brands with no suppliers, suppliers with no distributors).
       </p>
+      <div style={{ 
+        padding: 12, 
+        background: '#dbeafe', 
+        border: '1px solid #93c5fd', 
+        borderRadius: 6,
+        marginBottom: 24,
+        fontSize: 14,
+        color: '#1e40af'
+      }}>
+        <strong>ℹ️ Admin Tool:</strong> This page allows direct linking for admin users. 
+        Regular users can submit suggestions via the <a href="/lost-bottles" style={{ color: '#1e40af', textDecoration: 'underline' }}>Lost Bottles</a> page.
+      </div>
 
       {/* Tabs */}
       <div style={{ 
