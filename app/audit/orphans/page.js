@@ -76,17 +76,33 @@ export default function OrphansAuditPage() {
 
   const fetchOrphanedBrands = async () => {
     try {
-      // Fetch brands marked as orphaned using the new status flag
-      const { data, error } = await supabase
-        .from('core_brands')
-        .select('brand_id, brand_name, brand_url, brand_logo_url, created_at, orphaned_at, orphaned_reason')
-        .eq('is_orphaned', true)
-        .order('orphaned_at', { ascending: false, nullsFirst: false });
+      // Fetch ALL orphaned brands using pagination (Supabase default limit is 1000)
+      let allBrands = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('core_brands')
+          .select('brand_id, brand_name, brand_url, brand_logo_url, created_at, orphaned_at, orphaned_reason')
+          .eq('is_orphaned', true)
+          .order('orphaned_at', { ascending: false, nullsFirst: false })
+          .range(start, start + pageSize - 1);
 
-      console.log(`Orphaned brands: ${data?.length || 0}`);
-      setOrphanedBrands(data || []);
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allBrands = [...allBrands, ...data];
+          start += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`Orphaned brands: ${allBrands.length}`);
+      setOrphanedBrands(allBrands);
     } catch (error) {
       console.error('Error fetching orphaned brands:', error);
       throw error;
@@ -95,17 +111,33 @@ export default function OrphansAuditPage() {
 
   const fetchOrphanedSuppliers = async () => {
     try {
-      // Fetch suppliers marked as orphaned using the new status flag
-      const { data, error } = await supabase
-        .from('core_suppliers')
-        .select('supplier_id, supplier_name, supplier_url, created_at, orphaned_at, orphaned_reason')
-        .eq('is_orphaned', true)
-        .order('orphaned_at', { ascending: false, nullsFirst: false });
+      // Fetch ALL orphaned suppliers using pagination (Supabase default limit is 1000)
+      let allSuppliers = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('core_suppliers')
+          .select('supplier_id, supplier_name, supplier_url, created_at, orphaned_at, orphaned_reason')
+          .eq('is_orphaned', true)
+          .order('orphaned_at', { ascending: false, nullsFirst: false })
+          .range(start, start + pageSize - 1);
 
-      console.log(`Orphaned suppliers: ${data?.length || 0}`);
-      setOrphanedSuppliers(data || []);
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allSuppliers = [...allSuppliers, ...data];
+          start += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      console.log(`Orphaned suppliers: ${allSuppliers.length}`);
+      setOrphanedSuppliers(allSuppliers);
     } catch (error) {
       console.error('Error fetching orphaned suppliers:', error);
       throw error;
@@ -207,7 +239,7 @@ export default function OrphansAuditPage() {
         color: '#1e40af'
       }}>
         <strong>ℹ️ Admin Tool:</strong> This page allows direct linking for admin users. 
-        Regular users can submit suggestions via the <a href="/lost-bottles" style={{ color: '#1e40af', textDecoration: 'underline' }}>Lost Bottles</a> page.
+        Users can submit orphan correction suggestions via the BottleTrace iOS app, which will appear in the <a href="/admin/submissions" style={{ color: '#1e40af', textDecoration: 'underline' }}>Submissions Dashboard</a> for review.
       </div>
 
       {/* Tabs */}

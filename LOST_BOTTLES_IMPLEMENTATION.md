@@ -40,13 +40,13 @@ Implemented a comprehensive Lost Bottles workflow that uses status flags and sma
 
 ## User-Facing Features
 
-### Lost Bottles Page (`/lost-bottles`)
-Public-facing page where users can:
+### Lost Bottles in iOS App
+The Lost Bottles feature is implemented in the BottleTrace iOS app (not in the admin portal). Users can:
 - View all orphaned brands and suppliers
-- Select a supplier for an orphaned brand (dropdown)
-- Select a distributor + state for an orphaned supplier (two dropdowns)
+- Select a supplier for an orphaned brand
+- Select a distributor + state for an orphaned supplier
 - Add optional notes/context
-- Submit suggestions for admin approval
+- Submit suggestions for admin approval via the API
 
 Submissions are stored in `brand_submissions` with:
 - `submission_type: 'Orphan_Correction'`
@@ -66,9 +66,10 @@ Admin dashboard for reviewing all submissions:
 
 ### Admin Orphans Audit Page (`/audit/orphans`)
 Updated admin tool for direct orphan management:
+- Fetches ALL orphaned records using pagination (not limited to 1,000)
 - Simplified queries using `is_orphaned` flag (no complex filtering)
 - Direct linking capability (admin only)
-- Notice directing regular users to Lost Bottles page
+- Notice directing users to submit via iOS app
 - Automatic orphan status clearing via triggers
 
 ## API Endpoints
@@ -99,14 +100,11 @@ List submissions with optional filtering:
 
 ## Navigation Updates
 
-Added new navigation sections in sidebar:
-
-**User Portal:**
-- 🍾 Lost Bottles - User submission page
+Updated navigation in sidebar:
 
 **Admin:**
-- 📝 Submissions Dashboard - Admin approval interface
-- Orphaned Records - Direct admin management tool
+- 📝 Submissions Dashboard - Review submissions from iOS app
+- 🍾 Orphaned Records - Direct admin management tool
 
 ## Current Statistics
 
