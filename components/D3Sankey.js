@@ -16,35 +16,58 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
       .attr("width", width)
       .attr("height", height);
 
-    // Set up the Sankey generator with better spacing
+    // Set up the Sankey generator with varying node widths
     const sankeyGenerator = sankey()
       .nodeId(d => d.id)
-      .nodeWidth(20)
-      .nodePadding(20)
-      .extent([[80, 20], [width - 80, height - 20]]);
+      .nodeWidth(d => {
+        // Vary node width based on type: distributors (thickest), suppliers (medium), brands (thinnest)
+        if (d.type === 'distributor') return 40;
+        if (d.type === 'supplier') return 25;
+        if (d.type === 'brand') return 15;
+        return 20;
+      })
+      .nodePadding(15)
+      .extent([[100, 30], [width - 100, height - 30]]);
 
     // Generate the Sankey layout
     const { nodes, links } = sankeyGenerator(data);
 
-    // Color scale
-    const color = d3.scaleOrdinal(d3.schemeCategory10);
+    // Color scale with Monarch Money-style colors
+    const color = d3.scaleOrdinal([
+      '#3B82F6', // Blue
+      '#10B981', // Green  
+      '#F59E0B', // Orange
+      '#EF4444', // Red
+      '#8B5CF6', // Purple
+      '#06B6D4', // Cyan
+      '#F97316', // Orange
+      '#84CC16', // Lime
+      '#EC4899', // Pink
+      '#6366F1', // Indigo
+    ]);
 
-    // Create the links
+    // Create the links with Monarch Money-style colors
     const link = svg.append("g")
       .selectAll("path")
       .data(links)
       .enter().append("path")
       .attr("d", sankeyLinkHorizontal())
-      .attr("stroke", "#000")
-      .attr("stroke-opacity", 0.5)
+      .attr("stroke", d => {
+        // Use source node color with opacity
+        const sourceNode = nodes.find(n => n.id === d.source.id);
+        const colorIndex = nodes.indexOf(sourceNode);
+        return color(colorIndex);
+      })
+      .attr("stroke-opacity", 0.7)
       .style("fill", "none")
-      .style("stroke-width", d => Math.max(1, d.width));
+      .style("stroke-width", d => Math.max(1, d.width))
+      .style("cursor", "pointer");
 
     // Add link tooltips
     link.append("title")
       .text(d => `${d.source.label} → ${d.target.label}`);
 
-    // Create the nodes
+    // Create the nodes with type-based colors
     const node = svg.append("g")
       .selectAll("rect")
       .data(nodes)
@@ -53,54 +76,67 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
       .attr("y", d => d.y0)
       .attr("height", d => d.y1 - d.y0)
       .attr("width", d => d.x1 - d.x0)
-      .attr("fill", (d, i) => color(i))
-      .attr("opacity", 0.8);
+      .attr("fill", d => {
+        // Color based on node type
+        if (d.type === 'distributor') return '#3B82F6'; // Blue
+        if (d.type === 'supplier') return '#10B981';   // Green
+        if (d.type === 'brand') return '#F59E0B';      // Orange
+        return color(nodes.indexOf(d));
+      })
+      .attr("opacity", 0.8)
+      .style("cursor", "pointer")
+      .style("stroke", "#fff")
+      .style("stroke-width", 1);
 
     // Add node tooltips
     node.append("title")
       .text(d => `${d.label} (Value: ${d.value || 0})`);
 
-    // Create the labels with better positioning
+    // Create the labels with Monarch Money-style positioning
     const label = svg.append("g")
       .selectAll("text")
       .data(nodes)
       .enter().append("text")
-      .attr("x", d => d.x0 < width / 2 ? d.x1 + 12 : d.x0 - 12)
+      .attr("x", d => d.x0 < width / 2 ? d.x1 + 16 : d.x0 - 16)
       .attr("y", d => (d.y1 + d.y0) / 2)
       .attr("dy", "0.35em")
       .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end")
       .text(d => {
         // Truncate very long labels to prevent overlap
         const label = d.label;
-        return label.length > 20 ? label.substring(0, 17) + '...' : label;
+        return label.length > 25 ? label.substring(0, 22) + '...' : label;
       })
-      .style("font-size", "11px")
-      .style("font-weight", "500")
-      .style("fill", "#333")
+      .style("font-size", "12px")
+      .style("font-weight", "600")
+      .style("fill", "#1F2937")
       .style("pointer-events", "none")
-      .style("text-shadow", "1px 1px 2px rgba(255,255,255,0.8)");
+      .style("font-family", "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif");
 
-    // Add hover effects
+    // Add Monarch Money-style hover effects
     node
       .on("mouseover", function(event, d) {
-        d3.select(this).attr("opacity", 1);
+        d3.select(this)
+          .attr("opacity", 1)
+          .style("stroke-width", 2);
         // Highlight connected links
         link.attr("stroke-opacity", l => 
-          l.source === d || l.target === d ? 1 : 0.1
+          l.source === d || l.target === d ? 0.9 : 0.3
         );
       })
       .on("mouseout", function(event, d) {
-        d3.select(this).attr("opacity", 0.8);
+        d3.select(this)
+          .attr("opacity", 0.8)
+          .style("stroke-width", 1);
         // Reset all links
-        link.attr("stroke-opacity", 0.5);
+        link.attr("stroke-opacity", 0.7);
       });
 
     link
       .on("mouseover", function(event, d) {
-        d3.select(this).attr("stroke-opacity", 1);
+        d3.select(this).attr("stroke-opacity", 0.9);
       })
       .on("mouseout", function(event, d) {
-        d3.select(this).attr("stroke-opacity", 0.5);
+        d3.select(this).attr("stroke-opacity", 0.7);
       });
 
   }, [data, width, height]);
