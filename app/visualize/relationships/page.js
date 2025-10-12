@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { ResponsiveSankey } from '@nivo/sankey';
+import D3Sankey from '../../../components/D3Sankey';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://pgycxpmqnrjsusgoinxz.supabase.co',
@@ -525,60 +525,16 @@ export default function RelationshipsVisualizationPage() {
 
           {/* Sankey Diagram */}
           <div style={{ 
-            height: 600, 
             background: 'white',
             border: '1px solid #e2e8f0',
             borderRadius: 8,
-            padding: 20
+            padding: 20,
+            minHeight: 600
           }}>
-            <ResponsiveSankey
-              data={sankeyData}
-              margin={{ top: 20, right: 160, bottom: 20, left: 160 }}
-              align="justify"
-              colors={{ scheme: 'category10' }}
-              nodeOpacity={1}
-              nodeHoverOthersOpacity={0.35}
-              nodeThickness={18}
-              nodeSpacing={24}
-              nodeBorderWidth={0}
-              nodeBorderColor={{
-                from: 'color',
-                modifiers: [['darker', 0.8]]
-              }}
-              nodeBorderRadius={3}
-              linkOpacity={0.5}
-              linkHoverOthersOpacity={0.1}
-              linkContract={3}
-              enableLinkGradient={true}
-              label={node => node.label || node.id}
-              labelPosition="outside"
-              labelOrientation="horizontal"
-              labelPadding={16}
-              labelTextColor={{
-                from: 'color',
-                modifiers: [['darker', 1]]
-              }}
-              animate={false}
-              tooltip={({ node }) => (
-                <div
-                  style={{
-                    background: 'white',
-                    padding: '12px 16px',
-                    border: '1px solid #ccc',
-                    borderRadius: 6,
-                    fontSize: 14,
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    maxWidth: 200,
-                    wordWrap: 'break-word'
-                  }}
-                >
-                  <strong>{node.label || node.id}</strong>
-                  <br />
-                  Type: {node.type || 'Unknown'}
-                  <br />
-                  Value: {node.value || 1}
-                </div>
-              )}
+            <D3Sankey 
+              data={sankeyData} 
+              width={800} 
+              height={600} 
             />
           </div>
 
