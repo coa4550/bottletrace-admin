@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -10,6 +10,8 @@ const supabase = createClient(
 export default function BrandsPage() {
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [allCategories, setAllCategories] = useState([]);
+  const [allSubCategories, setAllSubCategories] = useState([]);
   const [colWidths, setColWidths] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('brandColWidths');
@@ -18,6 +20,27 @@ export default function BrandsPage() {
     return {};
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+  // Fetch all available categories and sub-categories
+  useEffect(() => {
+    async function fetchCategoriesAndSubCategories() {
+      try {
+        const [categoriesRes, subCategoriesRes] = await Promise.all([
+          supabase.from('categories').select('category_id, category_name').order('category_name'),
+          supabase.from('sub_categories').select('sub_category_id, sub_category_name').order('sub_category_name')
+        ]);
+
+        if (categoriesRes.error) throw categoriesRes.error;
+        if (subCategoriesRes.error) throw subCategoriesRes.error;
+
+        setAllCategories(categoriesRes.data || []);
+        setAllSubCategories(subCategoriesRes.data || []);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    }
+    fetchCategoriesAndSubCategories();
+  }, []);
 
   // Fetch brands with categories and sub-categories
   useEffect(() => {
@@ -213,41 +236,8 @@ export default function BrandsPage() {
     }
   };
 
-  const handleCategoriesEdit = async (brandId, newValue) => {
+  const handleCategoriesEdit = async (brandId, selectedCategoryIds) => {
     try {
-      // Parse comma-separated category names
-      const categoryNames = newValue
-        .split(',')
-        .map(c => c.trim())
-        .filter(Boolean);
-
-      // Get or create categories
-      const categoryIds = [];
-      for (const name of categoryNames) {
-        // Try to find existing category
-        let { data: existing, error: findError } = await supabase
-          .from('categories')
-          .select('category_id')
-          .eq('category_name', name)
-          .maybeSingle();
-
-        if (findError) throw findError;
-
-        if (existing) {
-          categoryIds.push(existing.category_id);
-        } else {
-          // Create new category
-          const { data: created, error: createError } = await supabase
-            .from('categories')
-            .insert({ category_name: name })
-            .select('category_id')
-            .single();
-
-          if (createError) throw createError;
-          categoryIds.push(created.category_id);
-        }
-      }
-
       // Delete existing brand-category relationships
       const { error: deleteError } = await supabase
         .from('brand_categories')
@@ -257,8 +247,8 @@ export default function BrandsPage() {
       if (deleteError) throw deleteError;
 
       // Insert new relationships
-      if (categoryIds.length > 0) {
-        const relationships = categoryIds.map(categoryId => ({
+      if (selectedCategoryIds.length > 0) {
+        const relationships = selectedCategoryIds.map(categoryId => ({
           brand_id: brandId,
           category_id: categoryId
         }));
@@ -270,9 +260,14 @@ export default function BrandsPage() {
         if (insertError) throw insertError;
       }
 
-      // Update local state
+      // Update local state with category names
+      const categoryNames = selectedCategoryIds
+        .map(id => allCategories.find(c => c.category_id === id)?.category_name)
+        .filter(Boolean)
+        .join(', ');
+
       setBrands((prev) =>
-        prev.map((b) => (b.brand_id === brandId ? { ...b, categories: newValue } : b))
+        prev.map((b) => (b.brand_id === brandId ? { ...b, categories: categoryNames } : b))
       );
     } catch (err) {
       console.error('Update categories error:', err.message);
@@ -280,41 +275,8 @@ export default function BrandsPage() {
     }
   };
 
-  const handleSubCategoriesEdit = async (brandId, newValue) => {
+  const handleSubCategoriesEdit = async (brandId, selectedSubCategoryIds) => {
     try {
-      // Parse comma-separated sub-category names
-      const subCategoryNames = newValue
-        .split(',')
-        .map(c => c.trim())
-        .filter(Boolean);
-
-      // Get or create sub-categories
-      const subCategoryIds = [];
-      for (const name of subCategoryNames) {
-        // Try to find existing sub-category
-        let { data: existing, error: findError } = await supabase
-          .from('sub_categories')
-          .select('sub_category_id')
-          .eq('sub_category_name', name)
-          .maybeSingle();
-
-        if (findError) throw findError;
-
-        if (existing) {
-          subCategoryIds.push(existing.sub_category_id);
-        } else {
-          // Create new sub-category
-          const { data: created, error: createError } = await supabase
-            .from('sub_categories')
-            .insert({ sub_category_name: name })
-            .select('sub_category_id')
-            .single();
-
-          if (createError) throw createError;
-          subCategoryIds.push(created.sub_category_id);
-        }
-      }
-
       // Delete existing brand-subcategory relationships
       const { error: deleteError } = await supabase
         .from('brand_sub_categories')
@@ -324,8 +286,8 @@ export default function BrandsPage() {
       if (deleteError) throw deleteError;
 
       // Insert new relationships
-      if (subCategoryIds.length > 0) {
-        const relationships = subCategoryIds.map(subCategoryId => ({
+      if (selectedSubCategoryIds.length > 0) {
+        const relationships = selectedSubCategoryIds.map(subCategoryId => ({
           brand_id: brandId,
           sub_category_id: subCategoryId
         }));
@@ -337,9 +299,14 @@ export default function BrandsPage() {
         if (insertError) throw insertError;
       }
 
-      // Update local state
+      // Update local state with sub-category names
+      const subCategoryNames = selectedSubCategoryIds
+        .map(id => allSubCategories.find(sc => sc.sub_category_id === id)?.sub_category_name)
+        .filter(Boolean)
+        .join(', ');
+
       setBrands((prev) =>
-        prev.map((b) => (b.brand_id === brandId ? { ...b, sub_categories: newValue } : b))
+        prev.map((b) => (b.brand_id === brandId ? { ...b, sub_categories: subCategoryNames } : b))
       );
     } catch (err) {
       console.error('Update sub-categories error:', err.message);
@@ -465,18 +432,40 @@ export default function BrandsPage() {
                   }
 
                   if (editable) {
-                    // Use special handler for categories and sub-categories
-                    const handleChange = col.editHandler === 'categories'
-                      ? (val) => handleCategoriesEdit(b.brand_id, val)
-                      : col.editHandler === 'sub_categories'
-                      ? (val) => handleSubCategoriesEdit(b.brand_id, val)
-                      : (val) => handleEdit(b.brand_id, col.key, val);
+                    // Use multi-select for categories and sub-categories
+                    if (col.editHandler === 'categories') {
+                      return (
+                        <td key={col.key} style={cellStyle}>
+                          <MultiSelectCell
+                            currentValue={value}
+                            options={allCategories}
+                            optionIdKey="category_id"
+                            optionLabelKey="category_name"
+                            onChange={(selectedIds) => handleCategoriesEdit(b.brand_id, selectedIds)}
+                          />
+                        </td>
+                      );
+                    }
+                    
+                    if (col.editHandler === 'sub_categories') {
+                      return (
+                        <td key={col.key} style={cellStyle}>
+                          <MultiSelectCell
+                            currentValue={value}
+                            options={allSubCategories}
+                            optionIdKey="sub_category_id"
+                            optionLabelKey="sub_category_name"
+                            onChange={(selectedIds) => handleSubCategoriesEdit(b.brand_id, selectedIds)}
+                          />
+                        </td>
+                      );
+                    }
 
                     return (
                       <td key={col.key} style={cellStyle}>
                         <EditableCell
                           value={value}
-                          onChange={handleChange}
+                          onChange={(val) => handleEdit(b.brand_id, col.key, val)}
                         />
                       </td>
                     );
@@ -538,6 +527,162 @@ function EditableCell({ value, onChange }) {
       title="Click to edit"
     >
       {value || '—'}
+    </div>
+  );
+}
+
+function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selected, setSelected] = useState(() => {
+    // Parse current value (comma-separated names) into IDs
+    if (!currentValue) return [];
+    const names = currentValue.split(',').map(n => n.trim());
+    return options
+      .filter(opt => names.includes(opt[optionLabelKey]))
+      .map(opt => opt[optionIdKey]);
+  });
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    // Update selected when currentValue or options change
+    if (!currentValue) {
+      setSelected([]);
+      return;
+    }
+    const names = currentValue.split(',').map(n => n.trim());
+    const ids = options
+      .filter(opt => names.includes(opt[optionLabelKey]))
+      .map(opt => opt[optionIdKey]);
+    setSelected(ids);
+  }, [currentValue, options, optionIdKey, optionLabelKey]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const toggleOption = (id) => {
+    const newSelected = selected.includes(id)
+      ? selected.filter(sid => sid !== id)
+      : [...selected, id];
+    setSelected(newSelected);
+  };
+
+  const handleSave = () => {
+    onChange(selected);
+    setIsOpen(false);
+  };
+
+  const displayValue = currentValue || '—';
+
+  return (
+    <div style={{ position: 'relative' }} ref={dropdownRef}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          cursor: 'pointer',
+          padding: '4px 8px',
+          border: '1px solid transparent',
+          borderRadius: 4,
+          minWidth: 100,
+          ':hover': { background: '#f8fafc' }
+        }}
+        title="Click to edit"
+      >
+        {displayValue}
+      </div>
+
+      {isOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 1000,
+            background: 'white',
+            border: '1px solid #cbd5e1',
+            borderRadius: 6,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            minWidth: 200,
+            maxWidth: 300,
+            maxHeight: 300,
+            overflowY: 'auto',
+            marginTop: 4
+          }}
+        >
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontWeight: 600, fontSize: 13 }}>
+            Select Options
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {options.map(opt => (
+              <label
+                key={opt[optionIdKey]}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  ':hover': { background: '#f8fafc' }
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(opt[optionIdKey])}
+                  onChange={() => toggleOption(opt[optionIdKey])}
+                  style={{ marginRight: 8 }}
+                />
+                {opt[optionLabelKey]}
+              </label>
+            ))}
+          </div>
+          <div style={{ 
+            padding: 8, 
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'flex-end'
+          }}>
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                border: '1px solid #cbd5e1',
+                borderRadius: 4,
+                background: 'white',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                border: 'none',
+                borderRadius: 4,
+                background: '#3b82f6',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
