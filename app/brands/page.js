@@ -541,6 +541,7 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
       .filter(opt => names.includes(opt[optionLabelKey]))
       .map(opt => opt[optionIdKey]);
   });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -582,6 +583,32 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
     setSelected(newSelected);
   };
 
+  const handleOpen = () => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      
+      // Calculate position
+      let top = rect.bottom + 4;
+      let left = rect.left;
+      
+      // Adjust if dropdown would go off screen
+      if (top + 300 > viewportHeight) {
+        top = rect.top - 300 - 4; // Show above instead
+      }
+      if (left + 300 > viewportWidth) {
+        left = viewportWidth - 300 - 10; // Adjust left
+      }
+      if (left < 10) {
+        left = 10; // Minimum margin from edge
+      }
+      
+      setDropdownPosition({ top, left });
+    }
+    setIsOpen(true);
+  };
+
   const handleSave = () => {
     onChange(selected);
     setIsOpen(false);
@@ -592,7 +619,7 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
   return (
     <div style={{ position: 'relative' }} ref={dropdownRef}>
       <div
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={isOpen ? () => setIsOpen(false) : handleOpen}
         style={{
           cursor: 'pointer',
           padding: '4px 8px',
@@ -613,23 +640,37 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
       </div>
 
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            zIndex: 1000,
-            background: 'white',
-            border: '1px solid #cbd5e1',
-            borderRadius: 6,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            minWidth: 200,
-            maxWidth: 300,
-            maxHeight: 300,
-            overflowY: 'auto',
-            marginTop: 4
-          }}
-        >
+        <>
+          {/* Backdrop to capture clicks outside */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9998,
+              background: 'transparent'
+            }}
+            onClick={() => setIsOpen(false)}
+          />
+          {/* Dropdown */}
+          <div
+            style={{
+              position: 'fixed',
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              zIndex: 9999,
+              background: 'white',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              minWidth: 200,
+              maxWidth: 300,
+              maxHeight: 300,
+              overflowY: 'auto'
+            }}
+          >
           <div style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontWeight: 600, fontSize: 13 }}>
             Select Options ({options.length} available)
           </div>
@@ -700,7 +741,8 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
               Save
             </button>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
