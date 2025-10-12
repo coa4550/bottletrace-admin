@@ -12,7 +12,6 @@ export default function OrphansAuditPage() {
   const [orphanedBrands, setOrphanedBrands] = useState([]);
   const [orphanedSuppliers, setOrphanedSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // 'all', 'no_supplier', 'no_distributor', 'none'
 
   useEffect(() => {
     fetchOrphanedData();
@@ -69,53 +68,14 @@ export default function OrphansAuditPage() {
       const brandsWithSuppliers = new Set(allSupplierRels.map(r => r.brand_id));
       console.log(`Brands with supplier relationships: ${brandsWithSuppliers.size}`);
 
-      // Fetch all distributor relationships
-      let allDistributorRels = [];
-      start = 0;
-      hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('brand_distributor_state')
-          .select('brand_id')
-          .range(start, start + pageSize - 1);
-
-        if (error && error.code !== '42P01') throw error; // Ignore if table doesn't exist
-
-        if (data && data.length > 0) {
-          allDistributorRels = [...allDistributorRels, ...data];
-          start += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // Get unique brand IDs with distributor relationships
-      const brandsWithDistributors = new Set(allDistributorRels.map(r => r.brand_id));
-      console.log(`Brands with distributor relationships: ${brandsWithDistributors.size}`);
-
-      // Classify each brand
-      const orphaned = allBrands.map(brand => {
-        const hasSupplier = brandsWithSuppliers.has(brand.brand_id);
-        const hasDistributor = brandsWithDistributors.has(brand.brand_id);
-
-        let orphanType = null;
-        if (!hasSupplier && !hasDistributor) {
-          orphanType = 'none'; // No relationships at all
-        } else if (!hasSupplier) {
-          orphanType = 'no_supplier'; // Only has distributor
-        } else if (!hasDistributor) {
-          orphanType = 'no_distributor'; // Only has supplier
-        }
-
-        return {
+      // Find brands with no supplier relationships (orphaned brands)
+      const orphaned = allBrands
+        .filter(brand => !brandsWithSuppliers.has(brand.brand_id))
+        .map(brand => ({
           ...brand,
-          hasSupplier,
-          hasDistributor,
-          orphanType
-        };
-      }).filter(brand => brand.orphanType !== null); // Only show orphaned brands
+          hasSupplier: false,
+          orphanType: 'no_supplier'
+        }));
 
       console.log(`Orphaned brands: ${orphaned.length}`);
       setOrphanedBrands(orphaned);
@@ -192,9 +152,7 @@ export default function OrphansAuditPage() {
           brand_logo_url: brand.brand_logo_url,
           original_brand_id: brand.brand_id,
           orphaned_at: new Date().toISOString(),
-          reason: brand.orphanType === 'none' ? 'No relationships at all' : 
-                  brand.orphanType === 'no_supplier' ? 'No supplier relationship' : 
-                  'No distributor relationship'
+          reason: 'No supplier relationship'
         });
 
       if (insertError) throw insertError;
@@ -292,17 +250,8 @@ export default function OrphansAuditPage() {
     }
   };
 
-  // Filter orphaned brands based on type
-  const filteredBrands = orphanedBrands.filter(brand => {
-    if (filter === 'all') return true;
-    return brand.orphanType === filter;
-  });
-
   const brandStats = {
-    total: orphanedBrands.length,
-    none: orphanedBrands.filter(b => b.orphanType === 'none').length,
-    noSupplier: orphanedBrands.filter(b => b.orphanType === 'no_supplier').length,
-    noDistributor: orphanedBrands.filter(b => b.orphanType === 'no_distributor').length
+    total: orphanedBrands.length
   };
 
   const supplierStats = {
@@ -362,54 +311,18 @@ export default function OrphansAuditPage() {
       {/* Brands Tab Content */}
       {activeTab === 'brands' && (
         <>
-          {/* Filter */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 14 }}>
-              Filter by Type:
-            </label>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                fontSize: 14,
-                border: '1px solid #cbd5e1',
-                borderRadius: 6,
-                minWidth: 300,
-                background: 'white'
-              }}
-            >
-              <option value="all">All Orphaned Brands ({brandStats.total})</option>
-              <option value="none">No Relationships At All ({brandStats.none})</option>
-              <option value="no_supplier">Has Distributor, No Supplier ({brandStats.noSupplier})</option>
-              <option value="no_distributor">Has Supplier, No Distributor ({brandStats.noDistributor})</option>
-            </select>
-          </div>
-
           {/* Stats Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
             <div style={{ padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8 }}>
-              <div style={{ fontSize: 24, fontWeight: 600, color: '#991b1b' }}>{brandStats.none}</div>
-              <div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>No Relationships</div>
-            </div>
-            <div style={{ padding: 16, background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 8 }}>
-              <div style={{ fontSize: 24, fontWeight: 600, color: '#92400e' }}>{brandStats.noSupplier}</div>
-              <div style={{ fontSize: 13, color: '#92400e', marginTop: 4 }}>No Supplier</div>
-            </div>
-            <div style={{ padding: 16, background: '#dbeafe', border: '1px solid #60a5fa', borderRadius: 8 }}>
-              <div style={{ fontSize: 24, fontWeight: 600, color: '#1e40af' }}>{brandStats.noDistributor}</div>
-              <div style={{ fontSize: 13, color: '#1e40af', marginTop: 4 }}>No Distributor</div>
-            </div>
-            <div style={{ padding: 16, background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 8 }}>
-              <div style={{ fontSize: 24, fontWeight: 600, color: '#475569' }}>{brandStats.total}</div>
-              <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>Total Orphaned</div>
+              <div style={{ fontSize: 24, fontWeight: 600, color: '#991b1b' }}>{brandStats.total}</div>
+              <div style={{ fontSize: 13, color: '#991b1b', marginTop: 4 }}>Brands with No Supplier</div>
             </div>
           </div>
 
           {/* Brands Table */}
           {loading ? (
             <p>Loading orphaned brands...</p>
-          ) : filteredBrands.length === 0 ? (
+          ) : orphanedBrands.length === 0 ? (
             <p style={{ color: '#64748b', fontSize: 14 }}>No orphaned brands found.</p>
           ) : (
         <div style={{ overflowX: 'auto' }}>
@@ -424,13 +337,12 @@ export default function OrphansAuditPage() {
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                 <th style={headerStyle}>Brand Name</th>
                 <th style={headerStyle}>Has Supplier?</th>
-                <th style={headerStyle}>Has Distributor?</th>
                 <th style={headerStyle}>Created</th>
                 <th style={headerStyle}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredBrands.map(brand => (
+              {orphanedBrands.map(brand => (
                 <tr key={brand.brand_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={cellStyle}>
                     <strong>{brand.brand_name}</strong>
@@ -443,18 +355,7 @@ export default function OrphansAuditPage() {
                     )}
                   </td>
                   <td style={cellStyle}>
-                    {brand.hasSupplier ? (
-                      <span style={{ color: '#10b981' }}>✅ Yes</span>
-                    ) : (
-                      <span style={{ color: '#ef4444' }}>❌ No</span>
-                    )}
-                  </td>
-                  <td style={cellStyle}>
-                    {brand.hasDistributor ? (
-                      <span style={{ color: '#10b981' }}>✅ Yes</span>
-                    ) : (
-                      <span style={{ color: '#ef4444' }}>❌ No</span>
-                    )}
+                    <span style={{ color: '#ef4444' }}>❌ No</span>
                   </td>
                   <td style={cellStyle}>
                     {brand.created_at ? new Date(brand.created_at).toLocaleDateString() : '—'}
