@@ -525,7 +525,7 @@ export default function RelationshipsVisualizationPage() {
 
           {/* Sankey Diagram */}
           <div style={{ 
-            height: 600, 
+            height: 700, 
             background: 'white',
             border: '1px solid #e2e8f0',
             borderRadius: 8,
@@ -533,7 +533,7 @@ export default function RelationshipsVisualizationPage() {
           }}>
             <ResponsiveSankey
               data={sankeyData}
-              margin={{ top: 40, right: 200, bottom: 40, left: 200 }}
+              margin={{ top: 60, right: 250, bottom: 60, left: 250 }}
               align="justify"
               colors={{ scheme: 'category10' }}
               nodeOpacity={1}
@@ -550,14 +550,10 @@ export default function RelationshipsVisualizationPage() {
               linkHoverOthersOpacity={0.1}
               linkContract={5}
               enableLinkGradient={true}
-              label={node => {
-                // Truncate long labels to prevent overlap
-                const label = node.label || node.id;
-                return label.length > 15 ? label.substring(0, 12) + '...' : label;
-              }}
+              label={node => node.label || node.id}
               labelPosition="outside"
               labelOrientation="horizontal"
-              labelPadding={20}
+              labelPadding={30}
               labelTextColor={{
                 from: 'color',
                 modifiers: [['darker', 1.2]]
