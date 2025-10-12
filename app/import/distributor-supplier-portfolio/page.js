@@ -179,7 +179,7 @@ export default function ImportDistributorSupplierPortfolio() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Import Distributor-Supplier Portfolio</h1>
+      <h1>Import Distributor Portfolio</h1>
       <p style={{ color: '#64748b', marginTop: 8 }}>
         Upload a spreadsheet with distributor-supplier relationships by state. Expected columns: distributor_name, supplier_name, state_code (or state_name)
       </p>
