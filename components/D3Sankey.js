@@ -110,21 +110,42 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
     node.append("title")
       .text(d => `${d.label} (Value: ${d.value || 0})`);
 
-    // Create the labels with Monarch Money-style positioning
+    // Create the labels with better positioning for each type
     const label = svg.append("g")
       .selectAll("text")
       .data(nodes)
       .enter().append("text")
-      .attr("x", d => d.x0 < width / 2 ? d.x1 + 16 : d.x0 - 16)
+      .attr("x", d => {
+        // Position labels based on node type and position
+        if (d.type === 'brand') {
+          // Brands: position to the right of the node
+          return d.x1 + 20;
+        } else if (d.type === 'distributor') {
+          // Distributors: position to the left of the node
+          return d.x0 - 20;
+        } else {
+          // Suppliers: position based on their location
+          return d.x0 < width / 2 ? d.x1 + 20 : d.x0 - 20;
+        }
+      })
       .attr("y", d => (d.y1 + d.y0) / 2)
       .attr("dy", "0.35em")
-      .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end")
+      .attr("text-anchor", d => {
+        // Set text anchor based on node type
+        if (d.type === 'brand') {
+          return "start"; // Left-align for brands (to the right of node)
+        } else if (d.type === 'distributor') {
+          return "end"; // Right-align for distributors (to the left of node)
+        } else {
+          return d.x0 < width / 2 ? "start" : "end";
+        }
+      })
       .text(d => {
         // Truncate very long labels to prevent overlap
         const label = d.label;
         return label.length > 25 ? label.substring(0, 22) + '...' : label;
       })
-      .style("font-size", "12px")
+      .style("font-size", "11px")
       .style("font-weight", "600")
       .style("fill", "#1F2937")
       .style("pointer-events", "none")
