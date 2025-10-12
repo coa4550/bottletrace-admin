@@ -568,6 +568,13 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
     }
   }, [isOpen]);
 
+  // Debug logging
+  useEffect(() => {
+    if (isOpen) {
+      console.log('MultiSelectCell opened:', { currentValue, options, selected });
+    }
+  }, [isOpen, currentValue, options, selected]);
+
   const toggleOption = (id) => {
     const newSelected = selected.includes(id)
       ? selected.filter(sid => sid !== id)
@@ -592,9 +599,15 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
           border: '1px solid transparent',
           borderRadius: 4,
           minWidth: 100,
-          ':hover': { background: '#f8fafc' }
+          backgroundColor: isOpen ? '#f8fafc' : 'transparent'
         }}
         title="Click to edit"
+        onMouseEnter={(e) => {
+          if (!isOpen) e.currentTarget.style.backgroundColor = '#f8fafc';
+        }}
+        onMouseLeave={(e) => {
+          if (!isOpen) e.currentTarget.style.backgroundColor = 'transparent';
+        }}
       >
         {displayValue}
       </div>
@@ -609,7 +622,7 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
             background: 'white',
             border: '1px solid #cbd5e1',
             borderRadius: 6,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
             minWidth: 200,
             maxWidth: 300,
             maxHeight: 300,
@@ -618,10 +631,15 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
           }}
         >
           <div style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontWeight: 600, fontSize: 13 }}>
-            Select Options
+            Select Options ({options.length} available)
           </div>
           <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-            {options.map(opt => (
+            {options.length === 0 ? (
+              <div style={{ padding: '12px', color: '#94a3b8', fontSize: 14 }}>
+                No options available
+              </div>
+            ) : (
+              options.map(opt => (
               <label
                 key={opt[optionIdKey]}
                 style={{
@@ -643,7 +661,8 @@ function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, o
                 />
                 {opt[optionLabelKey]}
               </label>
-            ))}
+              ))
+            )}
           </div>
           <div style={{ 
             padding: 8, 
