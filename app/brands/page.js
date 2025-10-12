@@ -91,6 +91,28 @@ export default function BrandsPage() {
           }
         }
 
+        // Fetch ALL brand-supplier relationships for verification data
+        let allBrandSuppliers = [];
+        start = 0;
+        hasMore = true;
+
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('brand_supplier')
+            .select('brand_id, is_verified, last_verified_at')
+            .range(start, start + pageSize - 1);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allBrandSuppliers = [...allBrandSuppliers, ...data];
+            start += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+
         // Create lookup maps
         const catsMap = {};
         allBrandCats?.forEach(bc => {
@@ -108,11 +130,38 @@ export default function BrandsPage() {
           }
         });
 
+        // Create verification lookup map
+        // For each brand, determine if ANY supplier relationship is verified
+        // and find the most recent verification date
+        const verificationMap = {};
+        allBrandSuppliers?.forEach(bs => {
+          if (!verificationMap[bs.brand_id]) {
+            verificationMap[bs.brand_id] = {
+              hasVerified: false,
+              lastVerifiedAt: null
+            };
+          }
+          
+          if (bs.is_verified) {
+            verificationMap[bs.brand_id].hasVerified = true;
+          }
+          
+          if (bs.last_verified_at) {
+            const verifiedDate = new Date(bs.last_verified_at);
+            if (!verificationMap[bs.brand_id].lastVerifiedAt || 
+                verifiedDate > new Date(verificationMap[bs.brand_id].lastVerifiedAt)) {
+              verificationMap[bs.brand_id].lastVerifiedAt = bs.last_verified_at;
+            }
+          }
+        });
+
         // Merge data
         const enrichedBrands = allBrands.map(brand => ({
           ...brand,
           categories: catsMap[brand.brand_id]?.join(', ') || '',
-          sub_categories: subcatsMap[brand.brand_id]?.join(', ') || ''
+          sub_categories: subcatsMap[brand.brand_id]?.join(', ') || '',
+          is_verified: verificationMap[brand.brand_id]?.hasVerified || false,
+          last_verified_at: verificationMap[brand.brand_id]?.lastVerifiedAt || null
         }));
 
         setBrands(enrichedBrands);
@@ -168,6 +217,8 @@ export default function BrandsPage() {
     { key: 'brand_name', label: 'Brand Name', editable: true },
     { key: 'categories', label: 'Categories' },
     { key: 'sub_categories', label: 'Sub-Categories' },
+    { key: 'is_verified', label: 'Verified' },
+    { key: 'last_verified_at', label: 'Verified Date' },
     { key: 'data_source', label: 'Data Source', editable: true },
     { key: 'brand_url', label: 'Website', editable: true },
     { key: 'brand_logo_url', label: 'Logo URL', editable: true },
@@ -252,6 +303,32 @@ export default function BrandsPage() {
                 {columns.map((col) => {
                   const value = b[col.key];
                   const editable = col.editable;
+
+                  // Special rendering for verified status
+                  if (col.key === 'is_verified') {
+                    return (
+                      <td key={col.key} style={cellStyle}>
+                        {value ? (
+                          <span style={{ color: '#10b981', fontWeight: 500 }}>✓ Verified</span>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>—</span>
+                        )}
+                      </td>
+                    );
+                  }
+
+                  // Special rendering for verified date
+                  if (col.key === 'last_verified_at') {
+                    return (
+                      <td key={col.key} style={cellStyle}>
+                        {value ? (
+                          <span>{new Date(value).toLocaleDateString()}</span>
+                        ) : (
+                          <span style={{ color: '#94a3b8' }}>—</span>
+                        )}
+                      </td>
+                    );
+                  }
 
                   if (editable)
                     return (
