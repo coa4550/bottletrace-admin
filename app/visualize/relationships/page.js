@@ -142,6 +142,7 @@ export default function RelationshipsVisualizationPage() {
     async function buildSankeyData() {
       setLoading(true);
       try {
+        console.log('Building Sankey data for state:', selectedState);
         // 1. Get distributor-supplier relationships for this state
         console.log('Selected state ID:', selectedState);
         console.log('Selected distributor:', selectedDistributor);
@@ -233,43 +234,51 @@ export default function RelationshipsVisualizationPage() {
         const brandSet = new Set();
 
         // Create distributor -> supplier links
-        distSuppliers.forEach(ds => {
-          const distId = `dist_${ds.distributor_id}`;
-          const distName = ds.core_distributors?.distributor_name || 'Unknown Distributor';
-          const suppId = `supp_${ds.supplier_id}`;
-          const suppName = ds.core_suppliers?.supplier_name || 'Unknown Supplier';
+        if (distSuppliers && Array.isArray(distSuppliers)) {
+          distSuppliers.forEach(ds => {
+            if (!ds || !ds.distributor_id || !ds.supplier_id) return;
+            
+            const distId = `dist_${ds.distributor_id}`;
+            const distName = ds.core_distributors?.distributor_name || 'Unknown Distributor';
+            const suppId = `supp_${ds.supplier_id}`;
+            const suppName = ds.core_suppliers?.supplier_name || 'Unknown Supplier';
 
-          nodes.add(JSON.stringify({ id: distId, label: distName, type: 'distributor' }));
-          nodes.add(JSON.stringify({ id: suppId, label: suppName, type: 'supplier' }));
-          
-          distributorSet.add(ds.distributor_id);
-          supplierSet.add(ds.supplier_id);
+            nodes.add(JSON.stringify({ id: distId, label: distName, type: 'distributor' }));
+            nodes.add(JSON.stringify({ id: suppId, label: suppName, type: 'supplier' }));
+            
+            distributorSet.add(ds.distributor_id);
+            supplierSet.add(ds.supplier_id);
 
-          // Add link from distributor to supplier
-          links.push({
-            source: distId,
-            target: suppId,
-            value: 1
+            // Add link from distributor to supplier
+            links.push({
+              source: distId,
+              target: suppId,
+              value: 1
+            });
           });
-        });
+        }
 
         // Create supplier -> brand links
-        supplierBrands?.forEach(sb => {
-          const suppId = `supp_${sb.supplier_id}`;
-          const brandId = `brand_${sb.brand_id}`;
-          const brandName = sb.core_brands?.brand_name || 'Unknown Brand';
+        if (supplierBrands && Array.isArray(supplierBrands)) {
+          supplierBrands.forEach(sb => {
+            if (!sb || !sb.supplier_id || !sb.brand_id) return;
+            
+            const suppId = `supp_${sb.supplier_id}`;
+            const brandId = `brand_${sb.brand_id}`;
+            const brandName = sb.core_brands?.brand_name || 'Unknown Brand';
 
-          nodes.add(JSON.stringify({ id: brandId, label: brandName, type: 'brand' }));
-          
-          brandSet.add(sb.brand_id);
+            nodes.add(JSON.stringify({ id: brandId, label: brandName, type: 'brand' }));
+            
+            brandSet.add(sb.brand_id);
 
-          // Add link from supplier to brand
-          links.push({
-            source: suppId,
-            target: brandId,
-            value: 1
+            // Add link from supplier to brand
+            links.push({
+              source: suppId,
+              target: brandId,
+              value: 1
+            });
           });
-        });
+        }
 
         const uniqueNodes = Array.from(nodes).map(n => JSON.parse(n));
 
@@ -297,6 +306,7 @@ export default function RelationshipsVisualizationPage() {
           // Filter links to only include the limited nodes
           const nodeIds = new Set(finalNodes.map(n => n.id));
           finalLinks = links.filter(link => 
+            link && link.source && link.target && 
             nodeIds.has(link.source) && nodeIds.has(link.target)
           );
           
@@ -305,6 +315,24 @@ export default function RelationshipsVisualizationPage() {
         
         setDataLimited(wasLimited);
 
+        // Validate data before setting
+        if (!finalNodes || !Array.isArray(finalNodes)) {
+          console.error('Invalid nodes data:', finalNodes);
+          setSankeyData({ nodes: [], links: [] });
+          return;
+        }
+        
+        if (!finalLinks || !Array.isArray(finalLinks)) {
+          console.error('Invalid links data:', finalLinks);
+          setSankeyData({ nodes: finalNodes, links: [] });
+          return;
+        }
+
+        console.log('Setting Sankey data:', { 
+          nodes: finalNodes.length, 
+          links: finalLinks.length 
+        });
+        
         setSankeyData({
           nodes: finalNodes,
           links: finalLinks
