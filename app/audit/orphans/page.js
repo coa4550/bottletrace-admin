@@ -76,15 +76,29 @@ export default function OrphansAuditPage() {
 
   const fetchOrphanedBrands = async () => {
     try {
-      const { data, error } = await supabase
-        .from('core_orphan_brands')
-        .select('orphan_brand_id, brand_name, brand_url, brand_logo_url, orphaned_at, original_brand_id, reason')
+      // Fetch all brands
+      const { data: allBrands, error: brandsError } = await supabase
+        .from('core_brands')
+        .select('brand_id, brand_name, brand_url, brand_logo_url, created_at')
         .order('brand_name');
 
-      if (error) throw error;
+      if (brandsError) throw brandsError;
 
-      console.log(`Orphaned brands: ${data?.length || 0}`);
-      setOrphanedBrands(data || []);
+      // Fetch all brand-supplier relationships
+      const { data: brandSupplierRels, error: relsError } = await supabase
+        .from('brand_supplier')
+        .select('brand_id');
+
+      if (relsError) throw relsError;
+
+      // Create set of brand IDs that have suppliers
+      const brandsWithSuppliers = new Set(brandSupplierRels?.map(r => r.brand_id) || []);
+
+      // Filter to only brands without suppliers
+      const orphaned = allBrands?.filter(brand => !brandsWithSuppliers.has(brand.brand_id)) || [];
+
+      console.log(`Orphaned brands: ${orphaned.length}`);
+      setOrphanedBrands(orphaned);
     } catch (error) {
       console.error('Error fetching orphaned brands:', error);
       throw error;
@@ -93,15 +107,29 @@ export default function OrphansAuditPage() {
 
   const fetchOrphanedSuppliers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('core_orphan_suppliers')
-        .select('orphan_supplier_id, supplier_name, supplier_url, orphaned_at, original_supplier_id, reason')
+      // Fetch all suppliers
+      const { data: allSuppliers, error: suppliersError } = await supabase
+        .from('core_suppliers')
+        .select('supplier_id, supplier_name, supplier_url, created_at')
         .order('supplier_name');
 
-      if (error) throw error;
+      if (suppliersError) throw suppliersError;
 
-      console.log(`Orphaned suppliers: ${data?.length || 0}`);
-      setOrphanedSuppliers(data || []);
+      // Fetch all distributor-supplier relationships
+      const { data: distSupplierRels, error: relsError } = await supabase
+        .from('distributor_supplier_state')
+        .select('supplier_id');
+
+      if (relsError) throw relsError;
+
+      // Create set of supplier IDs that have distributors
+      const suppliersWithDistributors = new Set(distSupplierRels?.map(r => r.supplier_id) || []);
+
+      // Filter to only suppliers without distributors
+      const orphaned = allSuppliers?.filter(supplier => !suppliersWithDistributors.has(supplier.supplier_id)) || [];
+
+      console.log(`Orphaned suppliers: ${orphaned.length}`);
+      setOrphanedSuppliers(orphaned);
     } catch (error) {
       console.error('Error fetching orphaned suppliers:', error);
       throw error;
@@ -112,7 +140,7 @@ export default function OrphansAuditPage() {
     if (!supplierId) return;
 
     const supplier = allSuppliers.find(s => s.supplier_id === supplierId);
-    if (!confirm(`Link "${brand.brand_name}" to supplier "${supplier?.supplier_name}"?\n\nThis will remove it from orphans and create a brand-supplier relationship.`)) {
+    if (!confirm(`Link "${brand.brand_name}" to supplier "${supplier?.supplier_name}"?\n\nThis will create a brand-supplier relationship.`)) {
       return;
     }
 
@@ -121,19 +149,11 @@ export default function OrphansAuditPage() {
       const { error: linkError } = await supabase
         .from('brand_supplier')
         .insert({
-          brand_id: brand.original_brand_id,
+          brand_id: brand.brand_id,
           supplier_id: supplierId
         });
 
       if (linkError) throw linkError;
-
-      // Delete from orphan brands table
-      const { error: deleteError } = await supabase
-        .from('core_orphan_brands')
-        .delete()
-        .eq('orphan_brand_id', brand.orphan_brand_id);
-
-      if (deleteError) throw deleteError;
 
       alert('Brand linked to supplier successfully!');
       fetchOrphanedData(); // Refresh the list
@@ -275,7 +295,7 @@ export default function OrphansAuditPage() {
             </thead>
             <tbody>
               {orphanedBrands.map(brand => (
-                <tr key={brand.orphan_brand_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <tr key={brand.brand_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={cellStyle}>
                     <strong>{brand.brand_name}</strong>
                     {brand.brand_url && (
@@ -287,7 +307,7 @@ export default function OrphansAuditPage() {
                     )}
                   </td>
                   <td style={cellStyle}>
-                    {brand.orphaned_at ? new Date(brand.orphaned_at).toLocaleDateString() : '—'}
+                    {brand.created_at ? new Date(brand.created_at).toLocaleDateString() : '—'}
                   </td>
                   <td style={cellStyle}>
                     <select
@@ -354,7 +374,7 @@ export default function OrphansAuditPage() {
                 </thead>
                 <tbody>
                   {orphanedSuppliers.map(supplier => (
-                    <tr key={supplier.orphan_supplier_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <tr key={supplier.supplier_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={cellStyle}>
                         <strong>{supplier.supplier_name}</strong>
                         {supplier.supplier_url && (
@@ -366,7 +386,7 @@ export default function OrphansAuditPage() {
                         )}
                       </td>
                       <td style={cellStyle}>
-                        {supplier.orphaned_at ? new Date(supplier.orphaned_at).toLocaleDateString() : '—'}
+                        {supplier.created_at ? new Date(supplier.created_at).toLocaleDateString() : '—'}
                       </td>
                       <td style={cellStyle}>
                         <select
