@@ -34,15 +34,14 @@ export async function POST(req, { params }) {
     }
 
     // Update submission status to rejected
-    // Create a system admin user ID for admin actions (using a fixed UUID for system admin)
-    const systemAdminId = '00000000-0000-0000-0000-000000000001';
+    // Use the original submitter as the reviewer since we need a valid user ID for the foreign key
     const { error: updateError } = await supabaseAdmin
       .from('user_submissions')
       .update({
         status: 'rejected',
         rejection_reason: rejection_reason || 'No reason provided',
         reviewed_at: new Date().toISOString(),
-        reviewed_by: systemAdminId
+        reviewed_by: submission.submitted_by
       })
       .eq('submission_id', id);
 
