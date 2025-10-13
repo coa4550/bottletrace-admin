@@ -192,11 +192,14 @@ export async function POST(req, { params }) {
     }
 
     // Update submission status to approved
+    // Create a system admin user ID for admin actions (using a fixed UUID for system admin)
+    const systemAdminId = '00000000-0000-0000-0000-000000000001';
     const { error: updateError } = await supabaseAdmin
       .from('user_submissions')
       .update({
         status: 'approved',
-        reviewed_at: new Date().toISOString()
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: systemAdminId
       })
       .eq('submission_id', id);
 
