@@ -345,11 +345,19 @@ export default function SubmissionsDashboard() {
     }
   };
 
-  const getSubmissionTypeLabel = (type) => {
+  const getSubmissionTypeLabel = (type, category) => {
     switch (type) {
       case 'Addition': return '➕ Addition';
       case 'Change': return '✏️ Update';
       case 'Orphan_Correction': return '🔗 Link';
+      // Handle null submission_type for orphan corrections (lonely brands/suppliers from mobile app)
+      case null:
+      case undefined:
+        // If it's a relationship category, it's likely an orphan correction
+        if (category === 'brand_supplier' || category === 'supplier_distributor') {
+          return '🔗 Link';
+        }
+        return 'Unknown';
       default: return type || 'Unknown';
     }
   };
@@ -882,7 +890,7 @@ export default function SubmissionsDashboard() {
                           color: '#1e40af',
                           borderRadius: 4
                         }}>
-                          {getSubmissionTypeLabel(item.submission_type)}
+                          {getSubmissionTypeLabel(item.submission_type, item.submission_category)}
                         </span>
                         <span style={{ 
                           fontSize: 13,
