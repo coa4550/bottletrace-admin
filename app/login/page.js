@@ -48,7 +48,7 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(180deg, #0EBDDA 0%, #92CE6C 100%)',
       padding: 20
     }}>
       <div style={{
@@ -117,7 +117,7 @@ export default function LoginPage() {
                 outline: 'none',
                 transition: 'border-color 0.2s'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#667eea'}
+              onFocus={(e) => e.target.style.borderColor = '#0EBDDA'}
               onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
               placeholder="admin@example.com"
               disabled={loading}
@@ -148,7 +148,7 @@ export default function LoginPage() {
                 outline: 'none',
                 transition: 'border-color 0.2s'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#667eea'}
+              onFocus={(e) => e.target.style.borderColor = '#0EBDDA'}
               onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
               placeholder="Enter your password"
               disabled={loading}
@@ -161,7 +161,7 @@ export default function LoginPage() {
             style={{
               width: '100%',
               padding: '14px',
-              background: loading ? '#9ca3af' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: loading ? '#9ca3af' : 'linear-gradient(90deg, #0EBDDA 0%, #92CE6C 100%)',
               color: 'white',
               border: 'none',
               borderRadius: 6,
@@ -169,7 +169,7 @@ export default function LoginPage() {
               fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
               transition: 'transform 0.1s',
-              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+              boxShadow: '0 4px 12px rgba(14, 189, 218, 0.4)'
             }}
             onMouseDown={(e) => !loading && (e.currentTarget.style.transform = 'scale(0.98)')}
             onMouseUp={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
