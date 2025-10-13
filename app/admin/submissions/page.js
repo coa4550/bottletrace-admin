@@ -244,9 +244,11 @@ export default function SubmissionsDashboard() {
       case 'distributor_addition':
         return pending.filter(s => s.submission_type === 'Addition' && s.brand_category === 'distributor');
       case 'lonely_brand':
-        return pending.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'brand_supplier');
+        // Handle both explicit Orphan_Correction and NULL/missing submission_type for brand_supplier category
+        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'brand_supplier');
       case 'lonely_supplier':
-        return pending.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'supplier_distributor');
+        // Handle both explicit Orphan_Correction and NULL/missing submission_type for supplier_distributor category
+        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'supplier_distributor');
       case 'approved':
         return allSubmissions.filter(s => s.status === 'approved');
       case 'rejected':
@@ -265,8 +267,8 @@ export default function SubmissionsDashboard() {
     brand_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'brand').length,
     supplier_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'supplier').length,
     distributor_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'distributor').length,
-    lonely_brand: pendingSubmissions.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'brand_supplier').length,
-    lonely_supplier: pendingSubmissions.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'supplier_distributor').length,
+    lonely_brand: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'brand_supplier').length,
+    lonely_supplier: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'supplier_distributor').length,
     approved: allSubmissions.filter(s => s.status === 'approved').length,
     rejected: allSubmissions.filter(s => s.status === 'rejected').length
   };
