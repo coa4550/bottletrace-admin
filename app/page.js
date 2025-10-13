@@ -30,6 +30,13 @@ export default function DashboardPage() {
         supplier_distributor: 0
       }
     },
+    users: {
+      total: 0,
+      with_profiles: 0,
+      new_this_week: 0,
+      total_reviews: 0,
+      total_submissions: 0
+    },
     categories: { total: 0 },
     sub_categories: { total: 0 },
     states: { total: 0 }
@@ -58,6 +65,8 @@ export default function DashboardPage() {
   const fetchMetrics = async () => {
     try {
       // Fetch brand counts
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      
       const [
         brandsTotal,
         brandsOrphaned,
@@ -78,7 +87,14 @@ export default function DashboardPage() {
         submissionsDistributor,
         submissionsBrandSupplier,
         submissionsBrandDistributor,
-        submissionsSupplierDistributor
+        submissionsSupplierDistributor,
+        usersTotal,
+        userProfilesTotal,
+        usersNewThisWeek,
+        brandReviewsTotal,
+        supplierReviewsTotal,
+        distributorReviewsTotal,
+        userSubmissionsTotal
       ] = await Promise.all([
         supabase.from('core_brands').select('*', { count: 'exact', head: true }),
         supabase.from('core_brands').select('*', { count: 'exact', head: true }).eq('is_orphaned', true),
@@ -99,7 +115,14 @@ export default function DashboardPage() {
         supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'distributor'),
         supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_supplier'),
         supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_distributor'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier_distributor')
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier_distributor'),
+        supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('user_profiles').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo),
+        supabase.from('brand_reviews').select('*', { count: 'exact', head: true }),
+        supabase.from('supplier_reviews').select('*', { count: 'exact', head: true }),
+        supabase.from('distributor_reviews').select('*', { count: 'exact', head: true }),
+        supabase.from('brand_submissions').select('*', { count: 'exact', head: true })
       ]);
 
       setMetrics({
@@ -133,6 +156,13 @@ export default function DashboardPage() {
             brand_distributor: submissionsBrandDistributor.count || 0,
             supplier_distributor: submissionsSupplierDistributor.count || 0
           }
+        },
+        users: {
+          total: usersTotal.count || 0,
+          with_profiles: userProfilesTotal.count || 0,
+          new_this_week: usersNewThisWeek.count || 0,
+          total_reviews: (brandReviewsTotal.count || 0) + (supplierReviewsTotal.count || 0) + (distributorReviewsTotal.count || 0),
+          total_submissions: userSubmissionsTotal.count || 0
         },
         categories: {
           total: categoriesTotal.count || 0
@@ -265,6 +295,112 @@ export default function DashboardPage() {
           icon="🔗"
           link="/relationships/brand-supplier"
         />
+      </div>
+
+      {/* User Engagement Metrics */}
+      <div style={{
+        padding: 24,
+        background: 'white',
+        border: '2px solid #e2e8f0',
+        borderRadius: 8,
+        marginBottom: 32
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <div style={{ fontSize: 32 }}>👥</div>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>User Engagement</h2>
+            <p style={{ margin: '4px 0 0 0', fontSize: 14, color: '#64748b' }}>
+              Community activity and contributions
+            </p>
+          </div>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
+          <div style={{
+            padding: 16,
+            background: '#f8fafc',
+            borderRadius: 8,
+            border: '1px solid #e2e8f0'
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4, textTransform: 'uppercase' }}>
+              Total Users
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#0f172a' }}>
+              {metrics.users.total}
+            </div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+              Registered accounts
+            </div>
+          </div>
+
+          <div style={{
+            padding: 16,
+            background: '#f0fdf4',
+            borderRadius: 8,
+            border: '1px solid #bbf7d0'
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 4, textTransform: 'uppercase' }}>
+              New This Week
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#15803d' }}>
+              {metrics.users.new_this_week}
+            </div>
+            <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>
+              {metrics.users.new_this_week > 0 ? '📈 Growing' : 'No new signups'}
+            </div>
+          </div>
+
+          <div style={{
+            padding: 16,
+            background: '#fef3c7',
+            borderRadius: 8,
+            border: '1px solid #fde047'
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#854d0e', marginBottom: 4, textTransform: 'uppercase' }}>
+              With Profiles
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#a16207' }}>
+              {metrics.users.with_profiles}
+            </div>
+            <div style={{ fontSize: 11, color: '#ca8a04', marginTop: 4 }}>
+              {metrics.users.total > 0 ? Math.round((metrics.users.with_profiles / metrics.users.total) * 100) + '%' : '0%'} complete
+            </div>
+          </div>
+
+          <div style={{
+            padding: 16,
+            background: '#dbeafe',
+            borderRadius: 8,
+            border: '1px solid #93c5fd'
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4, textTransform: 'uppercase' }}>
+              Total Reviews
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#1e3a8a' }}>
+              {metrics.users.total_reviews}
+            </div>
+            <div style={{ fontSize: 11, color: '#2563eb', marginTop: 4 }}>
+              User ratings posted
+            </div>
+          </div>
+
+          <div style={{
+            padding: 16,
+            background: '#f3e8ff',
+            borderRadius: 8,
+            border: '1px solid #d8b4fe'
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#6b21a8', marginBottom: 4, textTransform: 'uppercase' }}>
+              Submissions
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#7c3aed' }}>
+              {metrics.users.total_submissions}
+            </div>
+            <div style={{ fontSize: 11, color: '#9333ea', marginTop: 4 }}>
+              Data contributions
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Secondary Metrics */}
