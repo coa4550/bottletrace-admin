@@ -24,7 +24,8 @@ A comprehensive admin portal for managing the BottleTrace spirits database, incl
 ### Admin User Management
 - **Create Admin Users**: UI and CLI tools for creating admin accounts
 - **User Management**: View all users, track submissions and reviews
-- **Magic Link Authentication**: Secure email-based authentication
+- **Secure Password Generation**: Auto-generate strong passwords or set custom ones
+- **Email/Password Authentication**: Traditional username and password login
 
 ### Data Quality
 - **Validation**: Pre-import validation for CSV files
@@ -76,8 +77,8 @@ A comprehensive admin portal for managing the BottleTrace spirits database, incl
 1. Log in to the admin portal
 2. Navigate to **Users** page
 3. Click **+ Create Admin User**
-4. Fill in the user details and submit
-5. Copy the magic link and send to the new admin
+4. Fill in the user details (choose auto-generate password or set custom)
+5. Submit and copy the credentials to share with the new admin
 
 ### Method 2: Using the CLI Script
 
@@ -87,8 +88,10 @@ npm run create-admin
 
 Or with arguments:
 ```bash
-node scripts/create-admin.js --email admin@example.com --firstName John --lastName Doe
+node scripts/create-admin.js --email admin@example.com --firstName John --lastName Doe --password MySecurePass123!
 ```
+
+Passwords can be auto-generated (secure 16-character default) or custom.
 
 For detailed instructions, see [ADMIN_USER_SETUP.md](./ADMIN_USER_SETUP.md)
 

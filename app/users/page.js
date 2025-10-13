@@ -25,12 +25,15 @@ export default function UsersPage() {
   const [creating, setCreating] = useState(false);
   const [newUser, setNewUser] = useState({
     email: '',
+    password: '',
     firstName: '',
     lastName: '',
     jobTitle: 'Admin',
     employer: '',
     location: ''
   });
+  const [autoGeneratePassword, setAutoGeneratePassword] = useState(true);
+  const [createdPassword, setCreatedPassword] = useState(null);
 
   useEffect(() => {
     fetchUsers();
@@ -114,10 +117,15 @@ export default function UsersPage() {
     setCreating(true);
 
     try {
+      const userData = {
+        ...newUser,
+        password: autoGeneratePassword ? undefined : newUser.password
+      };
+
       const response = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser)
+        body: JSON.stringify(userData)
       });
 
       const data = await response.json();
@@ -126,24 +134,29 @@ export default function UsersPage() {
         throw new Error(data.error || 'Failed to create user');
       }
 
-      // Show success message with magic link
-      alert(
-        `Admin user created successfully!\n\n` +
-        `Email: ${data.user.email}\n\n` +
-        `A magic link has been generated. The user can sign in using their email.\n\n` +
-        (data.passwordResetLink ? `Magic Link: ${data.passwordResetLink}` : '')
-      );
-
-      // Reset form
-      setNewUser({
-        email: '',
-        firstName: '',
-        lastName: '',
-        jobTitle: 'Admin',
-        employer: '',
-        location: ''
-      });
-      setShowCreateModal(false);
+      // Store the password to display
+      if (data.passwordGenerated) {
+        setCreatedPassword(data.password);
+      } else {
+        // Show success message immediately for custom passwords
+        alert(
+          `Admin user created successfully!\n\n` +
+          `Email: ${data.user.email}\n\n` +
+          `The user can now sign in with their email and password.`
+        );
+        
+        // Reset form
+        setNewUser({
+          email: '',
+          password: '',
+          firstName: '',
+          lastName: '',
+          jobTitle: 'Admin',
+          employer: '',
+          location: ''
+        });
+        setShowCreateModal(false);
+      }
 
       // Refresh user list
       fetchUsers();
@@ -152,6 +165,28 @@ export default function UsersPage() {
       alert('Failed to create user: ' + err.message);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const closePasswordModal = () => {
+    setCreatedPassword(null);
+    setNewUser({
+      email: '',
+      password: '',
+      firstName: '',
+      lastName: '',
+      jobTitle: 'Admin',
+      employer: '',
+      location: ''
+    });
+    setShowCreateModal(false);
+    setAutoGeneratePassword(true);
+  };
+
+  const copyPasswordToClipboard = () => {
+    if (createdPassword) {
+      navigator.clipboard.writeText(createdPassword);
+      alert('Password copied to clipboard!');
     }
   };
 
@@ -302,6 +337,47 @@ export default function UsersPage() {
                 />
               </div>
 
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                  <input
+                    type="checkbox"
+                    id="autoGenPassword"
+                    checked={autoGeneratePassword}
+                    onChange={(e) => setAutoGeneratePassword(e.target.checked)}
+                    style={{ marginRight: 8 }}
+                  />
+                  <label htmlFor="autoGenPassword" style={{ fontWeight: 600, cursor: 'pointer' }}>
+                    Auto-generate secure password
+                  </label>
+                </div>
+                
+                {!autoGeneratePassword && (
+                  <>
+                    <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                      Password *
+                    </label>
+                    <input
+                      type="password"
+                      required={!autoGeneratePassword}
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: 4,
+                        fontSize: 14
+                      }}
+                      placeholder="Minimum 8 characters"
+                      minLength={8}
+                    />
+                    <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                      Minimum 8 characters
+                    </p>
+                  </>
+                )}
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
@@ -431,6 +507,104 @@ export default function UsersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Password Display Modal */}
+      {createdPassword && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001
+        }}>
+          <div style={{
+            background: 'white',
+            padding: 32,
+            borderRadius: 8,
+            maxWidth: 500,
+            width: '90%'
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: 16, color: '#10b981' }}>✅ Admin User Created!</h2>
+            
+            <div style={{ 
+              background: '#f0fdf4',
+              border: '2px solid #10b981',
+              borderRadius: 8,
+              padding: 20,
+              marginBottom: 20
+            }}>
+              <p style={{ margin: 0, marginBottom: 12, fontWeight: 600, fontSize: 14 }}>
+                🔑 Temporary Password:
+              </p>
+              <div style={{
+                background: 'white',
+                padding: 12,
+                borderRadius: 4,
+                border: '1px solid #d1d5db',
+                fontFamily: 'monospace',
+                fontSize: 16,
+                wordBreak: 'break-all',
+                marginBottom: 12
+              }}>
+                {createdPassword}
+              </div>
+              <button
+                onClick={copyPasswordToClipboard}
+                style={{
+                  padding: '8px 16px',
+                  background: '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600
+                }}
+              >
+                📋 Copy Password
+              </button>
+            </div>
+
+            <div style={{
+              background: '#fef3c7',
+              border: '1px solid #f59e0b',
+              borderRadius: 6,
+              padding: 12,
+              marginBottom: 20
+            }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#92400e' }}>
+                ⚠️ <strong>Important:</strong> Save this password now! It will not be shown again.
+              </p>
+            </div>
+
+            <p style={{ fontSize: 14, color: '#374151', marginBottom: 20 }}>
+              Share this password securely with the new admin user. They can change it after their first login.
+            </p>
+
+            <button
+              onClick={closePasswordModal}
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: 14
+              }}
+            >
+              Done
+            </button>
           </div>
         </div>
       )}

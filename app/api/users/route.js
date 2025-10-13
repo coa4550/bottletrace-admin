@@ -1,10 +1,34 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
+// Generate a secure random password
+function generateSecurePassword(length = 16) {
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  const allChars = uppercase + lowercase + numbers + symbols;
+  
+  let password = '';
+  // Ensure at least one of each type
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+  
+  // Fill the rest randomly
+  for (let i = password.length; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  // Shuffle the password
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { email, firstName, lastName, jobTitle, employer, location, role } = body;
+    const { email, password, firstName, lastName, jobTitle, employer, location, role } = body;
 
     // Validate required fields
     if (!email) {
@@ -14,9 +38,22 @@ export async function POST(request) {
       );
     }
 
-    // Create auth user
+    // Generate password if not provided
+    const userPassword = password || generateSecurePassword();
+    const passwordWasGenerated = !password;
+
+    // Validate password strength if provided
+    if (password && password.length < 8) {
+      return NextResponse.json(
+        { error: 'Password must be at least 8 characters long' },
+        { status: 400 }
+      );
+    }
+
+    // Create auth user with password
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
+      password: userPassword,
       email_confirm: true, // Auto-confirm email
       user_metadata: {
         first_name: firstName,
@@ -59,15 +96,6 @@ export async function POST(request) {
       );
     }
 
-    // Generate password reset link
-    const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/verify`
-      }
-    });
-
     return NextResponse.json({
       success: true,
       user: {
@@ -76,7 +104,8 @@ export async function POST(request) {
         ...profileData
       },
       message: 'Admin user created successfully',
-      passwordResetLink: resetData?.properties?.action_link || null
+      password: passwordWasGenerated ? userPassword : null,
+      passwordGenerated: passwordWasGenerated
     });
 
   } catch (error) {

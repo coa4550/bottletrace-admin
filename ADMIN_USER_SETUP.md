@@ -27,6 +27,7 @@ Admin users have full access to the admin portal and can:
    - Click the "+ Create Admin User" button in the top right
    - Fill in the required information:
      - **Email** (required): The email address for the new admin
+     - **Password**: Choose to auto-generate or create a custom password
      - **First Name**: Admin's first name
      - **Last Name**: Admin's last name
      - **Job Title**: Defaults to "Admin"
@@ -35,15 +36,18 @@ Admin users have full access to the admin portal and can:
 
 3. **Submit and Share Credentials**
    - Click "Create User"
-   - A success message will appear with a magic link
-   - Copy the magic link and send it to the new admin
-   - The admin can use this link to sign in for the first time
+   - If auto-generated, a modal will display the secure password
+   - **IMPORTANT:** Copy the password immediately - it won't be shown again
+   - Share the email and password securely with the new admin
+   - The admin can change their password after first login
 
 ### Features
 - Email is auto-confirmed (no verification email needed)
-- Magic link authentication for first login
+- Secure password generation (16 characters with mixed case, numbers, symbols)
+- Option to set custom password or auto-generate
 - User profile is automatically created
 - Email column shows in the users table
+- One-click password copy to clipboard
 
 ## Method 2: Using the CLI Script
 
@@ -71,11 +75,12 @@ For situations where you need to create the first admin user or don't have acces
    - Enter first name (optional)
    - Enter last name (optional)
    - Enter job title (default: "Admin")
+   - Enter custom password or press Enter to auto-generate
 
-4. **Copy the magic link**
-   - The script will output a magic link
-   - Send this link to the new admin user
-   - They can use it to sign in
+4. **Copy the credentials**
+   - The script will display email and password
+   - Share these credentials securely with the new admin user
+   - They can change the password after signing in
 
 ## Method 3: Direct Database Access (Advanced)
 
@@ -101,11 +106,10 @@ Only use this method if absolutely necessary (e.g., locked out of the system).
      - Other fields as needed
    - Save
 
-3. **Generate Magic Link**
-   - Go back to Authentication → Users
-   - Find the user you created
-   - Click the three dots menu → "Send Magic Link"
-   - Send the link to the user
+3. **Set Password**
+   - In the same user creation form, you can set a temporary password
+   - Or use "Send Magic Link" to let them set their own password
+   - Share the credentials securely with the user
 
 ## User Management
 
@@ -122,19 +126,25 @@ Only use this method if absolutely necessary (e.g., locked out of the system).
 
 ## Security Considerations
 
-1. **Email-based Authentication**
-   - Admin users authenticate via magic links sent to their email
-   - Ensure email addresses are valid and secure
-   - Users can set up passwords through the Supabase auth flow
+1. **Password Security**
+   - Auto-generated passwords are 16 characters with mixed case, numbers, and symbols
+   - Custom passwords must be at least 8 characters
+   - Passwords are only displayed once - ensure they are securely stored
+   - Users should change passwords after first login
 
-2. **Access Control**
+2. **Credential Sharing**
+   - Share credentials through secure channels (encrypted email, password managers)
+   - Never send passwords in plain text via unsecured channels
+   - Consider using a password management tool for sharing
+
+3. **Access Control**
    - All admin users currently have equal permissions
    - Consider implementing role-based access control (RBAC) for granular permissions
 
-3. **Magic Links**
-   - Magic links are single-use and expire
-   - Always use secure channels to share magic links
-   - Links should only be shared directly with the intended user
+4. **Password Policies**
+   - Encourage users to change default passwords immediately
+   - Recommend strong, unique passwords
+   - Consider implementing password expiration policies
 
 ## Troubleshooting
 
@@ -149,12 +159,13 @@ Only use this method if absolutely necessary (e.g., locked out of the system).
   - `SUPABASE_SERVICE_ROLE_KEY`
 
 ### User created but can't sign in
-- **Cause**: Email not confirmed or profile not created
+- **Cause**: Wrong credentials or profile not created
 - **Solution**: 
+  - Verify email and password are correct
   - Check Supabase Dashboard → Authentication → Users
   - Verify email is confirmed
   - Check user_profiles table for profile record
-  - Regenerate magic link if needed
+  - Reset password if needed via Supabase dashboard
 
 ### API returns 500 error
 - **Cause**: Database connection issue or missing permissions
@@ -206,8 +217,10 @@ DELETE /api/users?userId={uuid}
 2. **Document admin access** - keep a record of who has admin access
 3. **Regular audits** - periodically review admin user list
 4. **Immediate revocation** - delete admin access when no longer needed
-5. **Secure magic links** - use encrypted channels to share authentication links
-6. **Monitor activity** - track submission and review activity by admin users
+5. **Secure password sharing** - use encrypted channels and password managers
+6. **Force password change** - require users to change auto-generated passwords
+7. **Monitor activity** - track submission and review activity by admin users
+8. **Password rotation** - periodically require password updates
 
 ## Future Enhancements
 

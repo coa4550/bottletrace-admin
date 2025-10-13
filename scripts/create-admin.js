@@ -62,6 +62,30 @@ async function prompt(question) {
   });
 }
 
+// Generate a secure random password
+function generateSecurePassword(length = 16) {
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+  const allChars = uppercase + lowercase + numbers + symbols;
+  
+  let password = '';
+  // Ensure at least one of each type
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+  
+  // Fill the rest randomly
+  for (let i = password.length; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  // Shuffle the password
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
 async function createAdminUser(userData) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -79,9 +103,14 @@ async function createAdminUser(userData) {
   try {
     log('\n📝 Creating admin user...', 'cyan');
 
-    // Create auth user
+    // Generate password if not provided
+    const userPassword = userData.password || generateSecurePassword();
+    const passwordWasGenerated = !userData.password;
+
+    // Create auth user with password
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: userData.email,
+      password: userPassword,
       email_confirm: true,
       user_metadata: {
         first_name: userData.firstName,
@@ -122,16 +151,6 @@ async function createAdminUser(userData) {
 
     log('✅ User profile created', 'green');
 
-    // Generate magic link
-    const { data: magicLinkData, error: magicLinkError } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: userData.email
-    });
-
-    if (magicLinkError) {
-      log(`⚠️  Warning: Could not generate magic link: ${magicLinkError.message}`, 'yellow');
-    }
-
     // Display success message
     log('\n' + '='.repeat(80), 'green');
     log('✅ ADMIN USER CREATED SUCCESSFULLY!', 'green');
@@ -141,14 +160,18 @@ async function createAdminUser(userData) {
     log(`Name: ${userData.firstName || 'N/A'} ${userData.lastName || 'N/A'}`, 'bright');
     log(`Job Title: ${userData.jobTitle || 'Admin'}`, 'bright');
 
-    if (magicLinkData?.properties?.action_link) {
-      log('\n📧 Magic Link for First Sign-In:', 'cyan');
-      log(magicLinkData.properties.action_link, 'blue');
-      log('\n📋 Send this link to the user to allow them to sign in.', 'yellow');
-    } else {
-      log('\n📧 You can generate a sign-in link from the Supabase dashboard:', 'yellow');
-      log('Authentication → Users → Select User → Send Magic Link', 'yellow');
+    log('\n🔑 Login Credentials:', 'cyan');
+    log('━'.repeat(80), 'cyan');
+    log(`Email: ${authData.user.email}`, 'blue');
+    log(`Password: ${userPassword}`, 'blue');
+    log('━'.repeat(80), 'cyan');
+
+    if (passwordWasGenerated) {
+      log('\n⚠️  This password was auto-generated.', 'yellow');
     }
+    
+    log('\n📋 Share these credentials securely with the admin user.', 'yellow');
+    log('💡 The user can change their password after logging in.', 'yellow');
 
     log('\n' + '='.repeat(80) + '\n', 'green');
 
@@ -156,7 +179,8 @@ async function createAdminUser(userData) {
       success: true,
       user: authData.user,
       profile: profileData,
-      magicLink: magicLinkData?.properties?.action_link
+      password: userPassword,
+      passwordGenerated: passwordWasGenerated
     };
 
   } catch (error) {
@@ -222,6 +246,20 @@ async function main() {
     userData.location = await prompt('Enter location (optional): ');
   }
 
+  // Get password
+  if (args.password) {
+    userData.password = args.password;
+  } else {
+    const customPassword = await prompt('\nEnter custom password (or press Enter to auto-generate): ');
+    if (customPassword) {
+      if (customPassword.length < 8) {
+        log('❌ Password must be at least 8 characters', 'red');
+        process.exit(1);
+      }
+      userData.password = customPassword;
+    }
+  }
+
   // Confirm
   log('\n📋 Review User Information:', 'cyan');
   log(`  Email: ${userData.email}`, 'bright');
@@ -229,6 +267,7 @@ async function main() {
   log(`  Job Title: ${userData.jobTitle}`, 'bright');
   log(`  Employer: ${userData.employer || 'N/A'}`, 'bright');
   log(`  Location: ${userData.location || 'N/A'}`, 'bright');
+  log(`  Password: ${userData.password ? '(Custom)' : '(Auto-generate)'}`, 'bright');
 
   const confirm = await prompt('\nCreate this admin user? (y/n): ');
   
