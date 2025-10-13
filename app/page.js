@@ -45,11 +45,16 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/dashboard/metrics');
+      // Add cache-busting parameter to ensure fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/dashboard/metrics?t=${timestamp}`, {
+        cache: 'no-store'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch dashboard data');
       }
       const data = await response.json();
+      console.log('Fetched dashboard metrics:', data.metrics);
       setMetrics(data.metrics);
       setRecentSubmissions(data.recentSubmissions || []);
     } catch (error) {
@@ -108,10 +113,32 @@ export default function DashboardPage() {
   return (
     <div style={{ padding: 20 }}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ marginTop: 0, marginBottom: 8 }}>BottleTrace Admin Dashboard</h1>
-        <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>
-          Overview of your spirits industry database
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+          <div>
+            <h1 style={{ marginTop: 0, marginBottom: 8 }}>BottleTrace Admin Dashboard</h1>
+            <p style={{ color: '#64748b', fontSize: 15, margin: 0 }}>
+              Overview of your spirits industry database
+            </p>
+          </div>
+          <button
+            onClick={fetchDashboardData}
+            style={{
+              padding: '8px 16px',
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            🔄 Refresh Data
+          </button>
+        </div>
       </div>
 
       {/* Key Metrics Grid */}
