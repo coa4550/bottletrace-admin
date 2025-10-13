@@ -437,27 +437,84 @@ export default function SubmissionsDashboard() {
 
   const renderSubmissionDetails = (submission) => {
     const { payload, submission_category, submission_type } = submission;
+    
+    // Parse payload if it's a string
+    let parsedPayload = payload;
+    if (typeof payload === 'string') {
+      try {
+        parsedPayload = JSON.parse(payload);
+      } catch (e) {
+        console.error('Failed to parse payload:', e);
+      }
+    }
 
-    // Orphan Corrections (Lonely updates)
-    if (submission_type === 'Orphan_Correction') {
+    // Orphan Corrections (Lonely updates) - handle both old and new payload structures
+    if (submission_type === 'Orphan_Correction' || !submission_type) {
       if (submission_category === 'brand_supplier') {
+        const brandName = parsedPayload?.brand_name || parsedPayload?.orphaned_brand_name || submission.brand_name_submitted;
+        const supplierName = parsedPayload?.supplier_name || parsedPayload?.suggested_supplier_name || submission.supplier_name_submitted;
+        const userNotes = parsedPayload?.user_notes || parsedPayload?.reason;
+        const aiResponse = parsedPayload?.ai_response;
+        const userProfile = parsedPayload?.user_profile;
+        
         return (
           <div style={{ fontSize: 14, color: '#475569' }}>
-            <div style={{ marginBottom: 8 }}>
-              <strong>Lonely Brand:</strong> {payload.orphaned_brand_name || submission.brand_name_submitted}
+            <div style={{ marginBottom: 12 }}>
+              <strong>🏷️ Lonely Brand:</strong>{' '}
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#1e293b' }}>{brandName}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 24 }}>→</span>
-              <strong>Link to Supplier:</strong> {payload.suggested_supplier_name || submission.supplier_name_submitted}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 24, color: '#3b82f6' }}>→</span>
+              <div>
+                <strong>Link to Supplier:</strong>{' '}
+                <span style={{ fontSize: 16, fontWeight: 600, color: '#1e293b' }}>{supplierName}</span>
+              </div>
             </div>
-            {payload.reason && (
-              <div style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>
-            Reason: {payload.reason}
+            {aiResponse && (
+              <div style={{ 
+                padding: 10, 
+                background: '#eff6ff', 
+                borderLeft: '3px solid #3b82f6',
+                borderRadius: 4,
+                marginBottom: 12
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>
+                  AI Analysis
+                </div>
+                <div style={{ fontSize: 13, color: '#1e40af' }}>{aiResponse}</div>
+              </div>
+            )}
+            {userNotes && (
+              <div style={{ 
+                padding: 10, 
+                background: '#fef3c7', 
+                borderLeft: '3px solid #f59e0b',
+                borderRadius: 4,
+                marginBottom: 12
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+                  User Notes
+                </div>
+                <div style={{ fontSize: 13, color: '#92400e' }}>{userNotes}</div>
+              </div>
+            )}
+            {userProfile && (
+              <div style={{ 
+                fontSize: 12, 
+                color: '#64748b',
+                marginTop: 12,
+                paddingTop: 12,
+                borderTop: '1px solid #e2e8f0'
+              }}>
+                <div><strong>Submitted by:</strong> {userProfile.first_name} {userProfile.last_name}</div>
+                {userProfile.employer && <div><strong>Employer:</strong> {userProfile.employer}</div>}
+                {userProfile.job_title && <div><strong>Role:</strong> {userProfile.job_title}</div>}
+                {userProfile.location && <div><strong>Region:</strong> {userProfile.location}</div>}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    );
-  } else if (submission_category === 'supplier_distributor') {
+        );
+      } else if (submission_category === 'supplier_distributor') {
         return (
           <div style={{ fontSize: 14, color: '#475569' }}>
             <div style={{ marginBottom: 8 }}>
@@ -879,16 +936,16 @@ export default function SubmissionsDashboard() {
                 </div>
               )}
 
-              {/* Additional Notes for Submissions */}
-              {!isReview && item.additional_notes && (
+              {/* Additional Notes for Submissions - only show if not already shown in details */}
+              {!isReview && item.additional_notes && !item.payload?.user_notes && (
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Notes:</div>
                   <div style={{ fontSize: 14, color: '#64748b' }}>{item.additional_notes}</div>
                 </div>
               )}
 
-              {/* User Info for Submissions */}
-              {!isReview && (item.user_email || item.user_first_name) && (
+              {/* User Info for Submissions - only show if not already shown in details */}
+              {!isReview && (item.user_email || item.user_first_name) && !item.payload?.user_profile && (
                 <div style={{ fontSize: 13, color: '#64748b' }}>
                   Submitted by: {item.user_first_name} {item.user_last_name} {item.user_email && `(${item.user_email})`}
                 </div>
