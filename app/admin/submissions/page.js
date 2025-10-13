@@ -470,20 +470,6 @@ export default function SubmissionsDashboard() {
                 <span style={{ fontSize: 16, fontWeight: 600, color: '#1e293b' }}>{supplierName}</span>
               </div>
             </div>
-            {aiResponse && (
-              <div style={{ 
-                padding: 10, 
-                background: '#eff6ff', 
-                borderLeft: '3px solid #3b82f6',
-                borderRadius: 4,
-                marginBottom: 12
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#1e40af', marginBottom: 4 }}>
-                  AI Analysis
-                </div>
-                <div style={{ fontSize: 13, color: '#1e40af' }}>{aiResponse}</div>
-              </div>
-            )}
             {userNotes && (
               <div style={{ 
                 padding: 10, 
