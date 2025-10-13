@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import SearchInput from '@/components/SearchInput';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,6 +19,7 @@ export default function StatesPage() {
     return {};
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     async function fetchStates() {
@@ -82,7 +84,17 @@ export default function StatesPage() {
     { key: 'state_code', label: 'State Code', editable: true },
   ];
 
-  const sortedStates = [...states].sort((a, b) => {
+  // Filter states based on search term
+  const filteredStates = states.filter(state => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      state.state_name?.toLowerCase().includes(searchLower) ||
+      state.state_code?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const sortedStates = [...filteredStates].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
     const aVal = a[key] ?? '';
@@ -104,7 +116,13 @@ export default function StatesPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>States ({states.length})</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h1>States ({filteredStates.length} of {states.length})</h1>
+        <SearchInput 
+          placeholder="Search states..." 
+          onSearch={setSearchTerm}
+        />
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

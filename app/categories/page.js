@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import SearchInput from '@/components/SearchInput';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,6 +19,7 @@ export default function CategoriesPage() {
     return {};
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     async function fetchCategories() {
@@ -82,7 +84,17 @@ export default function CategoriesPage() {
     { key: 'category_description', label: 'Description', editable: true },
   ];
 
-  const sortedCategories = [...categories].sort((a, b) => {
+  // Filter categories based on search term
+  const filteredCategories = categories.filter(category => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      category.category_name?.toLowerCase().includes(searchLower) ||
+      category.category_description?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const sortedCategories = [...filteredCategories].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
     const aVal = a[key] ?? '';
@@ -104,7 +116,13 @@ export default function CategoriesPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Categories ({categories.length})</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h1>Categories ({filteredCategories.length} of {categories.length})</h1>
+        <SearchInput 
+          placeholder="Search categories..." 
+          onSearch={setSearchTerm}
+        />
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import SearchInput from '@/components/SearchInput';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,6 +19,7 @@ export default function DistributorsPage() {
     return {};
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     async function fetchDistributors() {
@@ -83,7 +85,17 @@ export default function DistributorsPage() {
     { key: 'distributor_logo_url', label: 'Logo URL', editable: true },
   ];
 
-  const sortedDistributors = [...distributors].sort((a, b) => {
+  // Filter distributors based on search term
+  const filteredDistributors = distributors.filter(distributor => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      distributor.distributor_name?.toLowerCase().includes(searchLower) ||
+      distributor.distributor_url?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const sortedDistributors = [...filteredDistributors].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
     const aVal = a[key] ?? '';
@@ -105,7 +117,13 @@ export default function DistributorsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Distributors ({distributors.length})</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h1>Distributors ({filteredDistributors.length} of {distributors.length})</h1>
+        <SearchInput 
+          placeholder="Search distributors..." 
+          onSearch={setSearchTerm}
+        />
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

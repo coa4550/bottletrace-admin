@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import SearchInput from '@/components/SearchInput';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,6 +19,7 @@ export default function SubCategoriesPage() {
     return {};
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     async function fetchSubCategories() {
@@ -90,7 +92,17 @@ export default function SubCategoriesPage() {
     { key: 'category_name', label: 'Parent Category', editable: false },
   ];
 
-  const sortedSubCategories = [...subCategories].sort((a, b) => {
+  // Filter sub-categories based on search term
+  const filteredSubCategories = subCategories.filter(subCategory => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      subCategory.sub_category_name?.toLowerCase().includes(searchLower) ||
+      subCategory.category_name?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const sortedSubCategories = [...filteredSubCategories].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
     const aVal = a[key] ?? '';
@@ -112,7 +124,13 @@ export default function SubCategoriesPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Sub-Categories ({subCategories.length})</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h1>Sub-Categories ({filteredSubCategories.length} of {subCategories.length})</h1>
+        <SearchInput 
+          placeholder="Search sub-categories..." 
+          onSearch={setSearchTerm}
+        />
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{

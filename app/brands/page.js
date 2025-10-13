@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import SearchInput from '@/components/SearchInput';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -20,6 +21,7 @@ export default function BrandsPage() {
     return {};
   });
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch all available categories and sub-categories
   useEffect(() => {
@@ -325,7 +327,20 @@ export default function BrandsPage() {
     { key: 'brand_logo_url', label: 'Logo URL', editable: true },
   ];
 
-  const sortedBrands = [...brands].sort((a, b) => {
+  // Filter brands based on search term
+  const filteredBrands = brands.filter(brand => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      brand.brand_name?.toLowerCase().includes(searchLower) ||
+      brand.categories?.toLowerCase().includes(searchLower) ||
+      brand.sub_categories?.toLowerCase().includes(searchLower) ||
+      brand.brand_url?.toLowerCase().includes(searchLower) ||
+      brand.data_source?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const sortedBrands = [...filteredBrands].sort((a, b) => {
     const { key, direction } = sortConfig;
     if (!key) return 0;
     const aVal = a[key] ?? '';
@@ -347,7 +362,13 @@ export default function BrandsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Brands ({brands.length})</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h1>Brands ({filteredBrands.length} of {brands.length})</h1>
+        <SearchInput 
+          placeholder="Search brands, categories, websites..." 
+          onSearch={setSearchTerm}
+        />
+      </div>
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
