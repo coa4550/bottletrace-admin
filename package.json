@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "setup": "node scripts/initial-setup.js",
     "create-admin": "node scripts/create-admin.js"
   },
   "dependencies": {
