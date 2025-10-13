@@ -10,7 +10,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body style={{ fontFamily: 'ui-sans-serif, system-ui', margin: 0 }}>
         <div style={{ display: 'flex', minHeight: '100vh' }}>
-          <aside style={{ width: 270, background: '#0f172a', color: 'white', padding: 16 }}>
+          <aside style={{ width: 270, minWidth: 270, flexShrink: 0, background: '#0f172a', color: 'white', padding: 16 }}>
             <h2 style={{ marginTop: 8 }}>BottleTrace Admin</h2>
 <nav style={{ marginTop: 24, display: 'grid', gap: 8 }}>
   <a href="/" style={{ color: '#e2e8f0', textDecoration: 'none', fontSize: 15, fontWeight: 500 }}>Dashboard</a>
