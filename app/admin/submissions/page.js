@@ -1,18 +1,36 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function SubmissionsDashboard() {
   const [activeTab, setActiveTab] = useState('brand_update');
   const [allSubmissions, setAllSubmissions] = useState([]);
+  const [allReviews, setAllReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
 
   useEffect(() => {
-    fetchAllSubmissions();
+    fetchAll();
   }, []);
 
-  const fetchAllSubmissions = async () => {
+  const fetchAll = async () => {
     setLoading(true);
+    try {
+      await Promise.all([fetchAllSubmissions(), fetchAllReviews()]);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      alert('Failed to load data: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAllSubmissions = async () => {
     try {
       // Add cache-busting parameter to ensure fresh data
       const timestamp = Date.now();
@@ -27,9 +45,184 @@ export default function SubmissionsDashboard() {
       setAllSubmissions(data);
     } catch (error) {
       console.error('Error fetching submissions:', error);
-      alert('Failed to load submissions: ' + error.message);
-    } finally {
-      setLoading(false);
+      throw error;
+    }
+  };
+
+  const fetchAllReviews = async () => {
+    try {
+      // Fetch all review types
+      const [brandReviews, supplierReviews, distributorReviews] = await Promise.all([
+        supabase
+          .from('brand_reviews')
+          .select(`
+            brand_review_id,
+            user_id,
+            rating,
+            title,
+            content,
+            pull_through_rate,
+            gross_margin,
+            sales_support,
+            brand_recognition,
+            sustainability,
+            created_at,
+            status,
+            reviewed_at,
+            reviewed_by,
+            review_notes,
+            brand_id,
+            core_brands!inner(brand_name)
+          `)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('supplier_reviews')
+          .select(`
+            supplier_review_id,
+            user_id,
+            rating,
+            title,
+            content,
+            reliability,
+            communication,
+            product_quality,
+            delivery_speed,
+            pricing,
+            created_at,
+            status,
+            reviewed_at,
+            reviewed_by,
+            review_notes,
+            supplier_id,
+            core_suppliers!inner(supplier_name)
+          `)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('distributor_reviews')
+          .select(`
+            distributor_review_id,
+            user_id,
+            rating,
+            title,
+            content,
+            availability,
+            customer_service,
+            delivery_reliability,
+            pricing_competitiveness,
+            product_selection,
+            created_at,
+            status,
+            reviewed_at,
+            reviewed_by,
+            review_notes,
+            distributor_id,
+            core_distributors!inner(distributor_name)
+          `)
+          .order('created_at', { ascending: false })
+      ]);
+
+      if (brandReviews.error) throw brandReviews.error;
+      if (supplierReviews.error) throw supplierReviews.error;
+      if (distributorReviews.error) throw distributorReviews.error;
+
+      // Get user profiles for all reviewers
+      const allUserIds = [
+        ...(brandReviews.data || []).map(r => r.user_id),
+        ...(supplierReviews.data || []).map(r => r.user_id),
+        ...(distributorReviews.data || []).map(r => r.user_id)
+      ];
+      const uniqueUserIds = [...new Set(allUserIds)];
+
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, first_name, last_name')
+        .in('user_id', uniqueUserIds);
+
+      const userMap = {};
+      profiles?.forEach(p => {
+        userMap[p.user_id] = `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown User';
+      });
+
+      // Normalize all reviews into a single array
+      const allReviews = [
+        ...(brandReviews.data || []).map(r => ({
+          id: r.brand_review_id,
+          type: 'brand',
+          review_type: 'brand',
+          entity_name: r.core_brands?.brand_name || 'Unknown',
+          user_name: userMap[r.user_id] || 'Unknown User',
+          rating: r.rating,
+          title: r.title,
+          content: r.content,
+          created_at: r.created_at,
+          user_id: r.user_id,
+          entity_id: r.brand_id,
+          status: r.status || 'pending',
+          reviewed_at: r.reviewed_at,
+          reviewed_by: r.reviewed_by,
+          review_notes: r.review_notes,
+          category_ratings: {
+            'Pull Through': r.pull_through_rate,
+            'Gross Margin': r.gross_margin,
+            'Sales Support': r.sales_support,
+            'Brand Recognition': r.brand_recognition,
+            'Sustainability': r.sustainability
+          }
+        })),
+        ...(supplierReviews.data || []).map(r => ({
+          id: r.supplier_review_id,
+          type: 'supplier',
+          review_type: 'supplier',
+          entity_name: r.core_suppliers?.supplier_name || 'Unknown',
+          user_name: userMap[r.user_id] || 'Unknown User',
+          rating: r.rating,
+          title: r.title,
+          content: r.content,
+          created_at: r.created_at,
+          user_id: r.user_id,
+          entity_id: r.supplier_id,
+          status: r.status || 'pending',
+          reviewed_at: r.reviewed_at,
+          reviewed_by: r.reviewed_by,
+          review_notes: r.review_notes,
+          category_ratings: {
+            'Reliability': r.reliability,
+            'Communication': r.communication,
+            'Product Quality': r.product_quality,
+            'Delivery Speed': r.delivery_speed,
+            'Pricing': r.pricing
+          }
+        })),
+        ...(distributorReviews.data || []).map(r => ({
+          id: r.distributor_review_id,
+          type: 'distributor',
+          review_type: 'distributor',
+          entity_name: r.core_distributors?.distributor_name || 'Unknown',
+          user_name: userMap[r.user_id] || 'Unknown User',
+          rating: r.rating,
+          title: r.title,
+          content: r.content,
+          created_at: r.created_at,
+          user_id: r.user_id,
+          entity_id: r.distributor_id,
+          status: r.status || 'pending',
+          reviewed_at: r.reviewed_at,
+          reviewed_by: r.reviewed_by,
+          review_notes: r.review_notes,
+          category_ratings: {
+            'Availability': r.availability,
+            'Customer Service': r.customer_service,
+            'Delivery Reliability': r.delivery_reliability,
+            'Pricing Competitiveness': r.pricing_competitiveness,
+            'Product Selection': r.product_selection
+          }
+        }))
+      ];
+
+      setAllReviews(allReviews);
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      throw error;
     }
   };
 
@@ -90,6 +283,68 @@ export default function SubmissionsDashboard() {
     }
   };
 
+  const handleApproveReview = async (review) => {
+    if (!confirm('Approve this review? It will be visible to all users.')) {
+      return;
+    }
+
+    setProcessing(review.id);
+    try {
+      const response = await fetch(`/api/reviews/${review.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review_type: review.review_type
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to approve review');
+      }
+
+      alert('Review approved successfully!');
+      await fetchAllReviews();
+    } catch (error) {
+      console.error('Error approving review:', error);
+      alert('Failed to approve review: ' + error.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleDenyReview = async (review) => {
+    const reason = prompt('Please provide a reason for denying this review:');
+    if (!reason) return;
+
+    setProcessing(review.id);
+    try {
+      const response = await fetch(`/api/reviews/${review.id}/deny`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review_type: review.review_type,
+          review_notes: reason
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to deny review');
+      }
+
+      alert('Review denied successfully!');
+      await fetchAllReviews();
+    } catch (error) {
+      console.error('Error denying review:', error);
+      alert('Failed to deny review: ' + error.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const getSubmissionTypeLabel = (type) => {
     switch (type) {
       case 'Addition': return '➕ Addition';
@@ -132,6 +387,51 @@ export default function SubmissionsDashboard() {
       }}>
         {style.label}
       </span>
+    );
+  };
+
+  const renderReviewDetails = (review) => {
+    return (
+      <div style={{ fontSize: 14, color: '#475569' }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <strong>Rating:</strong>
+            <span style={{ fontSize: 16 }}>{'⭐'.repeat(review.rating || 0)}</span>
+            <span style={{ fontSize: 12, color: '#64748b' }}>({review.rating}/5)</span>
+          </div>
+        </div>
+        
+        {review.title && (
+          <div style={{ marginBottom: 8 }}>
+            <strong>Title:</strong> {review.title}
+          </div>
+        )}
+        
+        {review.content && (
+          <div style={{ marginBottom: 12 }}>
+            <strong>Review:</strong>
+            <div style={{ marginTop: 4, padding: 8, background: 'white', borderRadius: 4 }}>
+              {review.content}
+            </div>
+          </div>
+        )}
+
+        {review.category_ratings && (
+          <div>
+            <strong>Category Ratings:</strong>
+            <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.8 }}>
+              {Object.entries(review.category_ratings).map(([cat, rating]) => 
+                rating ? (
+                  <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ color: '#64748b' }}>{cat}:</span>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>{rating}/5</span>
+                  </div>
+                ) : null
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -237,38 +537,51 @@ export default function SubmissionsDashboard() {
     );
   };
 
-  // Filter submissions by tab
-  const getFilteredSubmissions = () => {
-    const pending = allSubmissions.filter(s => s.status === 'pending');
+  // Filter submissions and reviews by tab
+  const getFilteredItems = () => {
+    const pendingSubmissions = allSubmissions.filter(s => s.status === 'pending');
+    const pendingReviews = allReviews.filter(r => r.status === 'pending');
     
     switch (activeTab) {
       case 'brand_update':
-        return pending.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand');
+        return pendingSubmissions.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand');
       case 'brand_addition':
-        return pending.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand');
+        return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand');
       case 'supplier_addition':
-        return pending.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier');
+        return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier');
       case 'distributor_addition':
-        return pending.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor');
+        return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor');
       case 'lonely_brand':
         // Handle both explicit Orphan_Correction and NULL/missing submission_type for brand_supplier category
-        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier');
+        return pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier');
       case 'lonely_supplier':
         // Handle both explicit Orphan_Correction and NULL/missing submission_type for supplier_distributor category
-        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'supplier_distributor');
-      case 'approved':
+        return pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'supplier_distributor');
+      case 'brand_reviews':
+        return pendingReviews.filter(r => r.type === 'brand');
+      case 'supplier_reviews':
+        return pendingReviews.filter(r => r.type === 'supplier');
+      case 'distributor_reviews':
+        return pendingReviews.filter(r => r.type === 'distributor');
+      case 'approved_submissions':
         return allSubmissions.filter(s => s.status === 'approved');
-      case 'rejected':
+      case 'rejected_submissions':
         return allSubmissions.filter(s => s.status === 'rejected');
+      case 'approved_reviews':
+        return allReviews.filter(r => r.status === 'approved');
+      case 'denied_reviews':
+        return allReviews.filter(r => r.status === 'denied');
       default:
         return [];
     }
   };
 
-  const filteredSubmissions = getFilteredSubmissions();
+  const filteredItems = getFilteredItems();
+  const isReviewTab = ['brand_reviews', 'supplier_reviews', 'distributor_reviews', 'approved_reviews', 'denied_reviews'].includes(activeTab);
 
   // Calculate counts for all tabs
   const pendingSubmissions = allSubmissions.filter(s => s.status === 'pending');
+  const pendingReviews = allReviews.filter(r => r.status === 'pending');
   const tabCounts = {
     brand_update: pendingSubmissions.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand').length,
     brand_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand').length,
@@ -276,8 +589,13 @@ export default function SubmissionsDashboard() {
     distributor_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor').length,
     lonely_brand: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier').length,
     lonely_supplier: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'supplier_distributor').length,
-    approved: allSubmissions.filter(s => s.status === 'approved').length,
-    rejected: allSubmissions.filter(s => s.status === 'rejected').length
+    brand_reviews: pendingReviews.filter(r => r.type === 'brand').length,
+    supplier_reviews: pendingReviews.filter(r => r.type === 'supplier').length,
+    distributor_reviews: pendingReviews.filter(r => r.type === 'distributor').length,
+    approved_submissions: allSubmissions.filter(s => s.status === 'approved').length,
+    rejected_submissions: allSubmissions.filter(s => s.status === 'rejected').length,
+    approved_reviews: allReviews.filter(r => r.status === 'approved').length,
+    denied_reviews: allReviews.filter(r => r.status === 'denied').length
   };
 
   return (
@@ -358,6 +676,40 @@ export default function SubmissionsDashboard() {
         </div>
 
         <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, marginTop: 24, textTransform: 'uppercase' }}>
+          User Reviews
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid #e2e8f0', 
+          marginBottom: 12,
+          gap: 0,
+          flexWrap: 'wrap'
+        }}>
+          {[
+            { key: 'brand_reviews', label: '⭐ Brand Reviews', count: tabCounts.brand_reviews },
+            { key: 'supplier_reviews', label: '⭐ Supplier Reviews', count: tabCounts.supplier_reviews },
+            { key: 'distributor_reviews', label: '⭐ Distributor Reviews', count: tabCounts.distributor_reviews }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '12px 20px',
+                background: activeTab === tab.key ? 'white' : 'transparent',
+                border: 'none',
+                borderBottom: activeTab === tab.key ? '2px solid #8b5cf6' : '2px solid transparent',
+                color: activeTab === tab.key ? '#8b5cf6' : '#64748b',
+                fontWeight: activeTab === tab.key ? 600 : 400,
+                cursor: 'pointer',
+                fontSize: 14
+              }}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, marginTop: 24, textTransform: 'uppercase' }}>
           History
         </div>
         <div style={{ 
@@ -367,8 +719,10 @@ export default function SubmissionsDashboard() {
           flexWrap: 'wrap'
         }}>
           {[
-            { key: 'approved', label: '✓ Approved', count: tabCounts.approved },
-            { key: 'rejected', label: '✕ Rejected', count: tabCounts.rejected }
+            { key: 'approved_submissions', label: '✓ Approved Submissions', count: tabCounts.approved_submissions },
+            { key: 'rejected_submissions', label: '✕ Rejected Submissions', count: tabCounts.rejected_submissions },
+            { key: 'approved_reviews', label: '✓ Approved Reviews', count: tabCounts.approved_reviews },
+            { key: 'denied_reviews', label: '✕ Denied Reviews', count: tabCounts.denied_reviews }
           ].map(tab => (
             <button
               key={tab.key}
@@ -390,16 +744,20 @@ export default function SubmissionsDashboard() {
         </div>
       </div>
 
-      {/* Submissions List */}
+      {/* Submissions and Reviews List */}
       {loading ? (
-        <p>Loading submissions...</p>
-      ) : filteredSubmissions.length === 0 ? (
-        <p style={{ color: '#64748b', fontSize: 14 }}>No submissions found in this category.</p>
+        <p>Loading...</p>
+      ) : filteredItems.length === 0 ? (
+        <p style={{ color: '#64748b', fontSize: 14 }}>No items found in this category.</p>
       ) : (
         <div style={{ display: 'grid', gap: 16 }}>
-          {filteredSubmissions.map(submission => (
+          {filteredItems.map(item => {
+            const isReview = item.review_type !== undefined;
+            const itemId = isReview ? item.id : item.submission_id;
+            
+            return (
             <div
-              key={submission.submission_id}
+              key={itemId}
               style={{
                 padding: 20,
                 background: 'white',
@@ -413,32 +771,58 @@ export default function SubmissionsDashboard() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                 <div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ 
-                      fontSize: 13,
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      background: '#dbeafe',
-                      color: '#1e40af',
-                      borderRadius: 4
-                    }}>
-                      {getSubmissionTypeLabel(submission.submission_type)}
-                    </span>
-                    <span style={{ 
-                      fontSize: 13,
-                      padding: '2px 8px',
-                      background: '#f3f4f6',
-                      color: '#374151',
-                      borderRadius: 4
-                    }}>
-                      {getCategoryLabel(submission.submission_category)}
-                    </span>
+                    {isReview ? (
+                      <>
+                        <span style={{ 
+                          fontSize: 13,
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          background: '#ede9fe',
+                          color: '#7c3aed',
+                          borderRadius: 4
+                        }}>
+                          ⭐ Review
+                        </span>
+                        <span style={{ 
+                          fontSize: 13,
+                          padding: '2px 8px',
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          borderRadius: 4
+                        }}>
+                          {item.entity_name}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ 
+                          fontSize: 13,
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          background: '#dbeafe',
+                          color: '#1e40af',
+                          borderRadius: 4
+                        }}>
+                          {getSubmissionTypeLabel(item.submission_type)}
+                        </span>
+                        <span style={{ 
+                          fontSize: 13,
+                          padding: '2px 8px',
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          borderRadius: 4
+                        }}>
+                          {getCategoryLabel(item.submission_category)}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                    Submitted {new Date(submission.submitted_at).toLocaleString()}
+                    {isReview ? `Submitted ${new Date(item.created_at).toLocaleString()}` : `Submitted ${new Date(item.submitted_at).toLocaleString()}`}
                   </div>
                 </div>
                 <div>
-                  {getStatusBadge(submission.status)}
+                  {getStatusBadge(item.status)}
                 </div>
               </div>
 
@@ -449,26 +833,33 @@ export default function SubmissionsDashboard() {
                 borderRadius: 6,
                 border: '1px solid #e2e8f0'
               }}>
-                {renderSubmissionDetails(submission)}
+                {isReview ? renderReviewDetails(item) : renderSubmissionDetails(item)}
               </div>
 
-              {/* Additional Notes */}
-              {submission.additional_notes && (
+              {/* Additional Notes / User Info for Reviews */}
+              {isReview && (
+                <div style={{ fontSize: 13, color: '#64748b' }}>
+                  Submitted by: {item.user_name}
+                </div>
+              )}
+
+              {/* Additional Notes for Submissions */}
+              {!isReview && item.additional_notes && (
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Notes:</div>
-                  <div style={{ fontSize: 14, color: '#64748b' }}>{submission.additional_notes}</div>
+                  <div style={{ fontSize: 14, color: '#64748b' }}>{item.additional_notes}</div>
                 </div>
               )}
 
-              {/* User Info */}
-              {(submission.user_email || submission.user_first_name) && (
+              {/* User Info for Submissions */}
+              {!isReview && (item.user_email || item.user_first_name) && (
                 <div style={{ fontSize: 13, color: '#64748b' }}>
-                  Submitted by: {submission.user_first_name} {submission.user_last_name} {submission.user_email && `(${submission.user_email})`}
+                  Submitted by: {item.user_first_name} {item.user_last_name} {item.user_email && `(${item.user_email})`}
                 </div>
               )}
 
-              {/* Rejection Reason (if rejected) */}
-              {submission.status === 'rejected' && submission.rejection_reason && (
+              {/* Rejection/Denial Reason */}
+              {((item.status === 'rejected' && item.rejection_reason) || (item.status === 'denied' && item.review_notes)) && (
                 <div style={{ 
                   padding: 12,
                   background: '#fef2f2',
@@ -476,53 +867,53 @@ export default function SubmissionsDashboard() {
                   borderRadius: 6
                 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
-                    Rejection Reason:
+                    {item.status === 'rejected' ? 'Rejection Reason:' : 'Denial Reason:'}
                   </div>
-                  <div style={{ fontSize: 14, color: '#991b1b' }}>{submission.rejection_reason}</div>
+                  <div style={{ fontSize: 14, color: '#991b1b' }}>{item.rejection_reason || item.review_notes}</div>
                 </div>
               )}
 
               {/* Actions (only for pending) */}
-              {submission.status === 'pending' && (
+              {item.status === 'pending' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button
-                    onClick={() => handleApprove(submission.submission_id)}
-                    disabled={processing === submission.submission_id}
+                    onClick={() => isReview ? handleApproveReview(item) : handleApprove(itemId)}
+                    disabled={processing === itemId}
                     style={{
                       flex: 1,
                       padding: '10px 16px',
                       fontSize: 14,
                       fontWeight: 500,
                       color: 'white',
-                      background: processing === submission.submission_id ? '#cbd5e1' : '#10b981',
+                      background: processing === itemId ? '#cbd5e1' : '#10b981',
                       border: 'none',
                       borderRadius: 6,
-                      cursor: processing === submission.submission_id ? 'not-allowed' : 'pointer'
+                      cursor: processing === itemId ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {processing === submission.submission_id ? 'Processing...' : '✓ Approve'}
+                    {processing === itemId ? 'Processing...' : '✓ Approve'}
                   </button>
                   <button
-                    onClick={() => handleReject(submission.submission_id)}
-                    disabled={processing === submission.submission_id}
+                    onClick={() => isReview ? handleDenyReview(item) : handleReject(itemId)}
+                    disabled={processing === itemId}
                     style={{
                       flex: 1,
                       padding: '10px 16px',
                       fontSize: 14,
                       fontWeight: 500,
                       color: 'white',
-                      background: processing === submission.submission_id ? '#cbd5e1' : '#ef4444',
+                      background: processing === itemId ? '#cbd5e1' : '#ef4444',
                       border: 'none',
                       borderRadius: 6,
-                      cursor: processing === submission.submission_id ? 'not-allowed' : 'pointer'
+                      cursor: processing === itemId ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {processing === submission.submission_id ? 'Processing...' : '✕ Reject'}
+                    {processing === itemId ? 'Processing...' : isReview ? '✕ Deny' : '✕ Reject'}
                   </button>
                 </div>
               )}
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>
