@@ -8,7 +8,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 export async function GET() {
   try {
     const { data, error } = await supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .select('*')
       .order('submitted_at', { ascending: false });
 

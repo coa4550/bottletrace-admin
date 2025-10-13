@@ -104,6 +104,8 @@ export default function SubmissionsDashboard() {
     }
   };
 
+  const handleApprove = async (submissionId) => {
+
   const getStatusBadge = (status) => {
     const colors = {
       pending: { bg: '#fef3c7', text: '#92400e', label: 'Pending' },
@@ -129,11 +131,11 @@ export default function SubmissionsDashboard() {
   };
 
   const renderSubmissionDetails = (submission) => {
-    const { payload, brand_category, submission_type } = submission;
+    const { payload, submission_category, submission_type } = submission;
 
     // Orphan Corrections (Lonely updates)
     if (submission_type === 'Orphan_Correction') {
-      if (brand_category === 'brand_supplier') {
+      if (submission_category === 'brand_supplier') {
         return (
           <div style={{ fontSize: 14, color: '#475569' }}>
             <div style={{ marginBottom: 8 }}>
@@ -145,12 +147,12 @@ export default function SubmissionsDashboard() {
             </div>
             {payload.reason && (
               <div style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>
-                Reason: {payload.reason}
-              </div>
-            )}
+            Reason: {payload.reason}
           </div>
-        );
-      } else if (brand_category === 'supplier_distributor') {
+        )}
+      </div>
+    );
+  } else if (submission_category === 'supplier_distributor') {
         return (
           <div style={{ fontSize: 14, color: '#475569' }}>
             <div style={{ marginBottom: 8 }}>
@@ -176,7 +178,7 @@ export default function SubmissionsDashboard() {
     }
 
     // Regular additions/updates
-    if (brand_category === 'brand') {
+    if (submission_category === 'brand') {
       return (
         <div style={{ fontSize: 14, color: '#475569' }}>
           <div style={{ marginBottom: 8 }}>
@@ -194,7 +196,7 @@ export default function SubmissionsDashboard() {
           )}
         </div>
       );
-    } else if (brand_category === 'supplier') {
+    } else if (submission_category === 'supplier') {
       return (
         <div style={{ fontSize: 14, color: '#475569' }}>
           <div style={{ marginBottom: 8 }}>
@@ -207,7 +209,7 @@ export default function SubmissionsDashboard() {
           )}
         </div>
       );
-    } else if (brand_category === 'distributor') {
+    } else if (submission_category === 'distributor') {
       return (
         <div style={{ fontSize: 14, color: '#475569' }}>
           <div style={{ marginBottom: 8 }}>
@@ -236,19 +238,19 @@ export default function SubmissionsDashboard() {
     
     switch (activeTab) {
       case 'brand_update':
-        return pending.filter(s => s.submission_type === 'Change' && s.brand_category === 'brand');
+        return pending.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand');
       case 'brand_addition':
-        return pending.filter(s => s.submission_type === 'Addition' && s.brand_category === 'brand');
+        return pending.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand');
       case 'supplier_addition':
-        return pending.filter(s => s.submission_type === 'Addition' && s.brand_category === 'supplier');
+        return pending.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier');
       case 'distributor_addition':
-        return pending.filter(s => s.submission_type === 'Addition' && s.brand_category === 'distributor');
+        return pending.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor');
       case 'lonely_brand':
         // Handle both explicit Orphan_Correction and NULL/missing submission_type for brand_supplier category
-        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'brand_supplier');
+        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier');
       case 'lonely_supplier':
         // Handle both explicit Orphan_Correction and NULL/missing submission_type for supplier_distributor category
-        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'supplier_distributor');
+        return pending.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'supplier_distributor');
       case 'approved':
         return allSubmissions.filter(s => s.status === 'approved');
       case 'rejected':
@@ -263,12 +265,12 @@ export default function SubmissionsDashboard() {
   // Calculate counts for all tabs
   const pendingSubmissions = allSubmissions.filter(s => s.status === 'pending');
   const tabCounts = {
-    brand_update: pendingSubmissions.filter(s => s.submission_type === 'Change' && s.brand_category === 'brand').length,
-    brand_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'brand').length,
-    supplier_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'supplier').length,
-    distributor_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'distributor').length,
-    lonely_brand: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'brand_supplier').length,
-    lonely_supplier: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.brand_category === 'supplier_distributor').length,
+    brand_update: pendingSubmissions.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand').length,
+    brand_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand').length,
+    supplier_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier').length,
+    distributor_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor').length,
+    lonely_brand: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier').length,
+    lonely_supplier: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'supplier_distributor').length,
     approved: allSubmissions.filter(s => s.status === 'approved').length,
     rejected: allSubmissions.filter(s => s.status === 'rejected').length
   };
@@ -392,7 +394,7 @@ export default function SubmissionsDashboard() {
         <div style={{ display: 'grid', gap: 16 }}>
           {filteredSubmissions.map(submission => (
             <div
-              key={submission.brand_submission_id}
+              key={submission.submission_id}
               style={{
                 padding: 20,
                 background: 'white',
@@ -423,7 +425,7 @@ export default function SubmissionsDashboard() {
                       color: '#374151',
                       borderRadius: 4
                     }}>
-                      {getCategoryLabel(submission.brand_category)}
+                      {getCategoryLabel(submission.submission_category)}
                     </span>
                   </div>
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>
@@ -479,38 +481,38 @@ export default function SubmissionsDashboard() {
               {submission.status === 'pending' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button
-                    onClick={() => handleApprove(submission.brand_submission_id)}
-                    disabled={processing === submission.brand_submission_id}
+                    onClick={() => handleApprove(submission.submission_id)}
+                    disabled={processing === submission.submission_id}
                     style={{
                       flex: 1,
                       padding: '10px 16px',
                       fontSize: 14,
                       fontWeight: 500,
                       color: 'white',
-                      background: processing === submission.brand_submission_id ? '#cbd5e1' : '#10b981',
+                      background: processing === submission.submission_id ? '#cbd5e1' : '#10b981',
                       border: 'none',
                       borderRadius: 6,
-                      cursor: processing === submission.brand_submission_id ? 'not-allowed' : 'pointer'
+                      cursor: processing === submission.submission_id ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {processing === submission.brand_submission_id ? 'Processing...' : '✓ Approve'}
+                    {processing === submission.submission_id ? 'Processing...' : '✓ Approve'}
                   </button>
                   <button
-                    onClick={() => handleReject(submission.brand_submission_id)}
-                    disabled={processing === submission.brand_submission_id}
+                    onClick={() => handleReject(submission.submission_id)}
+                    disabled={processing === submission.submission_id}
                     style={{
                       flex: 1,
                       padding: '10px 16px',
                       fontSize: 14,
                       fontWeight: 500,
                       color: 'white',
-                      background: processing === submission.brand_submission_id ? '#cbd5e1' : '#ef4444',
+                      background: processing === submission.submission_id ? '#cbd5e1' : '#ef4444',
                       border: 'none',
                       borderRadius: 6,
-                      cursor: processing === submission.brand_submission_id ? 'not-allowed' : 'pointer'
+                      cursor: processing === submission.submission_id ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {processing === submission.brand_submission_id ? 'Processing...' : '✕ Reject'}
+                    {processing === submission.submission_id ? 'Processing...' : '✕ Reject'}
                   </button>
                 </div>
               )}

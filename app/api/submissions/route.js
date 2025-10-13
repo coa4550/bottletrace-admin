@@ -91,11 +91,11 @@ export async function POST(req) {
       distributor_name_submitted = payload.distributor_name;
     }
 
-    // Insert into brand_submissions table
+    // Insert into user_submissions table
     const { data, error } = await supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .insert({
-        brand_category,
+        submission_category: brand_category,
         submission_type,
         payload,
         status: 'pending',
@@ -108,7 +108,7 @@ export async function POST(req) {
         additional_notes,
         submitted_at: new Date().toISOString()
       })
-      .select('brand_submission_id')
+      .select('submission_id')
       .single();
 
     if (error) {
@@ -121,7 +121,7 @@ export async function POST(req) {
 
     return NextResponse.json({
       success: true,
-      submission_id: data.brand_submission_id,
+      submission_id: data.submission_id,
       message: 'Submission created successfully'
     });
 
@@ -150,7 +150,7 @@ export async function GET(req) {
     const brand_category = searchParams.get('brand_category');
 
     let query = supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .select('*')
       .order('submitted_at', { ascending: false });
 
@@ -163,7 +163,7 @@ export async function GET(req) {
     }
 
     if (brand_category) {
-      query = query.eq('brand_category', brand_category);
+      query = query.eq('submission_category', brand_category);
     }
 
     const { data, error } = await query;

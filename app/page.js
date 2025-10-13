@@ -558,7 +558,7 @@ export default function DashboardPage() {
           }}>
             {recentSubmissions.map((submission, index) => (
               <a
-                key={submission.brand_submission_id}
+                key={submission.submission_id}
                 href="/admin/submissions"
                 style={{
                   display: 'block',
@@ -612,8 +612,8 @@ export default function DashboardPage() {
                     hour: '2-digit',
                     minute: '2-digit'
                   })}</span>
-                  {submission.brand_category && (
-                    <span>📁 {getCategoryLabel(submission.brand_category)}</span>
+                  {submission.submission_category && (
+                    <span>📁 {getCategoryLabel(submission.submission_category)}</span>
                   )}
                   {submission.user_first_name && (
                     <span>👤 {submission.user_first_name} {submission.user_last_name}</span>

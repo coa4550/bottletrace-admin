@@ -13,9 +13,9 @@ export async function POST(req, { params }) {
 
     // Fetch the submission
     const { data: submission, error: fetchError } = await supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .select('*')
-      .eq('brand_submission_id', id)
+      .eq('submission_id', id)
       .single();
 
     if (fetchError || !submission) {
@@ -35,13 +35,13 @@ export async function POST(req, { params }) {
 
     // Update submission status to rejected
     const { error: updateError } = await supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .update({
         status: 'rejected',
         rejection_reason: rejection_reason || 'No reason provided',
         reviewed_at: new Date().toISOString()
       })
-      .eq('brand_submission_id', id);
+      .eq('submission_id', id);
 
     if (updateError) {
       throw updateError;

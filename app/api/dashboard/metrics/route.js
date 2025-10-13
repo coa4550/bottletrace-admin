@@ -49,23 +49,23 @@ export async function GET() {
       supabaseAdmin.from('categories').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('sub_categories').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('core_states').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'under_review'),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('reviewed_at', todayStart),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'rejected').gte('reviewed_at', todayStart),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand'),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier'),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'distributor'),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_supplier'),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_distributor'),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier_distributor'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'under_review'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('reviewed_at', todayStart),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'rejected').gte('reviewed_at', todayStart),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('submission_category', 'brand'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('submission_category', 'supplier'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('submission_category', 'distributor'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('submission_category', 'brand_supplier'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('submission_category', 'brand_distributor'),
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('submission_category', 'supplier_distributor'),
       supabaseAdmin.from('user_profiles').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('user_profiles').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('user_profiles').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo),
       supabaseAdmin.from('brand_reviews').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('supplier_reviews').select('*', { count: 'exact', head: true }),
       supabaseAdmin.from('distributor_reviews').select('*', { count: 'exact', head: true }),
-      supabaseAdmin.from('brand_submissions').select('*', { count: 'exact', head: true })
+      supabaseAdmin.from('user_submissions').select('*', { count: 'exact', head: true })
     ]);
 
     const metrics = {
@@ -120,7 +120,7 @@ export async function GET() {
 
     // Fetch recent submissions
     const { data: recentSubmissions, error: submissionsError } = await supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .select('*')
       .order('submitted_at', { ascending: false })
       .limit(5);

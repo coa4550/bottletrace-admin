@@ -11,9 +11,9 @@ export async function POST(req, { params }) {
 
     // Fetch the submission
     const { data: submission, error: fetchError } = await supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .select('*')
-      .eq('brand_submission_id', id)
+      .eq('submission_id', id)
       .single();
 
     if (fetchError || !submission) {
@@ -31,13 +31,13 @@ export async function POST(req, { params }) {
       );
     }
 
-    const { brand_category, submission_type, payload } = submission;
+    const { submission_category, submission_type, payload } = submission;
 
     // Apply the changes based on submission type and category
     let result;
     
     if (submission_type === 'Orphan_Correction') {
-      if (brand_category === 'brand_supplier') {
+      if (submission_category === 'brand_supplier') {
         // Link orphaned brand to suggested supplier
         const { error: insertError } = await supabaseAdmin
           .from('brand_supplier')
@@ -63,7 +63,7 @@ export async function POST(req, { params }) {
         
         // The trigger will automatically clear the orphan status
         
-      } else if (brand_category === 'supplier_distributor') {
+      } else if (submission_category === 'supplier_distributor') {
         // Link orphaned supplier to suggested distributor in a state
         const { error: insertError } = await supabaseAdmin
           .from('distributor_supplier_state')
@@ -88,7 +88,7 @@ export async function POST(req, { params }) {
         
       } else {
         return NextResponse.json(
-          { error: 'Unsupported brand_category for orphan correction' },
+          { error: 'Unsupported submission_category for orphan correction' },
           { status: 400 }
         );
       }
@@ -102,12 +102,12 @@ export async function POST(req, { params }) {
 
     // Update submission status to approved
     const { error: updateError } = await supabaseAdmin
-      .from('brand_submissions')
+      .from('user_submissions')
       .update({
         status: 'approved',
         reviewed_at: new Date().toISOString()
       })
-      .eq('brand_submission_id', id);
+      .eq('submission_id', id);
 
     if (updateError) {
       throw updateError;
