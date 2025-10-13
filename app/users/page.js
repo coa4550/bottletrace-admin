@@ -243,15 +243,30 @@ export default function UsersPage() {
     );
   });
 
-  const sortedUsers = [...filteredUsers].sort((a, b) => {
-    const { key, direction } = sortConfig;
-    if (!key) return 0;
-    const aVal = a[key] ?? '';
-    const bVal = b[key] ?? '';
-    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
-    return 0;
-  });
+  // Separate admins from regular users
+  const adminUsers = filteredUsers.filter(user => 
+    user.role === 'admin' || user.job_title?.toLowerCase().includes('admin')
+  );
+  
+  const regularUsers = filteredUsers.filter(user => 
+    user.role !== 'admin' && !user.job_title?.toLowerCase().includes('admin')
+  );
+
+  // Sort both groups
+  const sortUsers = (userList) => {
+    return [...userList].sort((a, b) => {
+      const { key, direction } = sortConfig;
+      if (!key) return 0;
+      const aVal = a[key] ?? '';
+      const bVal = b[key] ?? '';
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const sortedAdmins = sortUsers(adminUsers);
+  const sortedRegularUsers = sortUsers(regularUsers);
 
   const handleSort = (key) => {
     setSortConfig((prev) => {
@@ -266,7 +281,13 @@ export default function UsersPage() {
   return (
     <div style={{ padding: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1>Users ({filteredUsers.length} of {users.length})</h1>
+        <div>
+          <h1 style={{ margin: 0, marginBottom: 4 }}>Users</h1>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: 14 }}>
+            {adminUsers.length} Admin{adminUsers.length !== 1 ? 's' : ''} • {regularUsers.length} Regular User{regularUsers.length !== 1 ? 's' : ''} 
+            {searchTerm && ` (filtered from ${users.length} total)`}
+          </p>
+        </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <SearchInput 
             placeholder="Search users..." 
@@ -608,128 +629,324 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-      <div style={{ overflowX: 'auto' }}>
-        <table
-          style={{
-            borderCollapse: 'collapse',
-            tableLayout: 'auto',
-            width: 'max-content',
-            minWidth: '100%',
-          }}
-        >
-          <thead style={{ background: '#f1f5f9' }}>
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  style={{
-                    width: colWidths[col.key] || 150,
-                    position: 'relative',
-                    borderRight: '1px solid #e2e8f0',
-                    whiteSpace: 'nowrap',
-                    userSelect: 'none',
-                    padding: '8px 12px',
-                    textAlign: 'left',
-                    background: '#f8fafc',
-                    cursor: col.key !== 'actions' ? 'pointer' : 'default',
-                  }}
-                  onClick={() => col.key !== 'actions' && handleSort(col.key)}
-                >
-                  {col.label}
-                  {sortConfig.key === col.key && (
-                    <span style={{ marginLeft: 4 }}>
-                      {sortConfig.direction === 'asc' ? '▲' : '▼'}
-                    </span>
-                  )}
-                  {col.key !== 'actions' && (
-                    <div
-                      onMouseDown={(e) => startResize(e, col.key)}
+
+      {/* Admins Section */}
+      {sortedAdmins.length > 0 && (
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 12,
+            marginBottom: 12,
+            paddingBottom: 8,
+            borderBottom: '2px solid #3b82f6'
+          }}>
+            <h2 style={{ margin: 0, fontSize: 18, color: '#3b82f6' }}>
+              👑 Administrators
+            </h2>
+            <span style={{
+              background: '#dbeafe',
+              color: '#1e40af',
+              padding: '2px 10px',
+              borderRadius: 12,
+              fontSize: 12,
+              fontWeight: 600
+            }}>
+              {sortedAdmins.length}
+            </span>
+          </div>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <table
+              style={{
+                borderCollapse: 'collapse',
+                tableLayout: 'auto',
+                width: 'max-content',
+                minWidth: '100%',
+              }}
+            >
+              <thead style={{ background: '#eff6ff' }}>
+                <tr>
+                  {columns.map((col) => (
+                    <th
+                      key={col.key}
                       style={{
-                        position: 'absolute',
-                        right: 0,
-                        top: 0,
-                        height: '100%',
-                        width: '5px',
-                        cursor: 'col-resize',
-                        background: 'transparent',
+                        width: colWidths[col.key] || 150,
+                        position: 'relative',
+                        borderRight: '1px solid #e2e8f0',
+                        whiteSpace: 'nowrap',
+                        userSelect: 'none',
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        background: '#eff6ff',
+                        cursor: col.key !== 'actions' ? 'pointer' : 'default',
                       }}
-                    />
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {sortedUsers.map((user) => (
-              <tr key={user.user_id}>
-                {columns.map((col) => {
-                  const value = user[col.key];
-
-                  // Actions column
-                  if (col.key === 'actions') {
-                    return (
-                      <td key={col.key} style={cellStyle}>
-                        <button
-                          onClick={() => handleDelete(user.user_id)}
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: 12,
-                            border: 'none',
-                            borderRadius: 4,
-                            background: deleteConfirm === user.user_id ? '#ef4444' : '#f87171',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontWeight: 500
-                          }}
-                        >
-                          {deleteConfirm === user.user_id ? 'Confirm Delete?' : 'Delete'}
-                        </button>
-                      </td>
-                    );
-                  }
-
-                  // Date formatting
-                  if (col.key === 'created_at') {
-                    return (
-                      <td key={col.key} style={cellStyle}>
-                        {value ? new Date(value).toLocaleDateString() : '—'}
-                      </td>
-                    );
-                  }
-
-                  // Number columns
-                  if (col.key === 'submission_count' || col.key === 'review_count') {
-                    return (
-                      <td key={col.key} style={cellStyle}>
-                        <span style={{ 
-                          display: 'inline-block',
-                          minWidth: 24,
-                          textAlign: 'center',
-                          padding: '2px 8px',
-                          borderRadius: 12,
-                          background: value > 0 ? '#dbeafe' : '#f1f5f9',
-                          color: value > 0 ? '#1e40af' : '#64748b',
-                          fontSize: 12,
-                          fontWeight: 600
-                        }}>
-                          {value}
+                      onClick={() => col.key !== 'actions' && handleSort(col.key)}
+                    >
+                      {col.label}
+                      {sortConfig.key === col.key && (
+                        <span style={{ marginLeft: 4 }}>
+                          {sortConfig.direction === 'asc' ? '▲' : '▼'}
                         </span>
-                      </td>
-                    );
-                  }
+                      )}
+                      {col.key !== 'actions' && (
+                        <div
+                          onMouseDown={(e) => startResize(e, col.key)}
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: 0,
+                            height: '100%',
+                            width: '5px',
+                            cursor: 'col-resize',
+                            background: 'transparent',
+                          }}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
-                  return (
-                    <td key={col.key} style={cellStyle}>
-                      {value || '—'}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              <tbody>
+                {sortedAdmins.map((user) => (
+                  <tr key={user.user_id} style={{ background: '#fafbff' }}>
+                    {columns.map((col) => {
+                      const value = user[col.key];
+
+                      // Actions column
+                      if (col.key === 'actions') {
+                        return (
+                          <td key={col.key} style={cellStyle}>
+                            <button
+                              onClick={() => handleDelete(user.user_id)}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: 12,
+                                border: 'none',
+                                borderRadius: 4,
+                                background: deleteConfirm === user.user_id ? '#ef4444' : '#f87171',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                            >
+                              {deleteConfirm === user.user_id ? 'Confirm Delete?' : 'Delete'}
+                            </button>
+                          </td>
+                        );
+                      }
+
+                      // Date formatting
+                      if (col.key === 'created_at') {
+                        return (
+                          <td key={col.key} style={cellStyle}>
+                            {value ? new Date(value).toLocaleDateString() : '—'}
+                          </td>
+                        );
+                      }
+
+                      // Number columns
+                      if (col.key === 'submission_count' || col.key === 'review_count') {
+                        return (
+                          <td key={col.key} style={cellStyle}>
+                            <span style={{ 
+                              display: 'inline-block',
+                              minWidth: 24,
+                              textAlign: 'center',
+                              padding: '2px 8px',
+                              borderRadius: 12,
+                              background: value > 0 ? '#dbeafe' : '#f1f5f9',
+                              color: value > 0 ? '#1e40af' : '#64748b',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}>
+                              {value}
+                            </span>
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td key={col.key} style={cellStyle}>
+                          {value || '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Regular Users Section */}
+      {sortedRegularUsers.length > 0 && (
+        <div>
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 12,
+            marginBottom: 12,
+            paddingBottom: 8,
+            borderBottom: '2px solid #64748b'
+          }}>
+            <h2 style={{ margin: 0, fontSize: 18, color: '#64748b' }}>
+              👥 Regular Users
+            </h2>
+            <span style={{
+              background: '#f1f5f9',
+              color: '#475569',
+              padding: '2px 10px',
+              borderRadius: 12,
+              fontSize: 12,
+              fontWeight: 600
+            }}>
+              {sortedRegularUsers.length}
+            </span>
+          </div>
+          
+          <div style={{ overflowX: 'auto' }}>
+            <table
+              style={{
+                borderCollapse: 'collapse',
+                tableLayout: 'auto',
+                width: 'max-content',
+                minWidth: '100%',
+              }}
+            >
+              <thead style={{ background: '#f1f5f9' }}>
+                <tr>
+                  {columns.map((col) => (
+                    <th
+                      key={col.key}
+                      style={{
+                        width: colWidths[col.key] || 150,
+                        position: 'relative',
+                        borderRight: '1px solid #e2e8f0',
+                        whiteSpace: 'nowrap',
+                        userSelect: 'none',
+                        padding: '8px 12px',
+                        textAlign: 'left',
+                        background: '#f8fafc',
+                        cursor: col.key !== 'actions' ? 'pointer' : 'default',
+                      }}
+                      onClick={() => col.key !== 'actions' && handleSort(col.key)}
+                    >
+                      {col.label}
+                      {sortConfig.key === col.key && (
+                        <span style={{ marginLeft: 4 }}>
+                          {sortConfig.direction === 'asc' ? '▲' : '▼'}
+                        </span>
+                      )}
+                      {col.key !== 'actions' && (
+                        <div
+                          onMouseDown={(e) => startResize(e, col.key)}
+                          style={{
+                            position: 'absolute',
+                            right: 0,
+                            top: 0,
+                            height: '100%',
+                            width: '5px',
+                            cursor: 'col-resize',
+                            background: 'transparent',
+                          }}
+                        />
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {sortedRegularUsers.map((user) => (
+                  <tr key={user.user_id}>
+                    {columns.map((col) => {
+                      const value = user[col.key];
+
+                      // Actions column
+                      if (col.key === 'actions') {
+                        return (
+                          <td key={col.key} style={cellStyle}>
+                            <button
+                              onClick={() => handleDelete(user.user_id)}
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: 12,
+                                border: 'none',
+                                borderRadius: 4,
+                                background: deleteConfirm === user.user_id ? '#ef4444' : '#f87171',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontWeight: 500
+                              }}
+                            >
+                              {deleteConfirm === user.user_id ? 'Confirm Delete?' : 'Delete'}
+                            </button>
+                          </td>
+                        );
+                      }
+
+                      // Date formatting
+                      if (col.key === 'created_at') {
+                        return (
+                          <td key={col.key} style={cellStyle}>
+                            {value ? new Date(value).toLocaleDateString() : '—'}
+                          </td>
+                        );
+                      }
+
+                      // Number columns
+                      if (col.key === 'submission_count' || col.key === 'review_count') {
+                        return (
+                          <td key={col.key} style={cellStyle}>
+                            <span style={{ 
+                              display: 'inline-block',
+                              minWidth: 24,
+                              textAlign: 'center',
+                              padding: '2px 8px',
+                              borderRadius: 12,
+                              background: value > 0 ? '#dbeafe' : '#f1f5f9',
+                              color: value > 0 ? '#1e40af' : '#64748b',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}>
+                              {value}
+                            </span>
+                          </td>
+                        );
+                      }
+
+                      return (
+                        <td key={col.key} style={cellStyle}>
+                          {value || '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {sortedAdmins.length === 0 && sortedRegularUsers.length === 0 && (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: 60, 
+          color: '#9ca3af',
+          background: '#f9fafb',
+          borderRadius: 8
+        }}>
+          <p style={{ fontSize: 18, marginBottom: 8 }}>No users found</p>
+          <p style={{ fontSize: 14 }}>
+            {searchTerm ? 'Try adjusting your search' : 'Create your first admin user to get started'}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
