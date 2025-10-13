@@ -21,6 +21,16 @@ export default function UsersPage() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [searchTerm, setSearchTerm] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    jobTitle: 'Admin',
+    employer: '',
+    location: ''
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -28,13 +38,13 @@ export default function UsersPage() {
 
   async function fetchUsers() {
     try {
-      // Fetch user profiles with auth user info
-      const { data: profiles, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (profileError) throw profileError;
+      // Use API to get enriched user data with email addresses
+      const response = await fetch('/api/users');
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch users');
+      }
 
       // Get submission counts for each user
       const { data: submissions, error: submissionError } = await supabase
@@ -62,10 +72,10 @@ export default function UsersPage() {
       });
 
       // Combine all data
-      const enrichedUsers = profiles.map(profile => ({
-        ...profile,
-        submission_count: submissionCounts[profile.user_id] || 0,
-        review_count: reviewCounts[profile.user_id] || 0
+      const enrichedUsers = data.users.map(user => ({
+        ...user,
+        submission_count: submissionCounts[user.user_id] || 0,
+        review_count: reviewCounts[user.user_id] || 0
       }));
 
       setUsers(enrichedUsers);
@@ -99,6 +109,52 @@ export default function UsersPage() {
   };
 
 
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setCreating(true);
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create user');
+      }
+
+      // Show success message with magic link
+      alert(
+        `Admin user created successfully!\n\n` +
+        `Email: ${data.user.email}\n\n` +
+        `A magic link has been generated. The user can sign in using their email.\n\n` +
+        (data.passwordResetLink ? `Magic Link: ${data.passwordResetLink}` : '')
+      );
+
+      // Reset form
+      setNewUser({
+        email: '',
+        firstName: '',
+        lastName: '',
+        jobTitle: 'Admin',
+        employer: '',
+        location: ''
+      });
+      setShowCreateModal(false);
+
+      // Refresh user list
+      fetchUsers();
+    } catch (err) {
+      console.error('Create user error:', err);
+      alert('Failed to create user: ' + err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleDelete = async (userId) => {
     if (deleteConfirm !== userId) {
       setDeleteConfirm(userId);
@@ -107,18 +163,19 @@ export default function UsersPage() {
     }
 
     try {
-      // Note: This will only delete the profile, not the auth user
-      // For full deletion, you'd need to use Supabase admin API
-      const { error } = await supabase
-        .from('user_profiles')
-        .delete()
-        .eq('user_id', userId);
+      const response = await fetch(`/api/users?userId=${userId}`, {
+        method: 'DELETE'
+      });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete user');
+      }
       
       setUsers((prev) => prev.filter((u) => u.user_id !== userId));
       setDeleteConfirm(null);
-      alert('User profile deleted successfully');
+      alert('User deleted successfully');
     } catch (err) {
       console.error('Delete error:', err.message);
       alert('Failed to delete user: ' + err.message);
@@ -126,6 +183,7 @@ export default function UsersPage() {
   };
 
   const columns = [
+    { key: 'email', label: 'Email' },
     { key: 'first_name', label: 'First Name' },
     { key: 'last_name', label: 'Last Name' },
     { key: 'job_title', label: 'Job Title' },
@@ -141,6 +199,7 @@ export default function UsersPage() {
     if (!searchTerm) return true;
     const searchLower = searchTerm.toLowerCase();
     return (
+      user.email?.toLowerCase().includes(searchLower) ||
       user.first_name?.toLowerCase().includes(searchLower) ||
       user.last_name?.toLowerCase().includes(searchLower) ||
       user.job_title?.toLowerCase().includes(searchLower) ||
@@ -173,11 +232,208 @@ export default function UsersPage() {
     <div style={{ padding: 20 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1>Users ({filteredUsers.length} of {users.length})</h1>
-        <SearchInput 
-          placeholder="Search users..." 
-          onSearch={setSearchTerm}
-        />
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <SearchInput 
+            placeholder="Search users..." 
+            onSearch={setSearchTerm}
+          />
+          <button
+            onClick={() => setShowCreateModal(true)}
+            style={{
+              padding: '10px 20px',
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: 14,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            + Create Admin User
+          </button>
+        </div>
       </div>
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            padding: 32,
+            borderRadius: 8,
+            maxWidth: 500,
+            width: '90%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: 24 }}>Create Admin User</h2>
+            
+            <form onSubmit={handleCreateUser}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={newUser.email}
+                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 4,
+                    fontSize: 14
+                  }}
+                  placeholder="admin@example.com"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                    First Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newUser.firstName}
+                    onChange={(e) => setNewUser({...newUser, firstName: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: 4,
+                      fontSize: 14
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newUser.lastName}
+                    onChange={(e) => setNewUser({...newUser, lastName: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: 4,
+                      fontSize: 14
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                  Job Title
+                </label>
+                <input
+                  type="text"
+                  value={newUser.jobTitle}
+                  onChange={(e) => setNewUser({...newUser, jobTitle: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 4,
+                    fontSize: 14
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                  Employer
+                </label>
+                <input
+                  type="text"
+                  value={newUser.employer}
+                  onChange={(e) => setNewUser({...newUser, employer: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 4,
+                    fontSize: 14
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: 'block', marginBottom: 4, fontWeight: 600 }}>
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={newUser.location}
+                  onChange={(e) => setNewUser({...newUser, location: e.target.value})}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 4,
+                    fontSize: 14
+                  }}
+                  placeholder="City, State"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={creating}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: creating ? 'not-allowed' : 'pointer',
+                    fontWeight: 600,
+                    fontSize: 14
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  style={{
+                    padding: '10px 20px',
+                    background: creating ? '#93c5fd' : '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 6,
+                    cursor: creating ? 'not-allowed' : 'pointer',
+                    fontWeight: 600,
+                    fontSize: 14
+                  }}
+                >
+                  {creating ? 'Creating...' : 'Create User'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       <div style={{ overflowX: 'auto' }}>
         <table
           style={{
