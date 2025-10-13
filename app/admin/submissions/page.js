@@ -1,33 +1,25 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
 
 export default function SubmissionsDashboard() {
-  const [activeTab, setActiveTab] = useState('pending');
-  const [submissions, setSubmissions] = useState([]);
+  const [activeTab, setActiveTab] = useState('brand_update');
+  const [allSubmissions, setAllSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
 
   useEffect(() => {
-    fetchSubmissions(activeTab);
-  }, [activeTab]);
+    fetchAllSubmissions();
+  }, []);
 
-  const fetchSubmissions = async (status) => {
+  const fetchAllSubmissions = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('brand_submissions')
-        .select('*')
-        .eq('status', status)
-        .order('submitted_at', { ascending: false });
-
-      if (error) throw error;
-      setSubmissions(data || []);
+      const response = await fetch('/api/submissions/list');
+      if (!response.ok) {
+        throw new Error('Failed to fetch submissions');
+      }
+      const data = await response.json();
+      setAllSubmissions(data);
     } catch (error) {
       console.error('Error fetching submissions:', error);
       alert('Failed to load submissions: ' + error.message);
@@ -54,7 +46,7 @@ export default function SubmissionsDashboard() {
       }
 
       alert('Submission approved successfully!');
-      fetchSubmissions(activeTab);
+      fetchAllSubmissions();
     } catch (error) {
       console.error('Error approving submission:', error);
       alert('Failed to approve submission: ' + error.message);
@@ -82,7 +74,7 @@ export default function SubmissionsDashboard() {
       }
 
       alert('Submission rejected successfully!');
-      fetchSubmissions(activeTab);
+      fetchAllSubmissions();
     } catch (error) {
       console.error('Error rejecting submission:', error);
       alert('Failed to reject submission: ' + error.message);
@@ -94,9 +86,9 @@ export default function SubmissionsDashboard() {
   const getSubmissionTypeLabel = (type) => {
     switch (type) {
       case 'Addition': return '➕ Addition';
-      case 'Change': return '✏️ Change';
-      case 'Orphan_Correction': return '🔗 Orphan Correction';
-      default: return type;
+      case 'Change': return '✏️ Update';
+      case 'Orphan_Correction': return '🔗 Link';
+      default: return type || 'Unknown';
     }
   };
 
@@ -112,86 +104,291 @@ export default function SubmissionsDashboard() {
     }
   };
 
-  const renderSubmissionDetails = (submission) => {
-    const { payload, brand_category } = submission;
+  const getStatusBadge = (status) => {
+    const colors = {
+      pending: { bg: '#fef3c7', text: '#92400e', label: 'Pending' },
+      under_review: { bg: '#dbeafe', text: '#1e40af', label: 'Under Review' },
+      approved: { bg: '#d1fae5', text: '#065f46', label: 'Approved' },
+      rejected: { bg: '#fee2e2', text: '#991b1b', label: 'Rejected' }
+    };
+    const style = colors[status] || colors.pending;
+    return (
+      <span style={{
+        padding: '4px 10px',
+        background: style.bg,
+        color: style.text,
+        borderRadius: 4,
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em'
+      }}>
+        {style.label}
+      </span>
+    );
+  };
 
-    if (submission.submission_type === 'Orphan_Correction') {
+  const renderSubmissionDetails = (submission) => {
+    const { payload, brand_category, submission_type } = submission;
+
+    // Orphan Corrections (Lonely updates)
+    if (submission_type === 'Orphan_Correction') {
       if (brand_category === 'brand_supplier') {
         return (
           <div style={{ fontSize: 14, color: '#475569' }}>
-            <strong>{payload.orphaned_brand_name}</strong> → <strong>{payload.suggested_supplier_name}</strong>
+            <div style={{ marginBottom: 8 }}>
+              <strong>Lonely Brand:</strong> {payload.orphaned_brand_name || submission.brand_name_submitted}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 24 }}>→</span>
+              <strong>Link to Supplier:</strong> {payload.suggested_supplier_name || submission.supplier_name_submitted}
+            </div>
+            {payload.reason && (
+              <div style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic' }}>
+                Reason: {payload.reason}
+              </div>
+            )}
           </div>
         );
       } else if (brand_category === 'supplier_distributor') {
         return (
           <div style={{ fontSize: 14, color: '#475569' }}>
-            <strong>{payload.orphaned_supplier_name}</strong> → <strong>{payload.suggested_distributor_name}</strong> ({payload.suggested_state_name})
+            <div style={{ marginBottom: 8 }}>
+              <strong>Lonely Supplier:</strong> {payload.orphaned_supplier_name || submission.supplier_name_submitted}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 24 }}>→</span>
+              <strong>Link to Distributor:</strong> {payload.suggested_distributor_name || submission.distributor_name_submitted}
+            </div>
+            {payload.suggested_state_name && (
+              <div>
+                <strong>State:</strong> {payload.suggested_state_name}
+              </div>
+            )}
+            {payload.reason && (
+              <div style={{ fontSize: 13, color: '#64748b', fontStyle: 'italic', marginTop: 8 }}>
+                Reason: {payload.reason}
+              </div>
+            )}
           </div>
         );
       }
     }
 
+    // Regular additions/updates
+    if (brand_category === 'brand') {
+      return (
+        <div style={{ fontSize: 14, color: '#475569' }}>
+          <div style={{ marginBottom: 8 }}>
+            <strong>Brand Name:</strong> {submission.brand_name_submitted || payload.brand_name}
+          </div>
+          {payload.brand_url && (
+            <div style={{ marginBottom: 8 }}>
+              <strong>Website:</strong> <a href={payload.brand_url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>{payload.brand_url}</a>
+            </div>
+          )}
+          {payload.category && (
+            <div>
+              <strong>Category:</strong> {payload.category}
+            </div>
+          )}
+        </div>
+      );
+    } else if (brand_category === 'supplier') {
+      return (
+        <div style={{ fontSize: 14, color: '#475569' }}>
+          <div style={{ marginBottom: 8 }}>
+            <strong>Supplier Name:</strong> {submission.supplier_name_submitted || payload.supplier_name}
+          </div>
+          {payload.supplier_url && (
+            <div>
+              <strong>Website:</strong> <a href={payload.supplier_url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>{payload.supplier_url}</a>
+            </div>
+          )}
+        </div>
+      );
+    } else if (brand_category === 'distributor') {
+      return (
+        <div style={{ fontSize: 14, color: '#475569' }}>
+          <div style={{ marginBottom: 8 }}>
+            <strong>Distributor Name:</strong> {submission.distributor_name_submitted || payload.distributor_name}
+          </div>
+          {payload.distributor_url && (
+            <div>
+              <strong>Website:</strong> <a href={payload.distributor_url} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6' }}>{payload.distributor_url}</a>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Fallback: show JSON
     return (
-      <div style={{ fontSize: 14, color: '#475569' }}>
+      <pre style={{ fontSize: 12, color: '#475569', whiteSpace: 'pre-wrap', wordWrap: 'break-word' }}>
         {JSON.stringify(payload, null, 2)}
-      </div>
+      </pre>
     );
   };
 
-  const statCounts = {
-    pending: submissions.filter(s => s.status === 'pending').length,
-    under_review: submissions.filter(s => s.status === 'under_review').length,
-    approved: submissions.filter(s => s.status === 'approved').length,
-    rejected: submissions.filter(s => s.status === 'rejected').length
+  // Filter submissions by tab
+  const getFilteredSubmissions = () => {
+    const pending = allSubmissions.filter(s => s.status === 'pending');
+    
+    switch (activeTab) {
+      case 'brand_update':
+        return pending.filter(s => s.submission_type === 'Change' && s.brand_category === 'brand');
+      case 'brand_addition':
+        return pending.filter(s => s.submission_type === 'Addition' && s.brand_category === 'brand');
+      case 'supplier_addition':
+        return pending.filter(s => s.submission_type === 'Addition' && s.brand_category === 'supplier');
+      case 'distributor_addition':
+        return pending.filter(s => s.submission_type === 'Addition' && s.brand_category === 'distributor');
+      case 'lonely_brand':
+        return pending.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'brand_supplier');
+      case 'lonely_supplier':
+        return pending.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'supplier_distributor');
+      case 'approved':
+        return allSubmissions.filter(s => s.status === 'approved');
+      case 'rejected':
+        return allSubmissions.filter(s => s.status === 'rejected');
+      default:
+        return [];
+    }
+  };
+
+  const filteredSubmissions = getFilteredSubmissions();
+
+  // Calculate counts for all tabs
+  const pendingSubmissions = allSubmissions.filter(s => s.status === 'pending');
+  const tabCounts = {
+    brand_update: pendingSubmissions.filter(s => s.submission_type === 'Change' && s.brand_category === 'brand').length,
+    brand_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'brand').length,
+    supplier_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'supplier').length,
+    distributor_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.brand_category === 'distributor').length,
+    lonely_brand: pendingSubmissions.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'brand_supplier').length,
+    lonely_supplier: pendingSubmissions.filter(s => s.submission_type === 'Orphan_Correction' && s.brand_category === 'supplier_distributor').length,
+    approved: allSubmissions.filter(s => s.status === 'approved').length,
+    rejected: allSubmissions.filter(s => s.status === 'rejected').length
   };
 
   return (
     <div style={{ padding: 20 }}>
       <h1>Submissions Dashboard</h1>
       <p style={{ color: '#64748b', marginTop: 8, marginBottom: 24 }}>
-        Review and approve user-submitted additions, changes, and orphan corrections.
+        Review and approve user-submitted additions, updates, and orphan corrections.
       </p>
 
       {/* Tabs */}
-      <div style={{ 
-        display: 'flex', 
-        borderBottom: '1px solid #e2e8f0', 
-        marginBottom: 24,
-        gap: 0
-      }}>
-        {[
-          { key: 'pending', label: 'Pending', count: statCounts.pending },
-          { key: 'under_review', label: 'Under Review', count: statCounts.under_review },
-          { key: 'approved', label: 'Approved', count: statCounts.approved },
-          { key: 'rejected', label: 'Rejected', count: statCounts.rejected }
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: '12px 24px',
-              background: activeTab === tab.key ? 'white' : 'transparent',
-              border: 'none',
-              borderBottom: activeTab === tab.key ? '2px solid #3b82f6' : '2px solid transparent',
-              color: activeTab === tab.key ? '#3b82f6' : '#64748b',
-              fontWeight: activeTab === tab.key ? 600 : 400,
-              cursor: 'pointer',
-              fontSize: 14
-            }}
-          >
-            {tab.label} ({tab.count})
-          </button>
-        ))}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>
+          Standard Submissions
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid #e2e8f0', 
+          marginBottom: 12,
+          gap: 0,
+          flexWrap: 'wrap'
+        }}>
+          {[
+            { key: 'brand_update', label: '✏️ Brand Update', count: tabCounts.brand_update },
+            { key: 'brand_addition', label: '➕ Brand Addition', count: tabCounts.brand_addition },
+            { key: 'supplier_addition', label: '➕ Supplier Addition', count: tabCounts.supplier_addition },
+            { key: 'distributor_addition', label: '➕ Distributor Addition', count: tabCounts.distributor_addition }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '12px 20px',
+                background: activeTab === tab.key ? 'white' : 'transparent',
+                border: 'none',
+                borderBottom: activeTab === tab.key ? '2px solid #3b82f6' : '2px solid transparent',
+                color: activeTab === tab.key ? '#3b82f6' : '#64748b',
+                fontWeight: activeTab === tab.key ? 600 : 400,
+                cursor: 'pointer',
+                fontSize: 14
+              }}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, marginTop: 24, textTransform: 'uppercase' }}>
+          Orphan Corrections (Lonely Records)
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid #e2e8f0', 
+          marginBottom: 12,
+          gap: 0,
+          flexWrap: 'wrap'
+        }}>
+          {[
+            { key: 'lonely_brand', label: '🔗 Lonely Brand', count: tabCounts.lonely_brand },
+            { key: 'lonely_supplier', label: '🔗 Lonely Supplier', count: tabCounts.lonely_supplier }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '12px 20px',
+                background: activeTab === tab.key ? 'white' : 'transparent',
+                border: 'none',
+                borderBottom: activeTab === tab.key ? '2px solid #f59e0b' : '2px solid transparent',
+                color: activeTab === tab.key ? '#f59e0b' : '#64748b',
+                fontWeight: activeTab === tab.key ? 600 : 400,
+                cursor: 'pointer',
+                fontSize: 14
+              }}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, marginTop: 24, textTransform: 'uppercase' }}>
+          History
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid #e2e8f0', 
+          gap: 0,
+          flexWrap: 'wrap'
+        }}>
+          {[
+            { key: 'approved', label: '✓ Approved', count: tabCounts.approved },
+            { key: 'rejected', label: '✕ Rejected', count: tabCounts.rejected }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '12px 20px',
+                background: activeTab === tab.key ? 'white' : 'transparent',
+                border: 'none',
+                borderBottom: activeTab === tab.key ? '2px solid #64748b' : '2px solid transparent',
+                color: activeTab === tab.key ? '#64748b' : '#94a3b8',
+                fontWeight: activeTab === tab.key ? 600 : 400,
+                cursor: 'pointer',
+                fontSize: 14
+              }}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Submissions List */}
       {loading ? (
         <p>Loading submissions...</p>
-      ) : submissions.length === 0 ? (
+      ) : filteredSubmissions.length === 0 ? (
         <p style={{ color: '#64748b', fontSize: 14 }}>No submissions found in this category.</p>
       ) : (
         <div style={{ display: 'grid', gap: 16 }}>
-          {submissions.map(submission => (
+          {filteredSubmissions.map(submission => (
             <div
               key={submission.brand_submission_id}
               style={{
@@ -230,6 +427,9 @@ export default function SubmissionsDashboard() {
                   <div style={{ fontSize: 12, color: '#94a3b8' }}>
                     Submitted {new Date(submission.submitted_at).toLocaleString()}
                   </div>
+                </div>
+                <div>
+                  {getStatusBadge(submission.status)}
                 </div>
               </div>
 
@@ -274,7 +474,7 @@ export default function SubmissionsDashboard() {
               )}
 
               {/* Actions (only for pending) */}
-              {activeTab === 'pending' && (
+              {submission.status === 'pending' && (
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <button
                     onClick={() => handleApprove(submission.brand_submission_id)}
@@ -319,4 +519,3 @@ export default function SubmissionsDashboard() {
     </div>
   );
 }
-
