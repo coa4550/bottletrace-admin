@@ -24,6 +24,8 @@ export default function RootLayout({ children }) {
   <a href="/states" style={{ color: '#e2e8f0', textDecoration: 'none', paddingLeft: 12 }}>States</a>
   <a href="/categories" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Categories</a>
   <a href="/sub-categories" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Sub-Categories</a>
+  <a href="/users" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Users</a>
+  <a href="/reviews" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12 }}>Reviews</a>
 
   <h4 style={{ marginTop: 16, marginBottom: 4, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
     Admin
