@@ -105,6 +105,59 @@ export default function SubmissionsDashboard() {
   };
 
   const handleApprove = async (submissionId) => {
+    if (!confirm('Approve this submission? This will create the relationship in the database.')) {
+      return;
+    }
+
+    setProcessing(submissionId);
+    try {
+      const response = await fetch(`/api/submissions/${submissionId}/approve`, {
+        method: 'POST'
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to approve submission');
+      }
+
+      alert('Submission approved successfully!');
+      fetchAllSubmissions();
+    } catch (error) {
+      console.error('Error approving submission:', error);
+      alert('Failed to approve submission: ' + error.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleReject = async (submissionId) => {
+    const reason = prompt('Please provide a reason for rejection:');
+    if (!reason) return;
+
+    setProcessing(submissionId);
+    try {
+      const response = await fetch(`/api/submissions/${submissionId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejection_reason: reason })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to reject submission');
+      }
+
+      alert('Submission rejected successfully!');
+      fetchAllSubmissions();
+    } catch (error) {
+      console.error('Error rejecting submission:', error);
+      alert('Failed to reject submission: ' + error.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
 
   const getStatusBadge = (status) => {
     const colors = {
