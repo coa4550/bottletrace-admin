@@ -14,11 +14,16 @@ export default function SubmissionsDashboard() {
   const fetchAllSubmissions = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/submissions/list');
+      // Add cache-busting parameter to ensure fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/submissions/list?t=${timestamp}`, {
+        cache: 'no-store'
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch submissions');
       }
       const data = await response.json();
+      console.log('Fetched submissions:', data.length, 'total');
       setAllSubmissions(data);
     } catch (error) {
       console.error('Error fetching submissions:', error);
@@ -46,7 +51,9 @@ export default function SubmissionsDashboard() {
       }
 
       alert('Submission approved successfully!');
-      fetchAllSubmissions();
+      console.log('Approval successful, refreshing submissions...');
+      await fetchAllSubmissions();
+      console.log('Submissions refreshed');
     } catch (error) {
       console.error('Error approving submission:', error);
       alert('Failed to approve submission: ' + error.message);
