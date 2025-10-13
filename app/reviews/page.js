@@ -21,7 +21,9 @@ export default function ReviewsPage() {
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all'); // all, brand, supplier, distributor
+  const [statusFilter, setStatusFilter] = useState('all'); // all, pending, approved, denied
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [processing, setProcessing] = useState(null);
 
   useEffect(() => {
     fetchReviews();
@@ -47,6 +49,10 @@ export default function ReviewsPage() {
             created_at,
             updated_at,
             brand_id,
+            status,
+            reviewed_at,
+            reviewed_by,
+            review_notes,
             core_brands!inner(brand_name)
           `)
           .order('created_at', { ascending: false }),
@@ -66,6 +72,10 @@ export default function ReviewsPage() {
             created_at,
             updated_at,
             supplier_id,
+            status,
+            reviewed_at,
+            reviewed_by,
+            review_notes,
             core_suppliers!inner(supplier_name)
           `)
           .order('created_at', { ascending: false }),
@@ -85,6 +95,10 @@ export default function ReviewsPage() {
             created_at,
             updated_at,
             distributor_id,
+            status,
+            reviewed_at,
+            reviewed_by,
+            review_notes,
             core_distributors!inner(distributor_name)
           `)
           .order('created_at', { ascending: false })
@@ -117,6 +131,7 @@ export default function ReviewsPage() {
         ...(brandReviews.data || []).map(r => ({
           id: r.brand_review_id,
           type: 'Brand',
+          review_type: 'brand',
           entity_name: r.core_brands?.brand_name || 'Unknown',
           user_name: userMap[r.user_id] || 'Unknown User',
           rating: r.rating,
@@ -126,6 +141,10 @@ export default function ReviewsPage() {
           updated_at: r.updated_at,
           user_id: r.user_id,
           entity_id: r.brand_id,
+          status: r.status || 'approved',
+          reviewed_at: r.reviewed_at,
+          reviewed_by: r.reviewed_by,
+          review_notes: r.review_notes,
           category_ratings: {
             'Pull Through': r.pull_through_rate,
             'Gross Margin': r.gross_margin,
@@ -137,6 +156,7 @@ export default function ReviewsPage() {
         ...(supplierReviews.data || []).map(r => ({
           id: r.supplier_review_id,
           type: 'Supplier',
+          review_type: 'supplier',
           entity_name: r.core_suppliers?.supplier_name || 'Unknown',
           user_name: userMap[r.user_id] || 'Unknown User',
           rating: r.rating,
@@ -146,6 +166,10 @@ export default function ReviewsPage() {
           updated_at: r.updated_at,
           user_id: r.user_id,
           entity_id: r.supplier_id,
+          status: r.status || 'approved',
+          reviewed_at: r.reviewed_at,
+          reviewed_by: r.reviewed_by,
+          review_notes: r.review_notes,
           category_ratings: {
             'Reliability': r.reliability,
             'Communication': r.communication,
@@ -157,6 +181,7 @@ export default function ReviewsPage() {
         ...(distributorReviews.data || []).map(r => ({
           id: r.distributor_review_id,
           type: 'Distributor',
+          review_type: 'distributor',
           entity_name: r.core_distributors?.distributor_name || 'Unknown',
           user_name: userMap[r.user_id] || 'Unknown User',
           rating: r.rating,
@@ -166,6 +191,10 @@ export default function ReviewsPage() {
           updated_at: r.updated_at,
           user_id: r.user_id,
           entity_id: r.distributor_id,
+          status: r.status || 'approved',
+          reviewed_at: r.reviewed_at,
+          reviewed_by: r.reviewed_by,
+          review_notes: r.review_notes,
           category_ratings: {
             'Availability': r.availability,
             'Customer Service': r.customer_service,
@@ -206,6 +235,68 @@ export default function ReviewsPage() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
+  const handleApprove = async (review) => {
+    if (!confirm('Approve this review? It will be visible to all users.')) {
+      return;
+    }
+
+    setProcessing(review.id);
+    try {
+      const response = await fetch(`/api/reviews/${review.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review_type: review.review_type
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to approve review');
+      }
+
+      alert('Review approved successfully!');
+      fetchReviews();
+    } catch (error) {
+      console.error('Error approving review:', error);
+      alert('Failed to approve review: ' + error.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleDeny = async (review) => {
+    const reason = prompt('Please provide a reason for denying this review:');
+    if (!reason) return;
+
+    setProcessing(review.id);
+    try {
+      const response = await fetch(`/api/reviews/${review.id}/deny`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          review_type: review.review_type,
+          review_notes: reason
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to deny review');
+      }
+
+      alert('Review denied successfully!');
+      fetchReviews();
+    } catch (error) {
+      console.error('Error denying review:', error);
+      alert('Failed to deny review: ' + error.message);
+    } finally {
+      setProcessing(null);
+    }
+  };
+
   const handleDelete = async (review) => {
     if (deleteConfirm !== review.id) {
       setDeleteConfirm(review.id);
@@ -243,6 +334,7 @@ export default function ReviewsPage() {
   };
 
   const columns = [
+    { key: 'status', label: 'Status' },
     { key: 'type', label: 'Type' },
     { key: 'entity_name', label: 'Entity' },
     { key: 'user_name', label: 'Reviewer' },
@@ -257,6 +349,11 @@ export default function ReviewsPage() {
   const filteredReviews = reviews.filter(review => {
     // Filter by type
     if (filterType !== 'all' && review.type.toLowerCase() !== filterType.toLowerCase()) {
+      return false;
+    }
+    
+    // Filter by status
+    if (statusFilter !== 'all' && review.status !== statusFilter) {
       return false;
     }
     
@@ -297,6 +394,22 @@ export default function ReviewsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h1>Reviews ({filteredReviews.length} of {reviews.length})</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              fontSize: 14,
+              background: 'white'
+            }}
+          >
+            <option value="all">All Status</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="approved">✓ Approved</option>
+            <option value="denied">✕ Denied</option>
+          </select>
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
@@ -377,6 +490,30 @@ export default function ReviewsPage() {
               <tr key={review.id}>
                 {columns.map((col) => {
                   const value = review[col.key];
+
+                  // Status badge
+                  if (col.key === 'status') {
+                    const statusColors = {
+                      pending: { bg: '#fef3c7', text: '#92400e', label: '⏳ Pending' },
+                      approved: { bg: '#d1fae5', text: '#065f46', label: '✓ Approved' },
+                      denied: { bg: '#fee2e2', text: '#991b1b', label: '✕ Denied' }
+                    };
+                    const style = statusColors[value] || statusColors.pending;
+                    return (
+                      <td key={col.key} style={cellStyle}>
+                        <span style={{
+                          padding: '4px 10px',
+                          borderRadius: 12,
+                          background: style.bg,
+                          color: style.text,
+                          fontSize: 12,
+                          fontWeight: 600
+                        }}>
+                          {style.label}
+                        </span>
+                      </td>
+                    );
+                  }
 
                   // Type badge
                   if (col.key === 'type') {
@@ -462,21 +599,72 @@ export default function ReviewsPage() {
                   if (col.key === 'actions') {
                     return (
                       <td key={col.key} style={cellStyle}>
-                        <button
-                          onClick={() => handleDelete(review)}
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: 12,
-                            border: 'none',
-                            borderRadius: 4,
-                            background: deleteConfirm === review.id ? '#ef4444' : '#f87171',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontWeight: 500
-                          }}
-                        >
-                          {deleteConfirm === review.id ? 'Confirm?' : 'Delete'}
-                        </button>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {review.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(review)}
+                                disabled={processing === review.id}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: 12,
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  background: processing === review.id ? '#cbd5e1' : '#10b981',
+                                  color: 'white',
+                                  cursor: processing === review.id ? 'not-allowed' : 'pointer',
+                                  fontWeight: 500
+                                }}
+                              >
+                                {processing === review.id ? 'Processing...' : '✓ Approve'}
+                              </button>
+                              <button
+                                onClick={() => handleDeny(review)}
+                                disabled={processing === review.id}
+                                style={{
+                                  padding: '6px 12px',
+                                  fontSize: 12,
+                                  border: 'none',
+                                  borderRadius: 4,
+                                  background: processing === review.id ? '#cbd5e1' : '#ef4444',
+                                  color: 'white',
+                                  cursor: processing === review.id ? 'not-allowed' : 'pointer',
+                                  fontWeight: 500
+                                }}
+                              >
+                                {processing === review.id ? 'Processing...' : '✕ Deny'}
+                              </button>
+                            </>
+                          )}
+                          {review.status === 'denied' && review.review_notes && (
+                            <div 
+                              style={{ 
+                                fontSize: 11, 
+                                color: '#64748b', 
+                                fontStyle: 'italic',
+                                maxWidth: 200
+                              }}
+                              title={review.review_notes}
+                            >
+                              Reason: {review.review_notes}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleDelete(review)}
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              border: 'none',
+                              borderRadius: 4,
+                              background: deleteConfirm === review.id ? '#ef4444' : '#f87171',
+                              color: 'white',
+                              cursor: 'pointer',
+                              fontWeight: 500
+                            }}
+                          >
+                            {deleteConfirm === review.id ? 'Confirm?' : 'Delete'}
+                          </button>
+                        </div>
                       </td>
                     );
                   }
