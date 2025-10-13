@@ -1,11 +1,5 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState({
@@ -51,148 +45,17 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      await Promise.all([
-        fetchMetrics(),
-        fetchRecentSubmissions()
-      ]);
+      const response = await fetch('/api/dashboard/metrics');
+      if (!response.ok) {
+        throw new Error('Failed to fetch dashboard data');
+      }
+      const data = await response.json();
+      setMetrics(data.metrics);
+      setRecentSubmissions(data.recentSubmissions || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchMetrics = async () => {
-    try {
-      // Fetch brand counts
-      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      
-      const [
-        brandsTotal,
-        brandsOrphaned,
-        suppliersTotal,
-        suppliersOrphaned,
-        distributorsTotal,
-        brandSupplierRels,
-        distributorSupplierRels,
-        categoriesTotal,
-        subCategoriesTotal,
-        statesTotal,
-        submissionsPending,
-        submissionsUnderReview,
-        submissionsApprovedToday,
-        submissionsRejectedToday,
-        submissionsBrand,
-        submissionsSupplier,
-        submissionsDistributor,
-        submissionsBrandSupplier,
-        submissionsBrandDistributor,
-        submissionsSupplierDistributor,
-        usersTotal,
-        userProfilesTotal,
-        usersNewThisWeek,
-        brandReviewsTotal,
-        supplierReviewsTotal,
-        distributorReviewsTotal,
-        userSubmissionsTotal
-      ] = await Promise.all([
-        supabase.from('core_brands').select('*', { count: 'exact', head: true }),
-        supabase.from('core_brands').select('*', { count: 'exact', head: true }).eq('is_orphaned', true),
-        supabase.from('core_suppliers').select('*', { count: 'exact', head: true }),
-        supabase.from('core_suppliers').select('*', { count: 'exact', head: true }).eq('is_orphaned', true),
-        supabase.from('core_distributors').select('*', { count: 'exact', head: true }),
-        supabase.from('brand_supplier').select('*', { count: 'exact', head: true }),
-        supabase.from('distributor_supplier_state').select('*', { count: 'exact', head: true }),
-        supabase.from('categories').select('*', { count: 'exact', head: true }),
-        supabase.from('sub_categories').select('*', { count: 'exact', head: true }),
-        supabase.from('core_states').select('*', { count: 'exact', head: true }),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'under_review'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'approved').gte('reviewed_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'rejected').gte('reviewed_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'distributor'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_supplier'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'brand_distributor'),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true }).eq('status', 'pending').eq('brand_category', 'supplier_distributor'),
-        supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('user_profiles').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo),
-        supabase.from('brand_reviews').select('*', { count: 'exact', head: true }),
-        supabase.from('supplier_reviews').select('*', { count: 'exact', head: true }),
-        supabase.from('distributor_reviews').select('*', { count: 'exact', head: true }),
-        supabase.from('brand_submissions').select('*', { count: 'exact', head: true })
-      ]);
-
-      setMetrics({
-        brands: {
-          total: brandsTotal.count || 0,
-          orphaned: brandsOrphaned.count || 0,
-          with_suppliers: (brandsTotal.count || 0) - (brandsOrphaned.count || 0)
-        },
-        suppliers: {
-          total: suppliersTotal.count || 0,
-          orphaned: suppliersOrphaned.count || 0,
-          with_distributors: (suppliersTotal.count || 0) - (suppliersOrphaned.count || 0)
-        },
-        distributors: {
-          total: distributorsTotal.count || 0
-        },
-        relationships: {
-          brand_supplier: brandSupplierRels.count || 0,
-          distributor_supplier: distributorSupplierRels.count || 0
-        },
-        submissions: {
-          pending: submissionsPending.count || 0,
-          under_review: submissionsUnderReview.count || 0,
-          approved_today: submissionsApprovedToday.count || 0,
-          rejected_today: submissionsRejectedToday.count || 0,
-          by_category: {
-            brand: submissionsBrand.count || 0,
-            supplier: submissionsSupplier.count || 0,
-            distributor: submissionsDistributor.count || 0,
-            brand_supplier: submissionsBrandSupplier.count || 0,
-            brand_distributor: submissionsBrandDistributor.count || 0,
-            supplier_distributor: submissionsSupplierDistributor.count || 0
-          }
-        },
-        users: {
-          total: usersTotal.count || 0,
-          with_profiles: userProfilesTotal.count || 0,
-          new_this_week: usersNewThisWeek.count || 0,
-          total_reviews: (brandReviewsTotal.count || 0) + (supplierReviewsTotal.count || 0) + (distributorReviewsTotal.count || 0),
-          total_submissions: userSubmissionsTotal.count || 0
-        },
-        categories: {
-          total: categoriesTotal.count || 0
-        },
-        sub_categories: {
-          total: subCategoriesTotal.count || 0
-        },
-        states: {
-          total: statesTotal.count || 0
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching metrics:', error);
-      throw error;
-    }
-  };
-
-  const fetchRecentSubmissions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('brand_submissions')
-        .select('*')
-        .order('submitted_at', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      setRecentSubmissions(data || []);
-    } catch (error) {
-      console.error('Error fetching recent submissions:', error);
-      throw error;
     }
   };
 
