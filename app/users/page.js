@@ -98,22 +98,6 @@ export default function UsersPage() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleEdit = async (userId, field, newValue) => {
-    try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update({ [field]: newValue, updated_at: new Date().toISOString() })
-        .eq('user_id', userId);
-
-      if (error) throw error;
-      setUsers((prev) =>
-        prev.map((u) => (u.user_id === userId ? { ...u, [field]: newValue } : u))
-      );
-    } catch (err) {
-      console.error('Update error:', err.message);
-      alert('Failed to update user: ' + err.message);
-    }
-  };
 
   const handleDelete = async (userId) => {
     if (deleteConfirm !== userId) {
@@ -142,11 +126,11 @@ export default function UsersPage() {
   };
 
   const columns = [
-    { key: 'first_name', label: 'First Name', editable: true },
-    { key: 'last_name', label: 'Last Name', editable: true },
-    { key: 'job_title', label: 'Job Title', editable: true },
-    { key: 'employer', label: 'Employer', editable: true },
-    { key: 'location', label: 'Location', editable: true },
+    { key: 'first_name', label: 'First Name' },
+    { key: 'last_name', label: 'Last Name' },
+    { key: 'job_title', label: 'Job Title' },
+    { key: 'employer', label: 'Employer' },
+    { key: 'location', label: 'Location' },
     { key: 'submission_count', label: 'Submissions' },
     { key: 'review_count', label: 'Reviews' },
     { key: 'created_at', label: 'Joined' },
@@ -251,7 +235,6 @@ export default function UsersPage() {
               <tr key={user.user_id}>
                 {columns.map((col) => {
                   const value = user[col.key];
-                  const editable = col.editable;
 
                   // Actions column
                   if (col.key === 'actions') {
@@ -306,17 +289,6 @@ export default function UsersPage() {
                     );
                   }
 
-                  if (editable) {
-                    return (
-                      <td key={col.key} style={cellStyle}>
-                        <EditableCell
-                          value={value}
-                          onChange={(val) => handleEdit(user.user_id, col.key, val)}
-                        />
-                      </td>
-                    );
-                  }
-
                   return (
                     <td key={col.key} style={cellStyle}>
                       {value || '—'}
@@ -340,40 +312,4 @@ const cellStyle = {
   overflow: 'hidden',
   textOverflow: 'ellipsis',
 };
-
-function EditableCell({ value, onChange }) {
-  const [editing, setEditing] = useState(false);
-  const [temp, setTemp] = useState(value || '');
-
-  const handleBlur = () => {
-    setEditing(false);
-    if (temp !== value) onChange(temp);
-  };
-
-  if (editing)
-    return (
-      <input
-        value={temp}
-        onChange={(e) => setTemp(e.target.value)}
-        onBlur={handleBlur}
-        autoFocus
-        style={{
-          width: '100%',
-          padding: 4,
-          border: '1px solid #cbd5e1',
-          borderRadius: 4,
-        }}
-      />
-    );
-
-  return (
-    <div
-      onClick={() => setEditing(true)}
-      style={{ cursor: 'text', minWidth: 80 }}
-      title="Click to edit"
-    >
-      {value || '—'}
-    </div>
-  );
-}
 
