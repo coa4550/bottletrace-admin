@@ -274,7 +274,7 @@ export default function SubmissionsDashboard() {
       }
 
       alert('Submission rejected successfully!');
-      fetchAllSubmissions();
+      await fetchAllSubmissions();
     } catch (error) {
       console.error('Error rejecting submission:', error);
       alert('Failed to reject submission: ' + error.message);

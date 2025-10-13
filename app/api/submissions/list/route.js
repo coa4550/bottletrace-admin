@@ -20,7 +20,14 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(data || []);
+    // Return with cache-control headers to prevent caching
+    return NextResponse.json(data || [], {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
 
   } catch (error) {
     console.error('Unexpected error in GET /api/submissions/list:', error);
