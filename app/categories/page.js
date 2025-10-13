@@ -116,8 +116,8 @@ export default function CategoriesPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1>Categories ({filteredCategories.length} of {categories.length})</h1>
+      <h1 style={{ marginBottom: 16 }}>Categories ({categories.length})</h1>
+      <div style={{ marginBottom: 16 }}>
         <SearchInput 
           placeholder="Search categories..." 
           onSearch={setSearchTerm}

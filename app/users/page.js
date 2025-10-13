@@ -246,36 +246,33 @@ export default function UsersPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div>
-          <h1 style={{ margin: 0, marginBottom: 4 }}>Users</h1>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: 14 }}>
-            {adminUsers.length} Admin{adminUsers.length !== 1 ? 's' : ''} • {regularUsers.length} Regular User{regularUsers.length !== 1 ? 's' : ''} 
-            {searchTerm && ` (filtered from ${users.length} total)`}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <SearchInput 
-            placeholder="Search users..." 
-            onSearch={setSearchTerm}
-          />
-          <button
-            onClick={() => setShowCreateModal(true)}
-            style={{
-              padding: '10px 20px',
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: 14,
-              whiteSpace: 'nowrap'
-            }}
-          >
-            + Create Admin User
-          </button>
-        </div>
+      <h1 style={{ marginBottom: 4 }}>Users ({users.length})</h1>
+      <p style={{ margin: 0, color: '#6b7280', fontSize: 14, marginBottom: 16 }}>
+        {adminUsers.length} Admin{adminUsers.length !== 1 ? 's' : ''} • {regularUsers.length} Regular User{regularUsers.length !== 1 ? 's' : ''}
+      </p>
+      <div style={{ marginBottom: 16 }}>
+        <SearchInput 
+          placeholder="Search users..." 
+          onSearch={setSearchTerm}
+        />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          style={{
+            padding: '10px 20px',
+            background: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontWeight: 600,
+            fontSize: 14,
+            whiteSpace: 'nowrap'
+          }}
+        >
+          + Create Admin User
+        </button>
       </div>
 
       {/* Create User Modal */}

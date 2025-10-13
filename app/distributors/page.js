@@ -117,8 +117,8 @@ export default function DistributorsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1>Distributors ({filteredDistributors.length} of {distributors.length})</h1>
+      <h1 style={{ marginBottom: 16 }}>Distributors ({distributors.length})</h1>
+      <div style={{ marginBottom: 16 }}>
         <SearchInput 
           placeholder="Search distributors..." 
           onSearch={setSearchTerm}

@@ -391,8 +391,14 @@ export default function ReviewsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1>Reviews ({filteredReviews.length} of {reviews.length})</h1>
+      <h1 style={{ marginBottom: 16 }}>Reviews ({reviews.length})</h1>
+      <div style={{ marginBottom: 16 }}>
+        <SearchInput 
+          placeholder="Search reviews..." 
+          onSearch={setSearchTerm}
+        />
+      </div>
+      <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <select
             value={statusFilter}
@@ -426,10 +432,6 @@ export default function ReviewsPage() {
             <option value="supplier">Supplier Reviews</option>
             <option value="distributor">Distributor Reviews</option>
           </select>
-          <SearchInput 
-            placeholder="Search reviews..." 
-            onSearch={setSearchTerm}
-          />
         </div>
       </div>
       
