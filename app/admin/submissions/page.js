@@ -607,8 +607,17 @@ export default function SubmissionsDashboard() {
 
       {/* Tabs */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, textTransform: 'uppercase' }}>
-          Standard Submissions
+        {/* Standard Submissions Section */}
+        <div style={{ 
+          fontSize: 20, 
+          fontWeight: 700, 
+          color: '#1e293b', 
+          marginBottom: 16,
+          marginTop: 32,
+          paddingBottom: 8,
+          borderBottom: '3px solid #3b82f6'
+        }}>
+          📋 Standard Submissions
         </div>
         <div style={{ 
           display: 'flex', 
@@ -642,8 +651,17 @@ export default function SubmissionsDashboard() {
           ))}
         </div>
 
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, marginTop: 24, textTransform: 'uppercase' }}>
-          Orphan Corrections (Lonely Records)
+        {/* Orphan Corrections Section */}
+        <div style={{ 
+          fontSize: 20, 
+          fontWeight: 700, 
+          color: '#1e293b', 
+          marginBottom: 16,
+          marginTop: 48,
+          paddingBottom: 8,
+          borderBottom: '3px solid #f59e0b'
+        }}>
+          🔗 Orphan Corrections (Lonely Records)
         </div>
         <div style={{ 
           display: 'flex', 
@@ -675,8 +693,17 @@ export default function SubmissionsDashboard() {
           ))}
         </div>
 
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, marginTop: 24, textTransform: 'uppercase' }}>
-          User Reviews
+        {/* User Reviews Section */}
+        <div style={{ 
+          fontSize: 20, 
+          fontWeight: 700, 
+          color: '#1e293b', 
+          marginBottom: 16,
+          marginTop: 48,
+          paddingBottom: 8,
+          borderBottom: '3px solid #8b5cf6'
+        }}>
+          ⭐ User Reviews
         </div>
         <div style={{ 
           display: 'flex', 
@@ -709,8 +736,17 @@ export default function SubmissionsDashboard() {
           ))}
         </div>
 
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 12, marginTop: 24, textTransform: 'uppercase' }}>
-          History
+        {/* History Section */}
+        <div style={{ 
+          fontSize: 20, 
+          fontWeight: 700, 
+          color: '#1e293b', 
+          marginBottom: 16,
+          marginTop: 48,
+          paddingBottom: 8,
+          borderBottom: '3px solid #64748b'
+        }}>
+          📜 History
         </div>
         <div style={{ 
           display: 'flex', 
