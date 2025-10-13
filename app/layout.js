@@ -19,3 +19,4 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+// Force redeploy - Mon Oct 13 16:30:53 MDT 2025
