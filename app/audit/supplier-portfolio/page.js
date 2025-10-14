@@ -523,12 +523,13 @@ export default function AuditSupplierPortfolioPage() {
                           title="Select all brands"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '15%' }}>Brand Name</th>
-                      <th style={{ ...headerStyle, width: '10%' }}>Confidence</th>
-                      <th style={{ ...headerStyle, width: '12%' }}>Categories</th>
-                      <th style={{ ...headerStyle, width: '12%' }}>Sub-Categories</th>
-                      <th style={{ ...headerStyle, width: '18%' }}>Brand URL</th>
-                      <th style={{ ...headerStyle, width: '18%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '14%' }}>Brand Name</th>
+                      <th style={{ ...headerStyle, width: '9%' }}>Confidence</th>
+                      <th style={{ ...headerStyle, width: '11%' }}>Verified Date</th>
+                      <th style={{ ...headerStyle, width: '11%' }}>Categories</th>
+                      <th style={{ ...headerStyle, width: '11%' }}>Sub-Categories</th>
+                      <th style={{ ...headerStyle, width: '16%' }}>Brand URL</th>
+                      <th style={{ ...headerStyle, width: '16%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -562,6 +563,9 @@ export default function AuditSupplierPortfolioPage() {
                             source={brand.relationship_source}
                             verifiedAt={brand.admin_verified_at}
                           />
+                        </td>
+                        <td style={cellStyle}>
+                          <VerifiedDate date={brand.admin_verified_at} />
                         </td>
                         <td style={cellStyle}>{brand.categories || '—'}</td>
                         <td style={cellStyle}>{brand.sub_categories || '—'}</td>
@@ -798,6 +802,43 @@ function ConfidenceScoreBadge({ score, isVerified, source, verifiedAt }) {
       title={tooltipParts.join('\n')}
     >
       {percentage}%
+    </div>
+  );
+}
+
+// Component to display verified date
+function VerifiedDate({ date }) {
+  if (!date) {
+    return <span style={{ color: '#94a3b8', fontSize: 13 }}>Not verified</span>;
+  }
+  
+  const verifiedDate = new Date(date);
+  const now = new Date();
+  const daysAgo = Math.floor((now - verifiedDate) / (1000 * 60 * 60 * 24));
+  
+  let relativeTime = '';
+  if (daysAgo === 0) {
+    relativeTime = 'Today';
+  } else if (daysAgo === 1) {
+    relativeTime = 'Yesterday';
+  } else if (daysAgo < 7) {
+    relativeTime = `${daysAgo}d ago`;
+  } else if (daysAgo < 30) {
+    relativeTime = `${Math.floor(daysAgo / 7)}w ago`;
+  } else if (daysAgo < 365) {
+    relativeTime = `${Math.floor(daysAgo / 30)}mo ago`;
+  } else {
+    relativeTime = `${Math.floor(daysAgo / 365)}y ago`;
+  }
+  
+  return (
+    <div style={{ fontSize: 13 }}>
+      <div style={{ color: '#1e293b', fontWeight: 500 }}>
+        {verifiedDate.toLocaleDateString()}
+      </div>
+      <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+        {relativeTime}
+      </div>
     </div>
   );
 }
