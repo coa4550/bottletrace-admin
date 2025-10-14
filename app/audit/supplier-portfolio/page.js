@@ -192,33 +192,62 @@ export default function AuditSupplierPortfolioPage() {
     }
   };
 
-  const handleDeleteBrand = async (brandId, brandName) => {
-    if (!confirm(`Delete "${brandName}" from the database?\n\nThis will remove the brand and all its relationships permanently.`)) {
+  const handleRemoveRelationship = async (brandId, brandName) => {
+    if (!confirm(`Remove relationship between "${brandName}" and "${supplierInfo.supplier_name}"?\n\nThis will remove the brand from this supplier's portfolio. If this is the brand's only supplier, the brand will be marked as orphaned.`)) {
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from('core_brands')
+      // Remove the brand-supplier relationship
+      const { error: deleteError } = await supabase
+        .from('brand_supplier')
         .delete()
+        .eq('brand_id', brandId)
+        .eq('supplier_id', selectedSupplier);
+
+      if (deleteError) throw deleteError;
+
+      // Check if the brand has any other suppliers
+      const { data: remainingRelationships, error: checkError } = await supabase
+        .from('brand_supplier')
+        .select('supplier_id')
         .eq('brand_id', brandId);
 
-      if (error) throw error;
+      if (checkError) throw checkError;
 
+      // If no other suppliers exist, mark the brand as orphaned
+      if (!remainingRelationships || remainingRelationships.length === 0) {
+        const { error: orphanError } = await supabase
+          .from('core_brands')
+          .update({
+            is_orphaned: true,
+            orphaned_at: new Date().toISOString(),
+            orphaned_reason: 'supplier_removed'
+          })
+          .eq('brand_id', brandId);
+
+        if (orphanError) throw orphanError;
+      }
+
+      // Update UI
       setPortfolioBrands(prev => prev.filter(b => b.brand_id !== brandId));
       setSelectedBrands(prev => {
         const updated = new Set(prev);
         updated.delete(brandId);
         return updated;
       });
-      alert('Brand deleted successfully!');
+      
+      const orphanedMsg = (!remainingRelationships || remainingRelationships.length === 0) 
+        ? ' The brand has been marked as orphaned.' 
+        : '';
+      alert(`Relationship removed successfully!${orphanedMsg}`);
     } catch (err) {
-      console.error('Delete error:', err.message);
-      alert('Failed to delete brand: ' + err.message);
+      console.error('Remove relationship error:', err.message);
+      alert('Failed to remove relationship: ' + err.message);
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkRemoveRelationships = async () => {
     if (selectedBrands.size === 0) {
       alert('No brands selected');
       return;
@@ -229,31 +258,59 @@ export default function AuditSupplierPortfolioPage() {
       .map(b => b.brand_name)
       .join('\n• ');
 
-    if (!confirm(`Delete ${selectedBrands.size} brands from the database?\n\n• ${brandNames}\n\nThis will remove all selected brands and their relationships permanently.`)) {
+    if (!confirm(`Remove ${selectedBrands.size} brand relationships from "${supplierInfo.supplier_name}"?\n\n• ${brandNames}\n\nBrands will be marked as orphaned if this is their only supplier.`)) {
       return;
     }
 
     try {
-      const brandIdsToDelete = Array.from(selectedBrands);
+      const brandIdsToRemove = Array.from(selectedBrands);
+      let orphanedCount = 0;
       
-      // Delete in batches to avoid URL length limits
-      const batchSize = 10;
-      for (let i = 0; i < brandIdsToDelete.length; i += batchSize) {
-        const batch = brandIdsToDelete.slice(i, i + batchSize);
-        const { error } = await supabase
-          .from('core_brands')
+      // Process each brand
+      for (const brandId of brandIdsToRemove) {
+        // Remove the brand-supplier relationship
+        const { error: deleteError } = await supabase
+          .from('brand_supplier')
           .delete()
-          .in('brand_id', batch);
+          .eq('brand_id', brandId)
+          .eq('supplier_id', selectedSupplier);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
+
+        // Check if the brand has any other suppliers
+        const { data: remainingRelationships, error: checkError } = await supabase
+          .from('brand_supplier')
+          .select('supplier_id')
+          .eq('brand_id', brandId);
+
+        if (checkError) throw checkError;
+
+        // If no other suppliers exist, mark the brand as orphaned
+        if (!remainingRelationships || remainingRelationships.length === 0) {
+          const { error: orphanError } = await supabase
+            .from('core_brands')
+            .update({
+              is_orphaned: true,
+              orphaned_at: new Date().toISOString(),
+              orphaned_reason: 'supplier_removed'
+            })
+            .eq('brand_id', brandId);
+
+          if (orphanError) throw orphanError;
+          orphanedCount++;
+        }
       }
 
       setPortfolioBrands(prev => prev.filter(b => !selectedBrands.has(b.brand_id)));
       setSelectedBrands(new Set());
-      alert(`Successfully deleted ${brandIdsToDelete.length} brands!`);
+      
+      const orphanedMsg = orphanedCount > 0 
+        ? ` ${orphanedCount} brand${orphanedCount > 1 ? 's were' : ' was'} marked as orphaned.` 
+        : '';
+      alert(`Successfully removed ${brandIdsToRemove.length} relationship${brandIdsToRemove.length > 1 ? 's' : ''}!${orphanedMsg}`);
     } catch (err) {
-      console.error('Bulk delete error:', err.message);
-      alert('Failed to delete brands: ' + err.message);
+      console.error('Bulk remove error:', err.message);
+      alert('Failed to remove relationships: ' + err.message);
     }
   };
 
@@ -414,10 +471,10 @@ export default function AuditSupplierPortfolioPage() {
               </h2>
               {selectedBrands.size > 0 && (
                 <button
-                  onClick={handleBulkDelete}
+                  onClick={handleBulkRemoveRelationships}
                   style={{
                     padding: '8px 16px',
-                    background: '#ef4444',
+                    background: '#f59e0b',
                     color: 'white',
                     border: 'none',
                     borderRadius: 6,
@@ -426,7 +483,7 @@ export default function AuditSupplierPortfolioPage() {
                     fontSize: 14
                   }}
                 >
-                  Delete {selectedBrands.size} Selected Brand{selectedBrands.size > 1 ? 's' : ''}
+                  Remove {selectedBrands.size} Relationship{selectedBrands.size > 1 ? 's' : ''}
                 </button>
               )}
             </div>
@@ -500,18 +557,18 @@ export default function AuditSupplierPortfolioPage() {
                         </td>
                         <td style={cellStyle}>
                           <button
-                            onClick={() => handleDeleteBrand(brand.brand_id, brand.brand_name)}
+                            onClick={() => handleRemoveRelationship(brand.brand_id, brand.brand_name)}
                             style={{
                               padding: '4px 12px',
                               fontSize: 13,
-                              background: '#ef4444',
+                              background: '#f59e0b',
                               color: 'white',
                               border: 'none',
                               borderRadius: 4,
                               cursor: 'pointer'
                             }}
                           >
-                            Delete
+                            Remove
                           </button>
                         </td>
                       </tr>
