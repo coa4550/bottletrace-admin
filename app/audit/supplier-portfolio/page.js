@@ -90,13 +90,10 @@ export default function AuditSupplierPortfolioPage() {
         console.log(`Total relationships fetched: ${relationships?.length || 0}`);
         console.log('Sample relationships:', relationships?.slice(0, 3));
 
-        // Create relationship map with confidence scores
+        // Create relationship map
         const relationshipMap = {};
         relationships?.forEach(rel => {
-          relationshipMap[rel.brand_id] = {
-            ...rel,
-            confidence_score: calculateConfidenceScore(rel)
-          };
+          relationshipMap[rel.brand_id] = rel;
         });
 
         // Get brand IDs
@@ -156,9 +153,6 @@ export default function AuditSupplierPortfolioPage() {
           ...brand,
           categories: catsMap[brand.brand_id]?.join(', ') || '',
           sub_categories: subcatsMap[brand.brand_id]?.join(', ') || '',
-          confidence_score: relationshipMap[brand.brand_id]?.confidence_score || 0,
-          relationship_source: relationshipMap[brand.brand_id]?.relationship_source || '',
-          is_verified: relationshipMap[brand.brand_id]?.is_verified || false,
           last_verified_at: relationshipMap[brand.brand_id]?.last_verified_at || null
         }));
 
@@ -523,13 +517,12 @@ export default function AuditSupplierPortfolioPage() {
                           title="Select all brands"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '14%' }}>Brand Name</th>
-                      <th style={{ ...headerStyle, width: '9%' }}>Confidence</th>
-                      <th style={{ ...headerStyle, width: '11%' }}>Verified Date</th>
-                      <th style={{ ...headerStyle, width: '11%' }}>Categories</th>
-                      <th style={{ ...headerStyle, width: '11%' }}>Sub-Categories</th>
-                      <th style={{ ...headerStyle, width: '16%' }}>Brand URL</th>
-                      <th style={{ ...headerStyle, width: '16%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '16%' }}>Brand Name</th>
+                      <th style={{ ...headerStyle, width: '12%' }}>Verified Date</th>
+                      <th style={{ ...headerStyle, width: '13%' }}>Categories</th>
+                      <th style={{ ...headerStyle, width: '13%' }}>Sub-Categories</th>
+                      <th style={{ ...headerStyle, width: '18%' }}>Brand URL</th>
+                      <th style={{ ...headerStyle, width: '18%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -554,14 +547,6 @@ export default function AuditSupplierPortfolioPage() {
                           <EditableCell
                             value={brand.brand_name}
                             onChange={(val) => handleBrandEdit(brand.brand_id, 'brand_name', val)}
-                          />
-                        </td>
-                        <td style={cellStyle}>
-                          <ConfidenceScoreBadge 
-                            score={brand.confidence_score} 
-                            isVerified={brand.is_verified}
-                            source={brand.relationship_source}
-                            verifiedAt={brand.last_verified_at}
                           />
                         </td>
                         <td style={cellStyle}>
@@ -727,70 +712,6 @@ function EditableCell({ value, onChange }) {
       title={value || "Click to edit"}
     >
       {value || '—'}
-    </div>
-  );
-}
-
-// Calculate confidence score based on relationship metadata
-// This matches the logic used by the mobile app
-function calculateConfidenceScore(relationship) {
-  // If verified, it's 100% confidence
-  if (relationship.is_verified) {
-    return 1.0; // 100%
-  }
-  
-  // Not verified - base confidence on source
-  if (relationship.relationship_source === 'csv_import' || relationship.relationship_source === 'import') {
-    return 0.70; // 70% for imported data
-  } else if (relationship.relationship_source === 'user_submission') {
-    return 0.50; // 50% for user submitted (not yet verified)
-  }
-  
-  return 0.50; // 50% default
-}
-
-// Component to display confidence score as a badge
-function ConfidenceScoreBadge({ score, isVerified, source, verifiedAt }) {
-  const percentage = Math.round(score * 100);
-  
-  // Determine color based on score
-  let bgColor, textColor;
-  if (percentage >= 90) {
-    bgColor = '#dcfce7'; // green-100
-    textColor = '#166534'; // green-800
-  } else if (percentage >= 75) {
-    bgColor = '#dbeafe'; // blue-100
-    textColor = '#1e40af'; // blue-800
-  } else if (percentage >= 60) {
-    bgColor = '#fef3c7'; // amber-100
-    textColor = '#92400e'; // amber-800
-  } else {
-    bgColor = '#fee2e2'; // red-100
-    textColor = '#991b1b'; // red-800
-  }
-  
-  const tooltipParts = [
-    `Confidence: ${percentage}%`,
-    isVerified ? '✓ Verified' : '✗ Not verified',
-    source ? `Source: ${source}` : null,
-    verifiedAt ? `Verified: ${new Date(verifiedAt).toLocaleDateString()}` : null
-  ].filter(Boolean);
-  
-  return (
-    <div
-      style={{
-        display: 'inline-block',
-        padding: '4px 8px',
-        borderRadius: 4,
-        background: bgColor,
-        color: textColor,
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: 'help'
-      }}
-      title={tooltipParts.join('\n')}
-    >
-      {percentage}%
     </div>
   );
 }

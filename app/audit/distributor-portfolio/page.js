@@ -66,14 +66,11 @@ export default function AuditDistributorPortfolioPage() {
           throw new Error('Failed to fetch distributor-supplier relationships');
         }
 
-        // Create relationship map with confidence scores
+        // Create relationship map
         const relationshipMap = {};
         distSupplierRels?.forEach(rel => {
           if (!relationshipMap[rel.supplier_id]) {
-            relationshipMap[rel.supplier_id] = {
-              ...rel,
-              confidence_score: calculateConfidenceScore(rel)
-            };
+            relationshipMap[rel.supplier_id] = rel;
           }
         });
 
@@ -96,12 +93,11 @@ export default function AuditDistributorPortfolioPage() {
           throw new Error('Failed to fetch supplier details');
         }
 
-        // Enrich suppliers with confidence scores and relationship metadata
+        // Enrich suppliers with relationship metadata
         const enrichedSuppliers = suppliers?.map(supplier => {
           const rel = relationshipMap[supplier.supplier_id];
           return {
             ...supplier,
-            confidence_score: rel?.confidence_score || 0,
             admin_verified_at: rel?.admin_verified_at || null,
             created_at: rel?.created_at || null,
             state_id: rel?.state_id || null
@@ -409,11 +405,10 @@ export default function AuditDistributorPortfolioPage() {
                           title="Select all suppliers"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '18%' }}>Supplier Name</th>
-                      <th style={{ ...headerStyle, width: '10%' }}>Confidence</th>
-                      <th style={{ ...headerStyle, width: '12%' }}>Verified Date</th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Supplier URL</th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '20%' }}>Supplier Name</th>
+                      <th style={{ ...headerStyle, width: '14%' }}>Verified Date</th>
+                      <th style={{ ...headerStyle, width: '23%' }}>Supplier URL</th>
+                      <th style={{ ...headerStyle, width: '23%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -438,12 +433,6 @@ export default function AuditDistributorPortfolioPage() {
                           <EditableCell
                             value={supplier.supplier_name}
                             onChange={(val) => handleSupplierEdit(supplier.supplier_id, 'supplier_name', val)}
-                          />
-                        </td>
-                        <td style={cellStyle}>
-                          <ConfidenceScoreBadge 
-                            score={supplier.confidence_score} 
-                            verifiedAt={supplier.admin_verified_at}
                           />
                         </td>
                         <td style={cellStyle}>
@@ -610,62 +599,6 @@ function EditableCell({ value, onChange }) {
       title={value || "Click to edit"}
     >
       {value || '—'}
-    </div>
-  );
-}
-
-// Calculate confidence score based on relationship metadata
-// For distributor relationships: admin_verified_at indicates verification
-function calculateConfidenceScore(relationship) {
-  // If admin verified, it's 100% confidence
-  if (relationship.admin_verified_at) {
-    return 1.0; // 100%
-  }
-  
-  // Not admin verified - relationship exists in database but not verified
-  return 0.70; // 70% default for existing but unverified relationships
-}
-
-// Component to display confidence score as a badge
-function ConfidenceScoreBadge({ score, verifiedAt }) {
-  const percentage = Math.round(score * 100);
-  
-  // Determine color based on score
-  let bgColor, textColor;
-  if (percentage >= 90) {
-    bgColor = '#dcfce7'; // green-100
-    textColor = '#166534'; // green-800
-  } else if (percentage >= 75) {
-    bgColor = '#dbeafe'; // blue-100
-    textColor = '#1e40af'; // blue-800
-  } else if (percentage >= 60) {
-    bgColor = '#fef3c7'; // amber-100
-    textColor = '#92400e'; // amber-800
-  } else {
-    bgColor = '#fee2e2'; // red-100
-    textColor = '#991b1b'; // red-800
-  }
-  
-  const tooltipParts = [
-    `Confidence: ${percentage}%`,
-    verifiedAt ? `Verified: ${new Date(verifiedAt).toLocaleDateString()}` : 'Not admin verified'
-  ].filter(Boolean);
-  
-  return (
-    <div
-      style={{
-        display: 'inline-block',
-        padding: '4px 8px',
-        borderRadius: 4,
-        background: bgColor,
-        color: textColor,
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: 'help'
-      }}
-      title={tooltipParts.join('\n')}
-    >
-      {percentage}%
     </div>
   );
 }
