@@ -10,10 +10,17 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: 'ui-sans-serif, system-ui', margin: 0 }}>
-        <div style={{ display: 'flex', minHeight: '100vh' }}>
+      <body style={{ fontFamily: 'ui-sans-serif, system-ui', margin: 0, overflow: 'hidden', height: '100vh' }}>
+        <div style={{ display: 'flex', height: '100vh' }}>
           <Navigation />
-          <main style={{ flex: 1, padding: 24, background: '#f8fafc' }}>{children}</main>
+          <main style={{ 
+            flex: 1, 
+            padding: 24, 
+            background: '#f8fafc',
+            overflowX: 'auto',
+            overflowY: 'auto',
+            height: '100vh'
+          }}>{children}</main>
         </div>
       </body>
     </html>

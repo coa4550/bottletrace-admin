@@ -161,7 +161,9 @@ export async function POST(req, { params }) {
           .insert({
             distributor_id: distributor.distributor_id,
             supplier_id: supplier.supplier_id,
-            state_id: defaultState.state_id
+            state_id: defaultState.state_id,
+            is_verified: true,
+            last_verified_at: new Date().toISOString()
           });
 
         if (insertError) {

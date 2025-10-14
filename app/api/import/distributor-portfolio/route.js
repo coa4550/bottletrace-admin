@@ -298,7 +298,9 @@ export async function POST(req) {
           relationshipsToCreate.push({
             distributor_id: distributor.distributor_id,
             supplier_id: supplier.supplier_id,
-            state_id: stateId
+            state_id: stateId,
+            is_verified: true,
+            last_verified_at: now
           });
         }
       }
@@ -316,7 +318,22 @@ export async function POST(req) {
       relationshipsCreated += relationshipsToCreate.length;
     }
 
-    // Step 7: Count existing relationships as verified
+    // Step 7: Update existing relationships with verification
+    if (relationshipsToUpdate.length > 0) {
+      for (const rel of relationshipsToUpdate) {
+        const { error: updateError } = await supabaseAdmin
+          .from('distributor_supplier_state')
+          .update({
+            is_verified: true,
+            last_verified_at: now
+          })
+          .eq('distributor_id', rel.distributor_id)
+          .eq('supplier_id', rel.supplier_id)
+          .eq('state_id', rel.state_id);
+
+        if (updateError) throw updateError;
+      }
+    }
     relationshipsVerified = relationshipsToUpdate.length;
 
     // Save changes

@@ -98,7 +98,8 @@ export default function AuditDistributorPortfolioPage() {
           const rel = relationshipMap[supplier.supplier_id];
           return {
             ...supplier,
-            admin_verified_at: rel?.admin_verified_at || null,
+            last_verified_at: rel?.last_verified_at || null,
+            is_verified: rel?.is_verified || false,
             created_at: rel?.created_at || null,
             state_id: rel?.state_id || null
           };
@@ -437,7 +438,7 @@ export default function AuditDistributorPortfolioPage() {
                         </td>
                         <td style={cellStyle}>
                           <VerifiedDate 
-                            date={supplier.admin_verified_at} 
+                            date={supplier.last_verified_at} 
                             createdDate={supplier.created_at}
                           />
                         </td>
