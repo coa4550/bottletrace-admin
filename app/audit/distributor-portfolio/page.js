@@ -3,8 +3,8 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  'https://pgycxpmqnrjsusgoinxz.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBneWN4cG1xbnJqc3VzZ29pbnh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyNTMxNjIsImV4cCI6MjA3MjgyOTE2Mn0.GB-HMHWn7xy5uoXpHhTv8TBO6CNl3a877K5DBIH7ekE'
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
 export default function AuditDistributorPortfolioPage() {
@@ -59,12 +59,23 @@ export default function AuditDistributorPortfolioPage() {
 
         const { data: distSupplierRels, error: distSupplierError } = await supabase
           .from('distributor_supplier_state')
-          .select('supplier_id')
+          .select('*')
           .eq('distributor_id', selectedDistributor);
 
         if (distSupplierError) {
           throw new Error('Failed to fetch distributor-supplier relationships');
         }
+
+        // Create relationship map with confidence scores
+        const relationshipMap = {};
+        distSupplierRels?.forEach(rel => {
+          if (!relationshipMap[rel.supplier_id]) {
+            relationshipMap[rel.supplier_id] = {
+              ...rel,
+              confidence_score: calculateConfidenceScore(rel)
+            };
+          }
+        });
 
         const supplierIds = [...new Set(distSupplierRels?.map(r => r.supplier_id) || [])];
         console.log('Total unique suppliers for distributor:', supplierIds.length);
@@ -85,8 +96,16 @@ export default function AuditDistributorPortfolioPage() {
           throw new Error('Failed to fetch supplier details');
         }
 
-        console.log('Total suppliers found:', suppliers?.length || 0);
-        setPortfolioSuppliers(suppliers || []);
+        // Enrich suppliers with confidence scores and relationship metadata
+        const enrichedSuppliers = suppliers?.map(supplier => ({
+          ...supplier,
+          confidence_score: relationshipMap[supplier.supplier_id]?.confidence_score || 0,
+          admin_verified_at: relationshipMap[supplier.supplier_id]?.admin_verified_at || null,
+          state_id: relationshipMap[supplier.supplier_id]?.state_id || null
+        })) || [];
+
+        console.log('Total suppliers found:', enrichedSuppliers.length);
+        setPortfolioSuppliers(enrichedSuppliers);
       } catch (error) {
         console.error('Error fetching distributor data:', error);
       } finally {
@@ -386,9 +405,10 @@ export default function AuditDistributorPortfolioPage() {
                           title="Select all suppliers"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '25%' }}>Supplier Name</th>
-                      <th style={{ ...headerStyle, width: '25%' }}>Supplier URL</th>
-                      <th style={{ ...headerStyle, width: '25%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '20%' }}>Supplier Name</th>
+                      <th style={{ ...headerStyle, width: '12%' }}>Confidence</th>
+                      <th style={{ ...headerStyle, width: '22%' }}>Supplier URL</th>
+                      <th style={{ ...headerStyle, width: '22%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -413,6 +433,12 @@ export default function AuditDistributorPortfolioPage() {
                           <EditableCell
                             value={supplier.supplier_name}
                             onChange={(val) => handleSupplierEdit(supplier.supplier_id, 'supplier_name', val)}
+                          />
+                        </td>
+                        <td style={cellStyle}>
+                          <ConfidenceScoreBadge 
+                            score={supplier.confidence_score} 
+                            verifiedAt={supplier.admin_verified_at}
                           />
                         </td>
                         <td style={cellStyle}>
@@ -573,6 +599,75 @@ function EditableCell({ value, onChange }) {
       title={value || "Click to edit"}
     >
       {value || '—'}
+    </div>
+  );
+}
+
+// Calculate confidence score based on relationship metadata
+function calculateConfidenceScore(relationship) {
+  let score = 0.50; // Base score
+  
+  // Admin verified relationships get highest confidence
+  if (relationship.admin_verified_at) {
+    score = 0.95;
+    
+    // Apply time decay - reduce confidence over time
+    const verifiedDate = new Date(relationship.admin_verified_at);
+    const now = new Date();
+    const monthsOld = (now - verifiedDate) / (1000 * 60 * 60 * 24 * 30);
+    
+    if (monthsOld > 12) {
+      score -= 0.10; // 1+ year old: reduce by 10%
+    } else if (monthsOld > 6) {
+      score -= 0.05; // 6+ months old: reduce by 5%
+    }
+  } else {
+    score = 0.70; // Not admin verified but relationship exists
+  }
+  
+  return Math.max(0, Math.min(1, score)); // Clamp between 0 and 1
+}
+
+// Component to display confidence score as a badge
+function ConfidenceScoreBadge({ score, verifiedAt }) {
+  const percentage = Math.round(score * 100);
+  
+  // Determine color based on score
+  let bgColor, textColor;
+  if (percentage >= 90) {
+    bgColor = '#dcfce7'; // green-100
+    textColor = '#166534'; // green-800
+  } else if (percentage >= 75) {
+    bgColor = '#dbeafe'; // blue-100
+    textColor = '#1e40af'; // blue-800
+  } else if (percentage >= 60) {
+    bgColor = '#fef3c7'; // amber-100
+    textColor = '#92400e'; // amber-800
+  } else {
+    bgColor = '#fee2e2'; // red-100
+    textColor = '#991b1b'; // red-800
+  }
+  
+  const tooltipParts = [
+    `Confidence: ${percentage}%`,
+    verifiedAt ? `Verified: ${new Date(verifiedAt).toLocaleDateString()}` : 'Not admin verified'
+  ].filter(Boolean);
+  
+  return (
+    <div
+      style={{
+        display: 'inline-block',
+        padding: '4px 8px',
+        borderRadius: 4,
+        background: bgColor,
+        color: textColor,
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'help'
+      }}
+      title={tooltipParts.join('\n')}
+    >
+      {percentage}%
     </div>
   );
 }
