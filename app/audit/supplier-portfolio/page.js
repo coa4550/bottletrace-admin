@@ -159,7 +159,7 @@ export default function AuditSupplierPortfolioPage() {
           confidence_score: relationshipMap[brand.brand_id]?.confidence_score || 0,
           relationship_source: relationshipMap[brand.brand_id]?.relationship_source || '',
           is_verified: relationshipMap[brand.brand_id]?.is_verified || false,
-          admin_verified_at: relationshipMap[brand.brand_id]?.admin_verified_at || null
+          last_verified_at: relationshipMap[brand.brand_id]?.last_verified_at || null
         }));
 
         setPortfolioBrands(enrichedBrands);
@@ -561,11 +561,11 @@ export default function AuditSupplierPortfolioPage() {
                             score={brand.confidence_score} 
                             isVerified={brand.is_verified}
                             source={brand.relationship_source}
-                            verifiedAt={brand.admin_verified_at}
+                            verifiedAt={brand.last_verified_at}
                           />
                         </td>
                         <td style={cellStyle}>
-                          <VerifiedDate date={brand.admin_verified_at} />
+                          <VerifiedDate date={brand.last_verified_at} />
                         </td>
                         <td style={cellStyle}>{brand.categories || '—'}</td>
                         <td style={cellStyle}>{brand.sub_categories || '—'}</td>
@@ -732,32 +732,21 @@ function EditableCell({ value, onChange }) {
 }
 
 // Calculate confidence score based on relationship metadata
+// This matches the logic used by the mobile app
 function calculateConfidenceScore(relationship) {
-  let score = 0.50; // Base score
-  
-  // Admin verified relationships get highest confidence
-  if (relationship.admin_verified_at) {
-    score = 0.95;
-    
-    // Apply time decay - reduce confidence over time
-    const verifiedDate = new Date(relationship.admin_verified_at);
-    const now = new Date();
-    const monthsOld = (now - verifiedDate) / (1000 * 60 * 60 * 24 * 30);
-    
-    if (monthsOld > 12) {
-      score -= 0.10; // 1+ year old: reduce by 10%
-    } else if (monthsOld > 6) {
-      score -= 0.05; // 6+ months old: reduce by 5%
-    }
-  } else if (relationship.is_verified) {
-    score = 0.85; // Verified but no admin timestamp
-  } else if (relationship.relationship_source === 'csv_import' || relationship.relationship_source === 'import') {
-    score = 0.70; // Imported data
-  } else if (relationship.relationship_source === 'user_submission') {
-    score = 0.60; // User submitted (not yet verified)
+  // If verified, it's 100% confidence
+  if (relationship.is_verified) {
+    return 1.0; // 100%
   }
   
-  return Math.max(0, Math.min(1, score)); // Clamp between 0 and 1
+  // Not verified - base confidence on source
+  if (relationship.relationship_source === 'csv_import' || relationship.relationship_source === 'import') {
+    return 0.70; // 70% for imported data
+  } else if (relationship.relationship_source === 'user_submission') {
+    return 0.50; // 50% for user submitted (not yet verified)
+  }
+  
+  return 0.50; // 50% default
 }
 
 // Component to display confidence score as a badge

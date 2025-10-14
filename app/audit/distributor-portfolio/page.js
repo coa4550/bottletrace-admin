@@ -97,12 +97,16 @@ export default function AuditDistributorPortfolioPage() {
         }
 
         // Enrich suppliers with confidence scores and relationship metadata
-        const enrichedSuppliers = suppliers?.map(supplier => ({
-          ...supplier,
-          confidence_score: relationshipMap[supplier.supplier_id]?.confidence_score || 0,
-          admin_verified_at: relationshipMap[supplier.supplier_id]?.admin_verified_at || null,
-          state_id: relationshipMap[supplier.supplier_id]?.state_id || null
-        })) || [];
+        const enrichedSuppliers = suppliers?.map(supplier => {
+          const rel = relationshipMap[supplier.supplier_id];
+          return {
+            ...supplier,
+            confidence_score: rel?.confidence_score || 0,
+            admin_verified_at: rel?.admin_verified_at || null,
+            created_at: rel?.created_at || null,
+            state_id: rel?.state_id || null
+          };
+        }) || [];
 
         console.log('Total suppliers found:', enrichedSuppliers.length);
         setPortfolioSuppliers(enrichedSuppliers);
@@ -443,7 +447,10 @@ export default function AuditDistributorPortfolioPage() {
                           />
                         </td>
                         <td style={cellStyle}>
-                          <VerifiedDate date={supplier.admin_verified_at} />
+                          <VerifiedDate 
+                            date={supplier.admin_verified_at} 
+                            createdDate={supplier.created_at}
+                          />
                         </td>
                         <td style={cellStyle}>
                           <EditableCell
@@ -608,28 +615,15 @@ function EditableCell({ value, onChange }) {
 }
 
 // Calculate confidence score based on relationship metadata
+// For distributor relationships: admin_verified_at indicates verification
 function calculateConfidenceScore(relationship) {
-  let score = 0.50; // Base score
-  
-  // Admin verified relationships get highest confidence
+  // If admin verified, it's 100% confidence
   if (relationship.admin_verified_at) {
-    score = 0.95;
-    
-    // Apply time decay - reduce confidence over time
-    const verifiedDate = new Date(relationship.admin_verified_at);
-    const now = new Date();
-    const monthsOld = (now - verifiedDate) / (1000 * 60 * 60 * 24 * 30);
-    
-    if (monthsOld > 12) {
-      score -= 0.10; // 1+ year old: reduce by 10%
-    } else if (monthsOld > 6) {
-      score -= 0.05; // 6+ months old: reduce by 5%
-    }
-  } else {
-    score = 0.70; // Not admin verified but relationship exists
+    return 1.0; // 100%
   }
   
-  return Math.max(0, Math.min(1, score)); // Clamp between 0 and 1
+  // Not admin verified - relationship exists in database but not verified
+  return 0.70; // 70% default for existing but unverified relationships
 }
 
 // Component to display confidence score as a badge
@@ -676,15 +670,18 @@ function ConfidenceScoreBadge({ score, verifiedAt }) {
   );
 }
 
-// Component to display verified date
-function VerifiedDate({ date }) {
-  if (!date) {
-    return <span style={{ color: '#94a3b8', fontSize: 13 }}>Not verified</span>;
+// Component to display verified date (or created date if not verified)
+function VerifiedDate({ date, createdDate }) {
+  // Use verified date if available, otherwise fall back to created date
+  const displayDate = date || createdDate;
+  
+  if (!displayDate) {
+    return <span style={{ color: '#94a3b8', fontSize: 13 }}>No date</span>;
   }
   
-  const verifiedDate = new Date(date);
+  const dateObj = new Date(displayDate);
   const now = new Date();
-  const daysAgo = Math.floor((now - verifiedDate) / (1000 * 60 * 60 * 24));
+  const daysAgo = Math.floor((now - dateObj) / (1000 * 60 * 60 * 24));
   
   let relativeTime = '';
   if (daysAgo === 0) {
@@ -701,13 +698,15 @@ function VerifiedDate({ date }) {
     relativeTime = `${Math.floor(daysAgo / 365)}y ago`;
   }
   
+  const label = date ? 'Verified' : 'Added';
+  
   return (
     <div style={{ fontSize: 13 }}>
       <div style={{ color: '#1e293b', fontWeight: 500 }}>
-        {verifiedDate.toLocaleDateString()}
+        {dateObj.toLocaleDateString()}
       </div>
       <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
-        {relativeTime}
+        {label}: {relativeTime}
       </div>
     </div>
   );
