@@ -29,7 +29,7 @@ export default function Navigation() {
   };
 
   return (
-    <aside style={{ width: 270, minWidth: 270, flexShrink: 0, background: '#0f172a', color: 'white', padding: 16, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
+    <aside style={{ width: 270, minWidth: 270, flexShrink: 0, background: '#0f172a', color: 'white', padding: 16, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto', boxSizing: 'border-box' }}>
       <h2 style={{ marginTop: 8 }}>BottleTrace Admin</h2>
       
       <nav style={{ marginTop: 16, flex: 1 }}>
