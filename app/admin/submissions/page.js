@@ -345,7 +345,7 @@ export default function SubmissionsDashboard() {
     }
   };
 
-  const getSubmissionTypeLabel = (type, category) => {
+  const getSubmissionTypeLabel = (type, category, payload) => {
     switch (type) {
       case 'Addition': return '➕ Addition';
       case 'Change': return '✏️ Update';
@@ -353,6 +353,12 @@ export default function SubmissionsDashboard() {
       // Handle null submission_type for orphan corrections (lonely brands/suppliers from mobile app)
       case null:
       case undefined:
+        // Check if it's an allocation submission based on payload
+        if (payload?.submission_type === 'brand_allocation' || 
+            payload?.user_notes?.includes('ALLOCATION_STATUS') ||
+            payload?.additional_notes?.includes('ALLOCATION_STATUS')) {
+          return '🎯 Allocation';
+        }
         // If it's a relationship category, it's likely an orphan correction
         if (category === 'brand_supplier' || category === 'supplier_distributor') {
           return '🔗 Link';
@@ -535,6 +541,55 @@ export default function SubmissionsDashboard() {
 
     // Regular additions/updates
     if (submission_category === 'brand') {
+      // Check if this is an allocation submission
+      const isAllocationSubmission = payload?.submission_type === 'brand_allocation' || 
+                                   payload?.user_notes?.includes('ALLOCATION_STATUS') ||
+                                   payload?.additional_notes?.includes('ALLOCATION_STATUS');
+      
+      if (isAllocationSubmission) {
+        const isAllocated = payload.user_notes?.includes('ALLOCATION_STATUS:true') || 
+                           payload.additional_notes?.includes('ALLOCATION_STATUS:true') ||
+                           payload.ai_response?.toLowerCase().includes('allocated');
+        
+        return (
+          <div style={{ fontSize: 14, color: '#475569' }}>
+            <div style={{ marginBottom: 12 }}>
+              <strong>Brand Name:</strong>{' '}
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#1e293b' }}>
+                {submission.brand_name_submitted || payload.brand_name}
+              </span>
+            </div>
+            <div style={{ 
+              padding: 10, 
+              background: isAllocated ? '#d1fae5' : '#fef3c7', 
+              borderLeft: `3px solid ${isAllocated ? '#10b981' : '#f59e0b'}`,
+              borderRadius: 4,
+              marginBottom: 12
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: isAllocated ? '#065f46' : '#92400e', marginBottom: 4 }}>
+                Allocation Status Change
+              </div>
+              <div style={{ fontSize: 13, color: isAllocated ? '#065f46' : '#92400e' }}>
+                {isAllocated ? '✅ Mark as Allocated' : '❌ Mark as Not Allocated'}
+              </div>
+            </div>
+            {payload.ai_response && (
+              <div style={{ 
+                padding: 8, 
+                background: '#f8fafc', 
+                border: '1px solid #e2e8f0',
+                borderRadius: 4,
+                fontSize: 12,
+                color: '#64748b',
+                fontStyle: 'italic'
+              }}>
+                AI Response: {payload.ai_response}
+              </div>
+            )}
+          </div>
+        );
+      }
+      
       return (
         <div style={{ fontSize: 14, color: '#475569' }}>
           <div style={{ marginBottom: 8 }}>
@@ -598,6 +653,16 @@ export default function SubmissionsDashboard() {
         return pendingSubmissions.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand');
       case 'brand_addition':
         return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand');
+      case 'brand_allocation':
+        return pendingSubmissions.filter(s => {
+          const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+          return s.submission_category === 'brand' && (
+            payload?.submission_type === 'brand_allocation' || 
+            payload?.user_notes?.includes('ALLOCATION_STATUS') ||
+            payload?.additional_notes?.includes('ALLOCATION_STATUS') ||
+            s.additional_notes?.includes('ALLOCATION_STATUS')
+          );
+        });
       case 'supplier_addition':
         return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier');
       case 'distributor_addition':
@@ -636,6 +701,15 @@ export default function SubmissionsDashboard() {
   const tabCounts = {
     brand_update: pendingSubmissions.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand').length,
     brand_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand').length,
+    brand_allocation: pendingSubmissions.filter(s => {
+      const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+      return s.submission_category === 'brand' && (
+        payload?.submission_type === 'brand_allocation' || 
+        payload?.user_notes?.includes('ALLOCATION_STATUS') ||
+        payload?.additional_notes?.includes('ALLOCATION_STATUS') ||
+        s.additional_notes?.includes('ALLOCATION_STATUS')
+      );
+    }).length,
     supplier_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier').length,
     distributor_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor').length,
     lonely_brand: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier').length,
@@ -680,6 +754,7 @@ export default function SubmissionsDashboard() {
           {[
             { key: 'brand_update', label: '✏️ Brand Update', count: tabCounts.brand_update },
             { key: 'brand_addition', label: '➕ Brand Addition', count: tabCounts.brand_addition },
+            { key: 'brand_allocation', label: '🎯 Brand Allocation', count: tabCounts.brand_allocation },
             { key: 'supplier_addition', label: '➕ Supplier Addition', count: tabCounts.supplier_addition },
             { key: 'distributor_addition', label: '➕ Distributor Addition', count: tabCounts.distributor_addition }
           ].map(tab => (
@@ -890,7 +965,7 @@ export default function SubmissionsDashboard() {
                           color: '#1e40af',
                           borderRadius: 4
                         }}>
-                          {getSubmissionTypeLabel(item.submission_type, item.submission_category)}
+                          {getSubmissionTypeLabel(item.submission_type, item.submission_category, item.payload)}
                         </span>
                         <span style={{ 
                           fontSize: 13,

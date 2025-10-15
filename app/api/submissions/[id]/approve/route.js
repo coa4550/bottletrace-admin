@@ -185,10 +185,52 @@ export async function POST(req, { params }) {
           { status: 400 }
         );
       }
+    } else if (submission_type === 'brand_allocation' || payload.submission_type === 'brand_allocation') {
+      // Handle allocation status submissions
+      const brandName = submission.brand_name_submitted || payload.brand_name;
+      const isAllocated = payload.user_notes?.includes('ALLOCATION_STATUS:true') || 
+                         payload.additional_notes?.includes('ALLOCATION_STATUS:true') ||
+                         payload.ai_response?.toLowerCase().includes('allocated');
+      
+      if (!brandName) {
+        return NextResponse.json(
+          { error: 'Missing brand name in submission' },
+          { status: 400 }
+        );
+      }
+      
+      // Look up brand ID
+      const { data: brand, error: brandError } = await supabaseAdmin
+        .from('core_brands')
+        .select('brand_id')
+        .eq('brand_name', brandName)
+        .single();
+        
+      if (brandError || !brand) {
+        return NextResponse.json(
+          { error: `Brand "${brandName}" not found` },
+          { status: 404 }
+        );
+      }
+      
+      // Update brand allocation status
+      const { error: updateError } = await supabaseAdmin
+        .from('core_brands')
+        .update({ is_allocated: isAllocated })
+        .eq('brand_id', brand.brand_id);
+
+      if (updateError) {
+        throw updateError;
+      }
+      
+      result = { 
+        message: `Brand "${brandName}" allocation status updated to ${isAllocated ? 'allocated' : 'not allocated'}` 
+      };
+      
     } else {
       // Handle other submission types (Addition, Change) if needed
       return NextResponse.json(
-        { error: 'Only Orphan_Correction submissions are currently supported for approval' },
+        { error: 'Only Orphan_Correction and brand_allocation submissions are currently supported for approval' },
         { status: 400 }
       );
     }
