@@ -162,67 +162,113 @@ export default function AuditDistributorPortfolioPage() {
     }
   };
 
-  const handleDeleteSupplier = async (supplierId, supplierName) => {
-    if (!confirm(`Delete "${supplierName}" from the database?\n\nThis will remove the supplier and all its relationships permanently.`)) {
+  const handleRemoveRelationship = async (supplierId, supplierName) => {
+    const stateName = states.find(s => s.state_id === selectedState)?.state_name || 'this state';
+    
+    if (!confirm(`Remove relationship between "${supplierName}" and "${distributorInfo.distributor_name}" in ${stateName}?\n\nThis will remove the supplier from this distributor's portfolio in this state. If this is the supplier's only distributor in this state, the supplier will be marked as orphaned.`)) {
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from('core_suppliers')
+      // Remove the distributor-supplier relationship for this state
+      const { error: deleteError } = await supabase
+        .from('distributor_supplier_state')
         .delete()
-        .eq('supplier_id', supplierId);
+        .eq('distributor_id', selectedDistributor)
+        .eq('supplier_id', supplierId)
+        .eq('state_id', selectedState);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
 
+      // Check if the supplier has any other distributors in this state
+      const { data: remainingRelationships, error: checkError } = await supabase
+        .from('distributor_supplier_state')
+        .select('distributor_id')
+        .eq('supplier_id', supplierId)
+        .eq('state_id', selectedState);
+
+      if (checkError) throw checkError;
+
+      // If no other distributors exist in this state, mark as orphaned
+      // Note: We don't have an orphan tracking table for suppliers yet, 
+      // but the logic is here for when it's implemented
+      const isOrphaned = !remainingRelationships || remainingRelationships.length === 0;
+
+      // Update UI
       setPortfolioSuppliers(prev => prev.filter(s => s.supplier_id !== supplierId));
       setSelectedSuppliers(prev => {
         const updated = new Set(prev);
         updated.delete(supplierId);
         return updated;
       });
-      alert('Supplier deleted successfully!');
+      
+      const orphanedMsg = isOrphaned 
+        ? ` The supplier is now orphaned in ${stateName}.` 
+        : '';
+      alert(`Relationship removed successfully!${orphanedMsg}`);
     } catch (err) {
-      console.error('Delete error:', err.message);
-      alert('Failed to delete supplier: ' + err.message);
+      console.error('Remove relationship error:', err.message);
+      alert('Failed to remove relationship: ' + err.message);
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkRemoveRelationships = async () => {
     if (selectedSuppliers.size === 0) {
       alert('No suppliers selected');
       return;
     }
 
+    const stateName = states.find(s => s.state_id === selectedState)?.state_name || 'this state';
     const supplierNames = portfolioSuppliers
       .filter(s => selectedSuppliers.has(s.supplier_id))
       .map(s => s.supplier_name)
       .join('\n• ');
 
-    if (!confirm(`Delete ${selectedSuppliers.size} suppliers from the database?\n\n• ${supplierNames}\n\nThis will remove all selected suppliers and their relationships permanently.`)) {
+    if (!confirm(`Remove ${selectedSuppliers.size} supplier relationships from "${distributorInfo.distributor_name}" in ${stateName}?\n\n• ${supplierNames}\n\nSuppliers will be marked as orphaned in this state if this is their only distributor.`)) {
       return;
     }
 
     try {
-      const supplierIdsToDelete = Array.from(selectedSuppliers);
+      const supplierIdsToRemove = Array.from(selectedSuppliers);
+      let orphanedCount = 0;
       
-      const batchSize = 10;
-      for (let i = 0; i < supplierIdsToDelete.length; i += batchSize) {
-        const batch = supplierIdsToDelete.slice(i, i + batchSize);
-        const { error } = await supabase
-          .from('core_suppliers')
+      // Process each supplier
+      for (const supplierId of supplierIdsToRemove) {
+        // Remove the distributor-supplier relationship for this state
+        const { error: deleteError } = await supabase
+          .from('distributor_supplier_state')
           .delete()
-          .in('supplier_id', batch);
+          .eq('distributor_id', selectedDistributor)
+          .eq('supplier_id', supplierId)
+          .eq('state_id', selectedState);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
+
+        // Check if the supplier has any other distributors in this state
+        const { data: remainingRelationships, error: checkError } = await supabase
+          .from('distributor_supplier_state')
+          .select('distributor_id')
+          .eq('supplier_id', supplierId)
+          .eq('state_id', selectedState);
+
+        if (checkError) throw checkError;
+
+        // Count orphans
+        if (!remainingRelationships || remainingRelationships.length === 0) {
+          orphanedCount++;
+        }
       }
 
       setPortfolioSuppliers(prev => prev.filter(s => !selectedSuppliers.has(s.supplier_id)));
       setSelectedSuppliers(new Set());
-      alert(`Successfully deleted ${supplierIdsToDelete.length} suppliers!`);
+      
+      const orphanedMsg = orphanedCount > 0 
+        ? ` ${orphanedCount} supplier${orphanedCount > 1 ? 's are' : ' is'} now orphaned in ${stateName}.` 
+        : '';
+      alert(`Successfully removed ${supplierIdsToRemove.length} relationship${supplierIdsToRemove.length > 1 ? 's' : ''}!${orphanedMsg}`);
     } catch (err) {
-      console.error('Bulk delete error:', err.message);
-      alert('Failed to delete suppliers: ' + err.message);
+      console.error('Bulk remove error:', err.message);
+      alert('Failed to remove relationships: ' + err.message);
     }
   };
 
@@ -417,10 +463,10 @@ export default function AuditDistributorPortfolioPage() {
               </h2>
               {selectedSuppliers.size > 0 && (
                 <button
-                  onClick={handleBulkDelete}
+                  onClick={handleBulkRemoveRelationships}
                   style={{
                     padding: '8px 16px',
-                    background: '#ef4444',
+                    background: '#f59e0b',
                     color: 'white',
                     border: 'none',
                     borderRadius: 6,
@@ -429,7 +475,7 @@ export default function AuditDistributorPortfolioPage() {
                     fontSize: 14
                   }}
                 >
-                  Delete {selectedSuppliers.size} Selected Supplier{selectedSuppliers.size > 1 ? 's' : ''}
+                  Remove {selectedSuppliers.size} Relationship{selectedSuppliers.size > 1 ? 's' : ''}
                 </button>
               )}
             </div>
@@ -506,18 +552,18 @@ export default function AuditDistributorPortfolioPage() {
                         </td>
                         <td style={cellStyle}>
                           <button
-                            onClick={() => handleDeleteSupplier(supplier.supplier_id, supplier.supplier_name)}
+                            onClick={() => handleRemoveRelationship(supplier.supplier_id, supplier.supplier_name)}
                             style={{
                               padding: '4px 12px',
                               fontSize: 13,
-                              background: '#ef4444',
+                              background: '#f59e0b',
                               color: 'white',
                               border: 'none',
                               borderRadius: 4,
                               cursor: 'pointer'
                             }}
                           >
-                            Delete
+                            Remove
                           </button>
                         </td>
                       </tr>
