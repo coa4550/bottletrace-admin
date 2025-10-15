@@ -777,6 +777,183 @@ export default function SubmissionsDashboard() {
           ))}
         </div>
 
+        {/* Show submissions for Standard Submissions tabs */}
+        {['brand_update', 'brand_addition', 'brand_allocation', 'supplier_addition', 'distributor_addition'].includes(activeTab) && (
+          <div style={{ marginTop: 24 }}>
+            {loading ? (
+              <p>Loading...</p>
+            ) : filteredItems.length === 0 ? (
+              <p style={{ color: '#64748b', fontSize: 14 }}>No items found in this category.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 16 }}>
+                {filteredItems.map(item => {
+                  const isReview = item.review_type !== undefined;
+                  const itemId = isReview ? item.id : item.submission_id;
+                  
+                  return (
+                  <div
+                    key={itemId}
+                    style={{
+                      padding: 20,
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      display: 'grid',
+                      gap: 12
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                          {isReview ? (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#ede9fe',
+                                color: '#7c3aed',
+                                borderRadius: 4
+                              }}>
+                                ⭐ Review
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {item.entity_name}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#dbeafe',
+                                color: '#1e40af',
+                                borderRadius: 4
+                              }}>
+                                {getSubmissionTypeLabel(item.submission_type, item.submission_category, item.payload)}
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {getCategoryLabel(item.submission_category)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                          {isReview ? `Submitted ${new Date(item.created_at).toLocaleString()}` : `Submitted ${new Date(item.submitted_at).toLocaleString()}`}
+                        </div>
+                      </div>
+                      <div>
+                        {getStatusBadge(item.status)}
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div style={{ 
+                      padding: 12, 
+                      background: '#f8fafc', 
+                      borderRadius: 6,
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {isReview ? renderReviewDetails(item) : renderSubmissionDetails(item)}
+                    </div>
+
+                    {/* Additional Notes / User Info for Reviews */}
+                    {isReview && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_name}
+                      </div>
+                    )}
+
+                    {/* Additional Notes for Submissions - only show if not already shown in details */}
+                    {!isReview && item.additional_notes && !item.payload?.user_notes && (
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Notes:</div>
+                        <div style={{ fontSize: 14, color: '#64748b' }}>{item.additional_notes}</div>
+                      </div>
+                    )}
+
+                    {/* User Info for Submissions - only show if not already shown in details */}
+                    {!isReview && (item.user_email || item.user_first_name) && !item.payload?.user_profile && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_first_name} {item.user_last_name} {item.user_email && `(${item.user_email})`}
+                      </div>
+                    )}
+
+                    {/* Rejection/Denial Reason */}
+                    {((item.status === 'rejected' && item.rejection_reason) || (item.status === 'denied' && item.review_notes)) && (
+                      <div style={{ 
+                        padding: 12,
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: 6
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+                          {item.status === 'rejected' ? 'Rejection Reason:' : 'Denial Reason:'}
+                        </div>
+                        <div style={{ fontSize: 14, color: '#991b1b' }}>{item.rejection_reason || item.review_notes}</div>
+                      </div>
+                    )}
+
+                    {/* Actions (only for pending) */}
+                    {item.status === 'pending' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={() => isReview ? handleApproveReview(item) : handleApprove(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#10b981',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : '✓ Approve'}
+                        </button>
+                        <button
+                          onClick={() => isReview ? handleDenyReview(item) : handleReject(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#ef4444',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : isReview ? '✕ Deny' : '✕ Reject'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )})}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Orphan Corrections Section */}
         <div style={{ 
           fontSize: 20, 
@@ -818,6 +995,183 @@ export default function SubmissionsDashboard() {
             </button>
           ))}
         </div>
+
+        {/* Show submissions for Orphan Corrections tabs */}
+        {['lonely_brand', 'lonely_supplier'].includes(activeTab) && (
+          <div style={{ marginTop: 24 }}>
+            {loading ? (
+              <p>Loading...</p>
+            ) : filteredItems.length === 0 ? (
+              <p style={{ color: '#64748b', fontSize: 14 }}>No items found in this category.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 16 }}>
+                {filteredItems.map(item => {
+                  const isReview = item.review_type !== undefined;
+                  const itemId = isReview ? item.id : item.submission_id;
+                  
+                  return (
+                  <div
+                    key={itemId}
+                    style={{
+                      padding: 20,
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      display: 'grid',
+                      gap: 12
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                          {isReview ? (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#ede9fe',
+                                color: '#7c3aed',
+                                borderRadius: 4
+                              }}>
+                                ⭐ Review
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {item.entity_name}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#dbeafe',
+                                color: '#1e40af',
+                                borderRadius: 4
+                              }}>
+                                {getSubmissionTypeLabel(item.submission_type, item.submission_category, item.payload)}
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {getCategoryLabel(item.submission_category)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                          {isReview ? `Submitted ${new Date(item.created_at).toLocaleString()}` : `Submitted ${new Date(item.submitted_at).toLocaleString()}`}
+                        </div>
+                      </div>
+                      <div>
+                        {getStatusBadge(item.status)}
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div style={{ 
+                      padding: 12, 
+                      background: '#f8fafc', 
+                      borderRadius: 6,
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {isReview ? renderReviewDetails(item) : renderSubmissionDetails(item)}
+                    </div>
+
+                    {/* Additional Notes / User Info for Reviews */}
+                    {isReview && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_name}
+                      </div>
+                    )}
+
+                    {/* Additional Notes for Submissions - only show if not already shown in details */}
+                    {!isReview && item.additional_notes && !item.payload?.user_notes && (
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Notes:</div>
+                        <div style={{ fontSize: 14, color: '#64748b' }}>{item.additional_notes}</div>
+                      </div>
+                    )}
+
+                    {/* User Info for Submissions - only show if not already shown in details */}
+                    {!isReview && (item.user_email || item.user_first_name) && !item.payload?.user_profile && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_first_name} {item.user_last_name} {item.user_email && `(${item.user_email})`}
+                      </div>
+                    )}
+
+                    {/* Rejection/Denial Reason */}
+                    {((item.status === 'rejected' && item.rejection_reason) || (item.status === 'denied' && item.review_notes)) && (
+                      <div style={{ 
+                        padding: 12,
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: 6
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+                          {item.status === 'rejected' ? 'Rejection Reason:' : 'Denial Reason:'}
+                        </div>
+                        <div style={{ fontSize: 14, color: '#991b1b' }}>{item.rejection_reason || item.review_notes}</div>
+                      </div>
+                    )}
+
+                    {/* Actions (only for pending) */}
+                    {item.status === 'pending' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={() => isReview ? handleApproveReview(item) : handleApprove(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#10b981',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : '✓ Approve'}
+                        </button>
+                        <button
+                          onClick={() => isReview ? handleDenyReview(item) : handleReject(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#ef4444',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : isReview ? '✕ Deny' : '✕ Reject'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )})}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* User Reviews Section */}
         <div style={{ 
@@ -862,6 +1216,183 @@ export default function SubmissionsDashboard() {
           ))}
         </div>
 
+        {/* Show submissions for User Reviews tabs */}
+        {['brand_reviews', 'supplier_reviews', 'distributor_reviews'].includes(activeTab) && (
+          <div style={{ marginTop: 24 }}>
+            {loading ? (
+              <p>Loading...</p>
+            ) : filteredItems.length === 0 ? (
+              <p style={{ color: '#64748b', fontSize: 14 }}>No items found in this category.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 16 }}>
+                {filteredItems.map(item => {
+                  const isReview = item.review_type !== undefined;
+                  const itemId = isReview ? item.id : item.submission_id;
+                  
+                  return (
+                  <div
+                    key={itemId}
+                    style={{
+                      padding: 20,
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      display: 'grid',
+                      gap: 12
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                          {isReview ? (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#ede9fe',
+                                color: '#7c3aed',
+                                borderRadius: 4
+                              }}>
+                                ⭐ Review
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {item.entity_name}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#dbeafe',
+                                color: '#1e40af',
+                                borderRadius: 4
+                              }}>
+                                {getSubmissionTypeLabel(item.submission_type, item.submission_category, item.payload)}
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {getCategoryLabel(item.submission_category)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                          {isReview ? `Submitted ${new Date(item.created_at).toLocaleString()}` : `Submitted ${new Date(item.submitted_at).toLocaleString()}`}
+                        </div>
+                      </div>
+                      <div>
+                        {getStatusBadge(item.status)}
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div style={{ 
+                      padding: 12, 
+                      background: '#f8fafc', 
+                      borderRadius: 6,
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {isReview ? renderReviewDetails(item) : renderSubmissionDetails(item)}
+                    </div>
+
+                    {/* Additional Notes / User Info for Reviews */}
+                    {isReview && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_name}
+                      </div>
+                    )}
+
+                    {/* Additional Notes for Submissions - only show if not already shown in details */}
+                    {!isReview && item.additional_notes && !item.payload?.user_notes && (
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Notes:</div>
+                        <div style={{ fontSize: 14, color: '#64748b' }}>{item.additional_notes}</div>
+                      </div>
+                    )}
+
+                    {/* User Info for Submissions - only show if not already shown in details */}
+                    {!isReview && (item.user_email || item.user_first_name) && !item.payload?.user_profile && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_first_name} {item.user_last_name} {item.user_email && `(${item.user_email})`}
+                      </div>
+                    )}
+
+                    {/* Rejection/Denial Reason */}
+                    {((item.status === 'rejected' && item.rejection_reason) || (item.status === 'denied' && item.review_notes)) && (
+                      <div style={{ 
+                        padding: 12,
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: 6
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+                          {item.status === 'rejected' ? 'Rejection Reason:' : 'Denial Reason:'}
+                        </div>
+                        <div style={{ fontSize: 14, color: '#991b1b' }}>{item.rejection_reason || item.review_notes}</div>
+                      </div>
+                    )}
+
+                    {/* Actions (only for pending) */}
+                    {item.status === 'pending' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={() => isReview ? handleApproveReview(item) : handleApprove(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#10b981',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : '✓ Approve'}
+                        </button>
+                        <button
+                          onClick={() => isReview ? handleDenyReview(item) : handleReject(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#ef4444',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : isReview ? '✕ Deny' : '✕ Reject'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )})}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* History Section */}
         <div style={{ 
           fontSize: 20, 
@@ -904,180 +1435,185 @@ export default function SubmissionsDashboard() {
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Submissions and Reviews List */}
-      {loading ? (
-        <p>Loading...</p>
-      ) : filteredItems.length === 0 ? (
-        <p style={{ color: '#64748b', fontSize: 14 }}>No items found in this category.</p>
-      ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
-          {filteredItems.map(item => {
-            const isReview = item.review_type !== undefined;
-            const itemId = isReview ? item.id : item.submission_id;
-            
-            return (
-            <div
-              key={itemId}
-              style={{
-                padding: 20,
-                background: 'white',
-                border: '1px solid #e2e8f0',
-                borderRadius: 8,
-                display: 'grid',
-                gap: 12
-              }}
-            >
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                <div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                    {isReview ? (
-                      <>
-                        <span style={{ 
-                          fontSize: 13,
-                          fontWeight: 600,
-                          padding: '2px 8px',
-                          background: '#ede9fe',
-                          color: '#7c3aed',
-                          borderRadius: 4
-                        }}>
-                          ⭐ Review
-                        </span>
-                        <span style={{ 
-                          fontSize: 13,
-                          padding: '2px 8px',
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          borderRadius: 4
-                        }}>
-                          {item.entity_name}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span style={{ 
-                          fontSize: 13,
-                          fontWeight: 600,
-                          padding: '2px 8px',
-                          background: '#dbeafe',
-                          color: '#1e40af',
-                          borderRadius: 4
-                        }}>
-                          {getSubmissionTypeLabel(item.submission_type, item.submission_category, item.payload)}
-                        </span>
-                        <span style={{ 
-                          fontSize: 13,
-                          padding: '2px 8px',
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          borderRadius: 4
-                        }}>
-                          {getCategoryLabel(item.submission_category)}
-                        </span>
-                      </>
+        {/* Show submissions for History tabs */}
+        {['approved_submissions', 'rejected_submissions', 'approved_reviews', 'denied_reviews'].includes(activeTab) && (
+          <div style={{ marginTop: 24 }}>
+            {loading ? (
+              <p>Loading...</p>
+            ) : filteredItems.length === 0 ? (
+              <p style={{ color: '#64748b', fontSize: 14 }}>No items found in this category.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 16 }}>
+                {filteredItems.map(item => {
+                  const isReview = item.review_type !== undefined;
+                  const itemId = isReview ? item.id : item.submission_id;
+                  
+                  return (
+                  <div
+                    key={itemId}
+                    style={{
+                      padding: 20,
+                      background: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 8,
+                      display: 'grid',
+                      gap: 12
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                          {isReview ? (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#ede9fe',
+                                color: '#7c3aed',
+                                borderRadius: 4
+                              }}>
+                                ⭐ Review
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {item.entity_name}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ 
+                                fontSize: 13,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                background: '#dbeafe',
+                                color: '#1e40af',
+                                borderRadius: 4
+                              }}>
+                                {getSubmissionTypeLabel(item.submission_type, item.submission_category, item.payload)}
+                              </span>
+                              <span style={{ 
+                                fontSize: 13,
+                                padding: '2px 8px',
+                                background: '#f3f4f6',
+                                color: '#374151',
+                                borderRadius: 4
+                              }}>
+                                {getCategoryLabel(item.submission_category)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                          {isReview ? `Submitted ${new Date(item.created_at).toLocaleString()}` : `Submitted ${new Date(item.submitted_at).toLocaleString()}`}
+                        </div>
+                      </div>
+                      <div>
+                        {getStatusBadge(item.status)}
+                      </div>
+                    </div>
+
+                    {/* Details */}
+                    <div style={{ 
+                      padding: 12, 
+                      background: '#f8fafc', 
+                      borderRadius: 6,
+                      border: '1px solid #e2e8f0'
+                    }}>
+                      {isReview ? renderReviewDetails(item) : renderSubmissionDetails(item)}
+                    </div>
+
+                    {/* Additional Notes / User Info for Reviews */}
+                    {isReview && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_name}
+                      </div>
+                    )}
+
+                    {/* Additional Notes for Submissions - only show if not already shown in details */}
+                    {!isReview && item.additional_notes && !item.payload?.user_notes && (
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Notes:</div>
+                        <div style={{ fontSize: 14, color: '#64748b' }}>{item.additional_notes}</div>
+                      </div>
+                    )}
+
+                    {/* User Info for Submissions - only show if not already shown in details */}
+                    {!isReview && (item.user_email || item.user_first_name) && !item.payload?.user_profile && (
+                      <div style={{ fontSize: 13, color: '#64748b' }}>
+                        Submitted by: {item.user_first_name} {item.user_last_name} {item.user_email && `(${item.user_email})`}
+                      </div>
+                    )}
+
+                    {/* Rejection/Denial Reason */}
+                    {((item.status === 'rejected' && item.rejection_reason) || (item.status === 'denied' && item.review_notes)) && (
+                      <div style={{ 
+                        padding: 12,
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: 6
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+                          {item.status === 'rejected' ? 'Rejection Reason:' : 'Denial Reason:'}
+                        </div>
+                        <div style={{ fontSize: 14, color: '#991b1b' }}>{item.rejection_reason || item.review_notes}</div>
+                      </div>
+                    )}
+
+                    {/* Actions (only for pending) */}
+                    {item.status === 'pending' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={() => isReview ? handleApproveReview(item) : handleApprove(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#10b981',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : '✓ Approve'}
+                        </button>
+                        <button
+                          onClick={() => isReview ? handleDenyReview(item) : handleReject(itemId)}
+                          disabled={processing === itemId}
+                          style={{
+                            flex: 1,
+                            padding: '10px 16px',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: 'white',
+                            background: processing === itemId ? '#cbd5e1' : '#ef4444',
+                            border: 'none',
+                            borderRadius: 6,
+                            cursor: processing === itemId ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {processing === itemId ? 'Processing...' : isReview ? '✕ Deny' : '✕ Reject'}
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                    {isReview ? `Submitted ${new Date(item.created_at).toLocaleString()}` : `Submitted ${new Date(item.submitted_at).toLocaleString()}`}
-                  </div>
-                </div>
-                <div>
-                  {getStatusBadge(item.status)}
-                </div>
+                )})}
               </div>
+            )}
+          </div>
+        )}
+      </div>
 
-              {/* Details */}
-              <div style={{ 
-                padding: 12, 
-                background: '#f8fafc', 
-                borderRadius: 6,
-                border: '1px solid #e2e8f0'
-              }}>
-                {isReview ? renderReviewDetails(item) : renderSubmissionDetails(item)}
-              </div>
-
-              {/* Additional Notes / User Info for Reviews */}
-              {isReview && (
-                <div style={{ fontSize: 13, color: '#64748b' }}>
-                  Submitted by: {item.user_name}
-                </div>
-              )}
-
-              {/* Additional Notes for Submissions - only show if not already shown in details */}
-              {!isReview && item.additional_notes && !item.payload?.user_notes && (
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Notes:</div>
-                  <div style={{ fontSize: 14, color: '#64748b' }}>{item.additional_notes}</div>
-                </div>
-              )}
-
-              {/* User Info for Submissions - only show if not already shown in details */}
-              {!isReview && (item.user_email || item.user_first_name) && !item.payload?.user_profile && (
-                <div style={{ fontSize: 13, color: '#64748b' }}>
-                  Submitted by: {item.user_first_name} {item.user_last_name} {item.user_email && `(${item.user_email})`}
-                </div>
-              )}
-
-              {/* Rejection/Denial Reason */}
-              {((item.status === 'rejected' && item.rejection_reason) || (item.status === 'denied' && item.review_notes)) && (
-                <div style={{ 
-                  padding: 12,
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  borderRadius: 6
-                }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
-                    {item.status === 'rejected' ? 'Rejection Reason:' : 'Denial Reason:'}
-                  </div>
-                  <div style={{ fontSize: 14, color: '#991b1b' }}>{item.rejection_reason || item.review_notes}</div>
-                </div>
-              )}
-
-              {/* Actions (only for pending) */}
-              {item.status === 'pending' && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <button
-                    onClick={() => isReview ? handleApproveReview(item) : handleApprove(itemId)}
-                    disabled={processing === itemId}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      fontSize: 14,
-                      fontWeight: 500,
-                      color: 'white',
-                      background: processing === itemId ? '#cbd5e1' : '#10b981',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: processing === itemId ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {processing === itemId ? 'Processing...' : '✓ Approve'}
-                  </button>
-                  <button
-                    onClick={() => isReview ? handleDenyReview(item) : handleReject(itemId)}
-                    disabled={processing === itemId}
-                    style={{
-                      flex: 1,
-                      padding: '10px 16px',
-                      fontSize: 14,
-                      fontWeight: 500,
-                      color: 'white',
-                      background: processing === itemId ? '#cbd5e1' : '#ef4444',
-                      border: 'none',
-                      borderRadius: 6,
-                      cursor: processing === itemId ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {processing === itemId ? 'Processing...' : isReview ? '✕ Deny' : '✕ Reject'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )})}
-        </div>
-      )}
     </div>
   );
 }
