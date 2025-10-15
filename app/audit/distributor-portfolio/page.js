@@ -9,7 +9,9 @@ const supabase = createClient(
 
 export default function AuditDistributorPortfolioPage() {
   const [distributors, setDistributors] = useState([]);
+  const [states, setStates] = useState([]);
   const [selectedDistributor, setSelectedDistributor] = useState(null);
+  const [selectedState, setSelectedState] = useState(null);
   const [distributorInfo, setDistributorInfo] = useState(null);
   const [portfolioSuppliers, setPortfolioSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -31,11 +33,29 @@ export default function AuditDistributorPortfolioPage() {
         console.error('Error fetching distributors:', err);
       }
     }
+    
+    async function fetchStates() {
+      try {
+        const response = await fetch('/api/states');
+        const data = await response.json();
+        
+        if (response.ok) {
+          console.log('Fetched states:', data?.length || 0);
+          setStates(data || []);
+        } else {
+          console.error('Error fetching states:', data.error);
+        }
+      } catch (err) {
+        console.error('Error fetching states:', err);
+      }
+    }
+    
     fetchDistributors();
+    fetchStates();
   }, []);
 
   useEffect(() => {
-    if (!selectedDistributor) return;
+    if (!selectedDistributor || !selectedState) return;
 
     async function fetchDistributorData() {
       setLoading(true);
@@ -54,28 +74,21 @@ export default function AuditDistributorPortfolioPage() {
         
         setDistributorInfo(distributor);
 
-        // Fetch suppliers for this distributor directly via distributor_supplier_state
-        console.log('Fetching supplier relationships for distributor:', selectedDistributor);
+        // Fetch suppliers for this distributor in the selected state
+        console.log('Fetching supplier relationships for distributor:', selectedDistributor, 'in state:', selectedState);
 
         const { data: distSupplierRels, error: distSupplierError } = await supabase
           .from('distributor_supplier_state')
           .select('*')
-          .eq('distributor_id', selectedDistributor);
+          .eq('distributor_id', selectedDistributor)
+          .eq('state_id', selectedState);
 
         if (distSupplierError) {
           throw new Error('Failed to fetch distributor-supplier relationships');
         }
 
-        // Create relationship map
-        const relationshipMap = {};
-        distSupplierRels?.forEach(rel => {
-          if (!relationshipMap[rel.supplier_id]) {
-            relationshipMap[rel.supplier_id] = rel;
-          }
-        });
-
         const supplierIds = [...new Set(distSupplierRels?.map(r => r.supplier_id) || [])];
-        console.log('Total unique suppliers for distributor:', supplierIds.length);
+        console.log('Total suppliers for distributor in this state:', supplierIds.length);
 
         if (supplierIds.length === 0) {
           setPortfolioSuppliers([]);
@@ -95,7 +108,7 @@ export default function AuditDistributorPortfolioPage() {
 
         // Enrich suppliers with relationship metadata
         const enrichedSuppliers = suppliers?.map(supplier => {
-          const rel = relationshipMap[supplier.supplier_id];
+          const rel = distSupplierRels?.find(r => r.supplier_id === supplier.supplier_id);
           return {
             ...supplier,
             last_verified_at: rel?.last_verified_at || null,
@@ -115,7 +128,7 @@ export default function AuditDistributorPortfolioPage() {
     }
 
     fetchDistributorData();
-  }, [selectedDistributor]);
+  }, [selectedDistributor, selectedState]);
 
   const handleDistributorInfoEdit = async (field, newValue) => {
     try {
@@ -236,35 +249,72 @@ export default function AuditDistributorPortfolioPage() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Audit Distributor Portfolio</h1>
+      <p style={{ color: '#64748b', marginBottom: 24, fontSize: 14 }}>
+        Select a distributor and state to view and manage their supplier relationships.
+      </p>
       
-      <div style={{ marginTop: 24, marginBottom: 32 }}>
-        <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
-          Select Distributor:
-        </label>
-        <select
-          value={selectedDistributor || ''}
-          onChange={(e) => setSelectedDistributor(e.target.value)}
-          style={{
-            padding: '8px 12px',
-            fontSize: 14,
-            border: '1px solid #cbd5e1',
-            borderRadius: 6,
-            minWidth: 300,
-            background: 'white'
-          }}
-        >
-          <option value="">-- Choose a distributor --</option>
-          {distributors.map(d => (
-            <option key={d.distributor_id} value={d.distributor_id}>
-              {d.distributor_name}
-            </option>
-          ))}
-        </select>
+      <div style={{ display: 'flex', gap: 16, marginTop: 24, marginBottom: 32 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+            Select Distributor:
+          </label>
+          <select
+            value={selectedDistributor || ''}
+            onChange={(e) => {
+              setSelectedDistributor(e.target.value);
+              setSelectedState(null); // Reset state when distributor changes
+              setPortfolioSuppliers([]); // Clear suppliers
+            }}
+            style={{
+              padding: '8px 12px',
+              fontSize: 14,
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              width: '100%',
+              background: 'white'
+            }}
+          >
+            <option value="">-- Choose a distributor --</option>
+            {distributors.map(d => (
+              <option key={d.distributor_id} value={d.distributor_id}>
+                {d.distributor_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+            Select State:
+          </label>
+          <select
+            value={selectedState || ''}
+            onChange={(e) => setSelectedState(e.target.value)}
+            disabled={!selectedDistributor}
+            style={{
+              padding: '8px 12px',
+              fontSize: 14,
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              width: '100%',
+              background: selectedDistributor ? 'white' : '#f1f5f9',
+              cursor: selectedDistributor ? 'pointer' : 'not-allowed',
+              opacity: selectedDistributor ? 1 : 0.6
+            }}
+          >
+            <option value="">-- Choose a state --</option>
+            {states.map(s => (
+              <option key={s.state_id} value={s.state_id}>
+                {s.state_name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading && <p>Loading distributor data...</p>}
 
-      {!loading && selectedDistributor && distributorInfo && (
+      {!loading && selectedDistributor && selectedState && distributorInfo && (
         <>
           <div style={{ marginBottom: 40 }}>
             <h2 style={{ fontSize: 20, marginBottom: 16, color: '#1e293b' }}>Distributor Information</h2>
@@ -363,7 +413,7 @@ export default function AuditDistributorPortfolioPage() {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h2 style={{ fontSize: 20, margin: 0, color: '#1e293b' }}>
-                Distributor Supplier Relationships ({portfolioSuppliers.length} suppliers)
+                Supplier Relationships in {states.find(s => s.state_id === selectedState)?.state_name || 'Selected State'} ({portfolioSuppliers.length} suppliers)
               </h2>
               {selectedSuppliers.size > 0 && (
                 <button
@@ -482,7 +532,13 @@ export default function AuditDistributorPortfolioPage() {
 
       {!selectedDistributor && !loading && (
         <p style={{ color: '#64748b', marginTop: 40 }}>
-          Please select a distributor to view and audit their portfolio.
+          Please select a distributor and state to view and audit their supplier relationships.
+        </p>
+      )}
+
+      {selectedDistributor && !selectedState && !loading && (
+        <p style={{ color: '#64748b', marginTop: 40 }}>
+          Please select a state to view suppliers for this distributor.
         </p>
       )}
     </div>
