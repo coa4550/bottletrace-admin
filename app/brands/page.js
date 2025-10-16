@@ -13,6 +13,7 @@ export default function BrandsPage() {
   const [loading, setLoading] = useState(true);
   const [allCategories, setAllCategories] = useState([]);
   const [allSubCategories, setAllSubCategories] = useState([]);
+  const [allSuppliers, setAllSuppliers] = useState([]);
   const [colWidths, setColWidths] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('brandColWidths');
@@ -23,25 +24,28 @@ export default function BrandsPage() {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fetch all available categories and sub-categories
+  // Fetch all available categories, sub-categories, and suppliers
   useEffect(() => {
-    async function fetchCategoriesAndSubCategories() {
+    async function fetchCategoriesSubCategoriesAndSuppliers() {
       try {
-        const [categoriesRes, subCategoriesRes] = await Promise.all([
+        const [categoriesRes, subCategoriesRes, suppliersRes] = await Promise.all([
           supabase.from('categories').select('category_id, category_name').order('category_name'),
-          supabase.from('sub_categories').select('sub_category_id, sub_category_name').order('sub_category_name')
+          supabase.from('sub_categories').select('sub_category_id, sub_category_name').order('sub_category_name'),
+          supabase.from('core_suppliers').select('supplier_id, supplier_name').order('supplier_name')
         ]);
 
         if (categoriesRes.error) throw categoriesRes.error;
         if (subCategoriesRes.error) throw subCategoriesRes.error;
+        if (suppliersRes.error) throw suppliersRes.error;
 
         setAllCategories(categoriesRes.data || []);
         setAllSubCategories(subCategoriesRes.data || []);
+        setAllSuppliers(suppliersRes.data || []);
       } catch (error) {
-        console.error('Error fetching categories:', error);
+        console.error('Error fetching categories and suppliers:', error);
       }
     }
-    fetchCategoriesAndSubCategories();
+    fetchCategoriesSubCategoriesAndSuppliers();
   }, []);
 
   // Fetch brands with categories and sub-categories
@@ -116,7 +120,7 @@ export default function BrandsPage() {
           }
         }
 
-        // Fetch ALL brand-supplier relationships for verification data
+        // Fetch ALL brand-supplier relationships for verification data and supplier info
         let allBrandSuppliers = [];
         start = 0;
         hasMore = true;
@@ -124,7 +128,7 @@ export default function BrandsPage() {
         while (hasMore) {
           const { data, error } = await supabase
             .from('brand_supplier')
-            .select('brand_id, is_verified, last_verified_at')
+            .select('brand_id, supplier_id, is_verified, last_verified_at, relationship_source')
             .range(start, start + pageSize - 1);
 
           if (error) throw error;
@@ -155,10 +159,11 @@ export default function BrandsPage() {
           }
         });
 
-        // Create verification lookup map
+        // Create verification and supplier lookup maps
         // For each brand, determine if ANY supplier relationship is verified
-        // and find the most recent verification date
+        // and find the most recent verification date and current supplier
         const verificationMap = {};
+        const supplierMap = {};
         allBrandSuppliers?.forEach(bs => {
           if (!verificationMap[bs.brand_id]) {
             verificationMap[bs.brand_id] = {
@@ -178,16 +183,33 @@ export default function BrandsPage() {
               verificationMap[bs.brand_id].lastVerifiedAt = bs.last_verified_at;
             }
           }
+
+          // Store supplier information (taking the first supplier if multiple)
+          if (!supplierMap[bs.brand_id]) {
+            supplierMap[bs.brand_id] = {
+              supplier_id: bs.supplier_id,
+              relationship_source: bs.relationship_source
+            };
+          }
         });
 
         // Merge data
-        const enrichedBrands = allBrands.map(brand => ({
-          ...brand,
-          categories: catsMap[brand.brand_id]?.join(', ') || '',
-          sub_categories: subcatsMap[brand.brand_id]?.join(', ') || '',
-          is_verified: verificationMap[brand.brand_id]?.hasVerified || false,
-          last_verified_at: verificationMap[brand.brand_id]?.lastVerifiedAt || null
-        }));
+        const enrichedBrands = allBrands.map(brand => {
+          const supplierInfo = supplierMap[brand.brand_id];
+          const supplierName = supplierInfo ? 
+            allSuppliers.find(s => s.supplier_id === supplierInfo.supplier_id)?.supplier_name : null;
+          
+          return {
+            ...brand,
+            categories: catsMap[brand.brand_id]?.join(', ') || '',
+            sub_categories: subcatsMap[brand.brand_id]?.join(', ') || '',
+            is_verified: verificationMap[brand.brand_id]?.hasVerified || false,
+            last_verified_at: verificationMap[brand.brand_id]?.lastVerifiedAt || null,
+            supplier_id: supplierInfo?.supplier_id || null,
+            supplier_name: supplierName || '',
+            relationship_source: supplierInfo?.relationship_source || null
+          };
+        });
 
         setBrands(enrichedBrands);
       } catch (error) {
@@ -316,10 +338,53 @@ export default function BrandsPage() {
     }
   };
 
+  const handleSupplierEdit = async (brandId, newSupplierId) => {
+    try {
+      // Delete existing brand-supplier relationships
+      const { error: deleteError } = await supabase
+        .from('brand_supplier')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new relationship if supplier is selected
+      if (newSupplierId) {
+        const { error: insertError } = await supabase
+          .from('brand_supplier')
+          .insert({
+            brand_id: brandId,
+            supplier_id: newSupplierId,
+            is_verified: false,
+            relationship_source: 'admin_edit'
+          });
+
+        if (insertError) throw insertError;
+      }
+
+      // Update local state with supplier name
+      const supplierName = newSupplierId ? 
+        allSuppliers.find(s => s.supplier_id === newSupplierId)?.supplier_name || '' : '';
+
+      setBrands((prev) =>
+        prev.map((b) => (b.brand_id === brandId ? { 
+          ...b, 
+          supplier_id: newSupplierId,
+          supplier_name: supplierName,
+          relationship_source: newSupplierId ? 'admin_edit' : null
+        } : b))
+      );
+    } catch (err) {
+      console.error('Update supplier error:', err.message);
+      alert('Failed to update supplier: ' + err.message);
+    }
+  };
+
   const columns = [
     { key: 'brand_name', label: 'Brand Name', editable: true },
     { key: 'categories', label: 'Categories', editable: true, editHandler: 'categories' },
     { key: 'sub_categories', label: 'Sub-Categories', editable: true, editHandler: 'sub_categories' },
+    { key: 'supplier_name', label: 'Supplier', editable: true, editHandler: 'supplier' },
     { key: 'is_verified', label: 'Verified' },
     { key: 'last_verified_at', label: 'Verified Date' },
     { key: 'data_source', label: 'Data Source', editable: true },
@@ -335,6 +400,7 @@ export default function BrandsPage() {
       brand.brand_name?.toLowerCase().includes(searchLower) ||
       brand.categories?.toLowerCase().includes(searchLower) ||
       brand.sub_categories?.toLowerCase().includes(searchLower) ||
+      brand.supplier_name?.toLowerCase().includes(searchLower) ||
       brand.brand_url?.toLowerCase().includes(searchLower) ||
       brand.data_source?.toLowerCase().includes(searchLower)
     );
@@ -365,7 +431,7 @@ export default function BrandsPage() {
       <h1 style={{ marginBottom: 16 }}>Brands ({brands.length})</h1>
       <div style={{ marginBottom: 16 }}>
         <SearchInput 
-          placeholder="Search brands, categories, websites..." 
+          placeholder="Search brands, categories, suppliers, websites..." 
           onSearch={setSearchTerm}
         />
       </div>
@@ -482,6 +548,19 @@ export default function BrandsPage() {
                       );
                     }
 
+                    if (col.editHandler === 'supplier') {
+                      return (
+                        <td key={col.key} style={cellStyle}>
+                          <SupplierSelectCell
+                            currentSupplierId={b.supplier_id}
+                            currentSupplierName={value}
+                            suppliers={allSuppliers}
+                            onChange={(supplierId) => handleSupplierEdit(b.brand_id, supplierId)}
+                          />
+                        </td>
+                      );
+                    }
+
                     return (
                       <td key={col.key} style={cellStyle}>
                         <EditableCell
@@ -503,6 +582,209 @@ export default function BrandsPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function SupplierSelectCell({ currentSupplierId, currentSupplierName, suppliers, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedSupplierId, setSelectedSupplierId] = useState(currentSupplierId);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    setSelectedSupplierId(currentSupplierId);
+  }, [currentSupplierId]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const handleOpen = () => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      
+      // Calculate position
+      let top = rect.bottom + 4;
+      let left = rect.left;
+      
+      // Adjust if dropdown would go off screen
+      if (top + 300 > viewportHeight) {
+        top = rect.top - 300 - 4; // Show above instead
+      }
+      if (left + 300 > viewportWidth) {
+        left = viewportWidth - 300 - 10; // Adjust left
+      }
+      if (left < 10) {
+        left = 10; // Minimum margin from edge
+      }
+      
+      setDropdownPosition({ top, left });
+    }
+    setIsOpen(true);
+  };
+
+  const handleSave = () => {
+    onChange(selectedSupplierId);
+    setIsOpen(false);
+  };
+
+  const displayValue = currentSupplierName || '—';
+
+  return (
+    <div style={{ position: 'relative' }} ref={dropdownRef}>
+      <div
+        onClick={isOpen ? () => setIsOpen(false) : handleOpen}
+        style={{
+          cursor: 'pointer',
+          padding: '4px 8px',
+          border: '1px solid transparent',
+          borderRadius: 4,
+          minWidth: 100,
+          backgroundColor: isOpen ? '#f8fafc' : 'transparent'
+        }}
+        title="Click to edit supplier"
+        onMouseEnter={(e) => {
+          if (!isOpen) e.currentTarget.style.backgroundColor = '#f8fafc';
+        }}
+        onMouseLeave={(e) => {
+          if (!isOpen) e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        {displayValue}
+      </div>
+
+      {isOpen && (
+        <>
+          {/* Backdrop to capture clicks outside */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9998,
+              background: 'transparent'
+            }}
+            onClick={() => setIsOpen(false)}
+          />
+          {/* Dropdown */}
+          <div
+            style={{
+              position: 'fixed',
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              zIndex: 9999,
+              background: 'white',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              minWidth: 200,
+              maxWidth: 300,
+              maxHeight: 300,
+              overflowY: 'auto'
+            }}
+          >
+            <div style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontWeight: 600, fontSize: 13 }}>
+              Select Supplier ({suppliers.length} available)
+            </div>
+            <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+              >
+                <input
+                  type="radio"
+                  name="supplier"
+                  checked={!selectedSupplierId}
+                  onChange={() => setSelectedSupplierId(null)}
+                  style={{ marginRight: 8 }}
+                />
+                <span style={{ color: '#94a3b8' }}>No Supplier</span>
+              </label>
+              {suppliers.map(supplier => (
+                <label
+                  key={supplier.supplier_id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    ':hover': { background: '#f8fafc' }
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                >
+                  <input
+                    type="radio"
+                    name="supplier"
+                    checked={selectedSupplierId === supplier.supplier_id}
+                    onChange={() => setSelectedSupplierId(supplier.supplier_id)}
+                    style={{ marginRight: 8 }}
+                  />
+                  {supplier.supplier_name}
+                </label>
+              ))}
+            </div>
+            <div style={{ 
+              padding: 8, 
+              borderTop: '1px solid #e2e8f0',
+              display: 'flex',
+              gap: 8,
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 13,
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 4,
+                  background: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 13,
+                  border: 'none',
+                  borderRadius: 4,
+                  background: '#3b82f6',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontWeight: 500
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
