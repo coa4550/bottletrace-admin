@@ -3,71 +3,199 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function POST(req) {
   try {
-    const { supplier_name, supplier_url, supplier_logo_url } = await req.json();
+    const { rows, confirmedMatches, fileName, isFirstBatch, isLastBatch, existingImportLogId } = await req.json();
     
-    if (!supplier_name || !supplier_name.trim()) {
-      return NextResponse.json({ error: 'Supplier name is required' }, { status: 400 });
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return NextResponse.json({ error: 'No rows provided' }, { status: 400 });
     }
 
-    const trimmedName = supplier_name.trim();
-    const trimmedUrl = supplier_url?.trim() || null;
-    const trimmedLogoUrl = supplier_logo_url?.trim() || null;
+    let importLogId = existingImportLogId;
 
-    // Check if supplier already exists
-    const { data: existingSupplier, error: checkError } = await supabaseAdmin
-      .from('core_suppliers')
-      .select('supplier_id, supplier_name')
-      .eq('supplier_name', trimmedName)
-      .single();
+    // Create import log on first batch
+    if (isFirstBatch && !importLogId) {
+      const { data: logData, error: logError } = await supabaseAdmin
+        .from('import_logs')
+        .insert({
+          import_type: 'add_supplier',
+          file_name: fileName || 'unknown.csv',
+          status: 'in_progress',
+          rows_processed: 0
+        })
+        .select()
+        .single();
 
-    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
-      throw checkError;
+      if (logError) throw logError;
+      importLogId = logData.import_log_id;
     }
 
-    if (existingSupplier) {
-      return NextResponse.json({ 
-        error: `Supplier "${existingSupplier.supplier_name}" already exists (ID: ${existingSupplier.supplier_id})` 
-      }, { status: 409 });
+    let suppliersCreated = 0;
+    let suppliersUpdated = 0;
+    let skipped = 0;
+    const errors = [];
+
+    // Process each row
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const match = confirmedMatches?.[i];
+      
+      try {
+        const supplierName = (row.supplier_name || '').trim();
+        
+        if (!supplierName) {
+          skipped++;
+          continue;
+        }
+
+        const supplierUrl = (row.supplier_url || '').trim();
+        const supplierLogoUrl = (row.supplier_logo_url || '').trim();
+        const dataSource = (row.data_source || 'csv_import').trim();
+
+        let supplierId;
+        let wasCreated = false;
+        let wasUpdated = false;
+
+        // Check if user wants to use existing supplier or create new
+        if (match?.useExisting && match?.existingSupplierId) {
+          // Use existing supplier - enrich it with new data
+          supplierId = match.existingSupplierId;
+          
+          // Fetch existing supplier to check what fields are empty
+          const { data: existingSupplier, error: fetchError } = await supabaseAdmin
+            .from('core_suppliers')
+            .select('supplier_url, supplier_logo_url, data_source')
+            .eq('supplier_id', supplierId)
+            .single();
+
+          if (fetchError) throw fetchError;
+
+          // Only update fields that are currently null/empty in the database
+          const updateData = {};
+          if (supplierUrl && !existingSupplier.supplier_url) {
+            updateData.supplier_url = supplierUrl;
+          }
+          if (supplierLogoUrl && !existingSupplier.supplier_logo_url) {
+            updateData.supplier_logo_url = supplierLogoUrl;
+          }
+          // Always update data_source if provided to reflect latest import
+          if (dataSource) {
+            updateData.data_source = dataSource;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            const { error: updateError } = await supabaseAdmin
+              .from('core_suppliers')
+              .update(updateData)
+              .eq('supplier_id', supplierId);
+
+            if (updateError) throw updateError;
+            wasUpdated = true;
+            suppliersUpdated++;
+
+            // Log the enrichment
+            await supabaseAdmin
+              .from('import_changes')
+              .insert({
+                import_log_id: importLogId,
+                change_type: 'enriched',
+                entity_type: 'supplier',
+                entity_id: supplierId,
+                entity_name: supplierName,
+                old_value: existingSupplier,
+                new_value: updateData,
+                source_row: row
+              });
+          }
+
+        } else {
+          // Create new supplier
+          const { data: newSupplier, error: supplierError } = await supabaseAdmin
+            .from('core_suppliers')
+            .insert({
+              supplier_name: supplierName,
+              supplier_url: supplierUrl || null,
+              supplier_logo_url: supplierLogoUrl || null,
+              data_source: dataSource
+            })
+            .select()
+            .single();
+
+          if (supplierError) {
+            // Check if it's a duplicate error
+            if (supplierError.code === '23505') {
+              // Supplier already exists, fetch it
+              const { data: existingSupplier } = await supabaseAdmin
+                .from('core_suppliers')
+                .select('supplier_id')
+                .eq('supplier_name', supplierName)
+                .single();
+              
+              if (existingSupplier) {
+                supplierId = existingSupplier.supplier_id;
+                skipped++;
+              } else {
+                throw supplierError;
+              }
+            } else {
+              throw supplierError;
+            }
+          } else {
+            supplierId = newSupplier.supplier_id;
+            wasCreated = true;
+            suppliersCreated++;
+
+            // Log the creation
+            await supabaseAdmin
+              .from('import_changes')
+              .insert({
+                import_log_id: importLogId,
+                change_type: 'created',
+                entity_type: 'supplier',
+                entity_id: supplierId,
+                entity_name: supplierName,
+                new_value: { 
+                  supplier_name: supplierName,
+                  supplier_url: supplierUrl,
+                  supplier_logo_url: supplierLogoUrl,
+                  data_source: dataSource
+                },
+                source_row: row
+              });
+          }
+        }
+
+      } catch (error) {
+        console.error(`Error processing row ${i}:`, error);
+        errors.push(`Row ${i + 1}: ${error.message}`);
+      }
     }
 
-    // Create new supplier
-    const { data: newSupplier, error: insertError } = await supabaseAdmin
-      .from('core_suppliers')
-      .insert({
-        supplier_name: trimmedName,
-        supplier_url: trimmedUrl,
-        supplier_logo_url: trimmedLogoUrl,
-        data_source: 'manual_entry'
-      })
-      .select()
-      .single();
+    // Update import log on last batch
+    if (isLastBatch && importLogId) {
+      const { error: updateLogError } = await supabaseAdmin
+        .from('import_logs')
+        .update({
+          status: 'completed',
+          suppliers_created: suppliersCreated,
+          rows_processed: rows.length,
+          rows_skipped: skipped,
+          errors_count: errors.length
+        })
+        .eq('import_log_id', importLogId);
 
-    if (insertError) {
-      throw insertError;
+      if (updateLogError) console.error('Error updating import log:', updateLogError);
     }
-
-    // Log the creation
-    await supabaseAdmin
-      .from('import_logs')
-      .insert({
-        import_type: 'add_supplier',
-        file_name: 'manual_entry',
-        status: 'completed',
-        rows_processed: 1,
-        rows_skipped: 0,
-        errors_count: 0
-      });
 
     return NextResponse.json({
       success: true,
-      supplier_id: newSupplier.supplier_id,
-      supplier_name: newSupplier.supplier_name,
-      supplier_url: newSupplier.supplier_url,
-      supplier_logo_url: newSupplier.supplier_logo_url
+      suppliersCreated,
+      suppliersUpdated,
+      skipped,
+      errors,
+      importLogId
     });
 
   } catch (error) {
-    console.error('Add supplier error:', error);
+    console.error('Import error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
