@@ -650,9 +650,15 @@ export default function SubmissionsDashboard() {
     
     switch (activeTab) {
       case 'brand_update':
-        return pendingSubmissions.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand');
+        return pendingSubmissions.filter(s => {
+          const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+          return (s.submission_type === 'Change' || payload?.submission_type === 'brand_update') && s.submission_category === 'brand';
+        });
       case 'brand_addition':
-        return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand');
+        return pendingSubmissions.filter(s => {
+          const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+          return (s.submission_type === 'Addition' || payload?.submission_type === 'new_brand') && s.submission_category === 'brand';
+        });
       case 'brand_allocation':
         return pendingSubmissions.filter(s => {
           const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
@@ -664,9 +670,15 @@ export default function SubmissionsDashboard() {
           );
         });
       case 'supplier_addition':
-        return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier');
+        return pendingSubmissions.filter(s => {
+          const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+          return (s.submission_type === 'Addition' || payload?.submission_type === 'new_supplier') && s.submission_category === 'supplier';
+        });
       case 'distributor_addition':
-        return pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor');
+        return pendingSubmissions.filter(s => {
+          const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+          return (s.submission_type === 'Addition' || payload?.submission_type === 'new_distributor') && s.submission_category === 'distributor';
+        });
       case 'lonely_brand':
         // Handle both explicit Orphan_Correction and NULL/missing submission_type for brand_supplier category
         return pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier');
@@ -699,8 +711,14 @@ export default function SubmissionsDashboard() {
   const pendingSubmissions = allSubmissions.filter(s => s.status === 'pending');
   const pendingReviews = allReviews.filter(r => r.status === 'pending');
   const tabCounts = {
-    brand_update: pendingSubmissions.filter(s => s.submission_type === 'Change' && s.submission_category === 'brand').length,
-    brand_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'brand').length,
+    brand_update: pendingSubmissions.filter(s => {
+      const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+      return (s.submission_type === 'Change' || payload?.submission_type === 'brand_update') && s.submission_category === 'brand';
+    }).length,
+    brand_addition: pendingSubmissions.filter(s => {
+      const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+      return (s.submission_type === 'Addition' || payload?.submission_type === 'new_brand') && s.submission_category === 'brand';
+    }).length,
     brand_allocation: pendingSubmissions.filter(s => {
       const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
       return s.submission_category === 'brand' && (
@@ -710,8 +728,14 @@ export default function SubmissionsDashboard() {
         s.additional_notes?.includes('ALLOCATION_STATUS')
       );
     }).length,
-    supplier_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'supplier').length,
-    distributor_addition: pendingSubmissions.filter(s => s.submission_type === 'Addition' && s.submission_category === 'distributor').length,
+    supplier_addition: pendingSubmissions.filter(s => {
+      const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+      return (s.submission_type === 'Addition' || payload?.submission_type === 'new_supplier') && s.submission_category === 'supplier';
+    }).length,
+    distributor_addition: pendingSubmissions.filter(s => {
+      const payload = typeof s.payload === 'string' ? JSON.parse(s.payload) : s.payload;
+      return (s.submission_type === 'Addition' || payload?.submission_type === 'new_distributor') && s.submission_category === 'distributor';
+    }).length,
     lonely_brand: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'brand_supplier').length,
     lonely_supplier: pendingSubmissions.filter(s => (s.submission_type === 'Orphan_Correction' || !s.submission_type) && s.submission_category === 'supplier_distributor').length,
     brand_reviews: pendingReviews.filter(r => r.type === 'brand').length,

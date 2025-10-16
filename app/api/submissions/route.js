@@ -48,7 +48,7 @@ export async function POST(req) {
     const body = await req.json();
     
     const {
-      submission_type = 'Addition',
+      submission_type,
       brand_category,
       payload,
       user_email,
@@ -56,6 +56,15 @@ export async function POST(req) {
       user_last_name,
       additional_notes
     } = body;
+
+    // Extract submission_type from payload if not provided in request body
+    let finalSubmissionType = submission_type;
+    if (!finalSubmissionType && payload?.submission_type) {
+      finalSubmissionType = payload.submission_type;
+    }
+    if (!finalSubmissionType) {
+      finalSubmissionType = 'Addition'; // Default fallback
+    }
 
     // Validate required fields
     if (!brand_category) {
@@ -96,7 +105,7 @@ export async function POST(req) {
       .from('user_submissions')
       .insert({
         submission_category: brand_category,
-        submission_type,
+        submission_type: finalSubmissionType,
         payload,
         status: 'pending',
         brand_name_submitted,
