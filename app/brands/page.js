@@ -128,7 +128,14 @@ export default function BrandsPage() {
         while (hasMore) {
           const { data, error } = await supabase
             .from('brand_supplier')
-            .select('brand_id, supplier_id, is_verified, last_verified_at, relationship_source')
+            .select(`
+              brand_id, 
+              supplier_id, 
+              is_verified, 
+              last_verified_at, 
+              relationship_source,
+              core_suppliers(supplier_name)
+            `)
             .range(start, start + pageSize - 1);
 
           if (error) throw error;
@@ -188,6 +195,7 @@ export default function BrandsPage() {
           if (!supplierMap[bs.brand_id]) {
             supplierMap[bs.brand_id] = {
               supplier_id: bs.supplier_id,
+              supplier_name: bs.core_suppliers?.supplier_name || '',
               relationship_source: bs.relationship_source
             };
           }
@@ -196,8 +204,6 @@ export default function BrandsPage() {
         // Merge data
         const enrichedBrands = allBrands.map(brand => {
           const supplierInfo = supplierMap[brand.brand_id];
-          const supplierName = supplierInfo ? 
-            allSuppliers.find(s => s.supplier_id === supplierInfo.supplier_id)?.supplier_name : null;
           
           return {
             ...brand,
@@ -206,7 +212,7 @@ export default function BrandsPage() {
             is_verified: verificationMap[brand.brand_id]?.hasVerified || false,
             last_verified_at: verificationMap[brand.brand_id]?.lastVerifiedAt || null,
             supplier_id: supplierInfo?.supplier_id || null,
-            supplier_name: supplierName || '',
+            supplier_name: supplierInfo?.supplier_name || '',
             relationship_source: supplierInfo?.relationship_source || null
           };
         });
