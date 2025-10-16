@@ -48,7 +48,6 @@ export async function POST(req) {
 
         const distributorUrl = (row.distributor_url || '').trim();
         const distributorLogoUrl = (row.distributor_logo_url || '').trim();
-        const dataSource = (row.data_source || 'csv_import').trim();
 
         let distributorId;
         let wasCreated = false;
@@ -62,7 +61,7 @@ export async function POST(req) {
           // Fetch existing distributor to check what fields are empty
           const { data: existingDistributor, error: fetchError } = await supabaseAdmin
             .from('core_distributors')
-            .select('distributor_url, distributor_logo_url, data_source')
+            .select('distributor_url, distributor_logo_url')
             .eq('distributor_id', distributorId)
             .single();
 
@@ -75,10 +74,6 @@ export async function POST(req) {
           }
           if (distributorLogoUrl && !existingDistributor.distributor_logo_url) {
             updateData.distributor_logo_url = distributorLogoUrl;
-          }
-          // Always update data_source if provided to reflect latest import
-          if (dataSource) {
-            updateData.data_source = dataSource;
           }
 
           if (Object.keys(updateData).length > 0) {
@@ -113,8 +108,7 @@ export async function POST(req) {
             .insert({
               distributor_name: distributorName,
               distributor_url: distributorUrl || null,
-              distributor_logo_url: distributorLogoUrl || null,
-              data_source: dataSource
+              distributor_logo_url: distributorLogoUrl || null
             })
             .select()
             .single();
@@ -155,8 +149,7 @@ export async function POST(req) {
                 new_value: { 
                   distributor_name: distributorName,
                   distributor_url: distributorUrl,
-                  distributor_logo_url: distributorLogoUrl,
-                  data_source: dataSource
+                  distributor_logo_url: distributorLogoUrl
                 },
                 source_row: row
               });

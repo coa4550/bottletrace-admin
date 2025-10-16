@@ -53,15 +53,12 @@ export default function AddSupplierPage() {
       
       const result = await response.json();
       
-      console.log('Validation result:', result);
-      
       if (result.error) {
         alert('Validation error: ' + result.error);
         setLoading(false);
         return;
       }
       
-      console.log('Setting validation:', result);
       setValidation(result);
       
       // Initialize supplier matches with defaults
@@ -243,9 +240,6 @@ export default function AddSupplierPage() {
           <p style={{ color: '#64748b', marginBottom: 24 }}>
             Review all suppliers below. You can manually adjust matches before importing.
           </p>
-          <div style={{ background: '#f3f4f6', padding: 8, borderRadius: 4, fontSize: 12, marginBottom: 16 }}>
-            Debug: validation={JSON.stringify(validation, null, 2)}
-          </div>
 
           {(() => {
             const exactMatches = validation.supplierReviews.filter(s => s.matchType === 'exact');

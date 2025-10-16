@@ -48,7 +48,6 @@ export async function POST(req) {
 
         const supplierUrl = (row.supplier_url || '').trim();
         const supplierLogoUrl = (row.supplier_logo_url || '').trim();
-        const dataSource = (row.data_source || 'csv_import').trim();
 
         let supplierId;
         let wasCreated = false;
@@ -62,7 +61,7 @@ export async function POST(req) {
           // Fetch existing supplier to check what fields are empty
           const { data: existingSupplier, error: fetchError } = await supabaseAdmin
             .from('core_suppliers')
-            .select('supplier_url, supplier_logo_url, data_source')
+            .select('supplier_url, supplier_logo_url')
             .eq('supplier_id', supplierId)
             .single();
 
@@ -75,10 +74,6 @@ export async function POST(req) {
           }
           if (supplierLogoUrl && !existingSupplier.supplier_logo_url) {
             updateData.supplier_logo_url = supplierLogoUrl;
-          }
-          // Always update data_source if provided to reflect latest import
-          if (dataSource) {
-            updateData.data_source = dataSource;
           }
 
           if (Object.keys(updateData).length > 0) {
@@ -113,8 +108,7 @@ export async function POST(req) {
             .insert({
               supplier_name: supplierName,
               supplier_url: supplierUrl || null,
-              supplier_logo_url: supplierLogoUrl || null,
-              data_source: dataSource
+              supplier_logo_url: supplierLogoUrl || null
             })
             .select()
             .single();
@@ -155,8 +149,7 @@ export async function POST(req) {
                 new_value: { 
                   supplier_name: supplierName,
                   supplier_url: supplierUrl,
-                  supplier_logo_url: supplierLogoUrl,
-                  data_source: dataSource
+                  supplier_logo_url: supplierLogoUrl
                 },
                 source_row: row
               });

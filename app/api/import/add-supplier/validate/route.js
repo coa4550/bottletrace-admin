@@ -78,7 +78,7 @@ export async function POST(req) {
     while (hasMore) {
       const { data, error } = await supabaseAdmin
         .from('core_suppliers')
-        .select('supplier_id, supplier_name, supplier_url, supplier_logo_url, data_source')
+        .select('supplier_id, supplier_name, supplier_url, supplier_logo_url')
         .range(start, start + pageSize - 1);
 
       if (error) throw error;
@@ -155,14 +155,12 @@ export async function POST(req) {
         supplierName,
         supplierUrl: (row.supplier_url || '').trim(),
         supplierLogoUrl: (row.supplier_logo_url || '').trim(),
-        dataSource: (row.data_source || 'csv_import').trim(),
         matchType,
         matchedSupplier: matchedSupplier ? {
           supplier_id: matchedSupplier.supplier_id,
           supplier_name: matchedSupplier.supplier_name,
           supplier_url: matchedSupplier.supplier_url,
-          supplier_logo_url: matchedSupplier.supplier_logo_url,
-          data_source: matchedSupplier.data_source
+          supplier_logo_url: matchedSupplier.supplier_logo_url
         } : null,
         similarity: matchType === 'fuzzy' ? bestSimilarity : null,
         action: matchType === 'new' ? 'create' : (matchType === 'exact' ? 'update' : 'match')
