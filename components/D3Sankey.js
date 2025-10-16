@@ -118,8 +118,8 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
       .attr("x", d => {
         // Position labels based on node type and position
         if (d.type === 'brand') {
-          // Brands: position to the right of the node
-          return d.x1 + 20;
+          // Brands: position to the right of the node (or left if it's the first column)
+          return d.x0 < width / 3 ? d.x1 + 20 : d.x0 - 20;
         } else if (d.type === 'distributor') {
           // Distributors: position to the left of the node
           return d.x0 - 20;
@@ -133,7 +133,7 @@ const D3Sankey = ({ data, width = 800, height = 600 }) => {
       .attr("text-anchor", d => {
         // Set text anchor based on node type
         if (d.type === 'brand') {
-          return "start"; // Left-align for brands (to the right of node)
+          return d.x0 < width / 3 ? "start" : "end"; // Left-align if first column, right-align if last
         } else if (d.type === 'distributor') {
           return "end"; // Right-align for distributors (to the left of node)
         } else {
