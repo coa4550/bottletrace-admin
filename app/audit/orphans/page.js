@@ -14,6 +14,10 @@ export default function OrphansAuditPage() {
   const [allSuppliers, setAllSuppliers] = useState([]);
   const [allDistributors, setAllDistributors] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Sorting state
+  const [brandSortConfig, setBrandSortConfig] = useState({ key: null, direction: 'asc' });
+  const [supplierSortConfig, setSupplierSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
     fetchInitialData();
@@ -219,6 +223,77 @@ export default function OrphansAuditPage() {
     total: orphanedSuppliers.length
   };
 
+  // Sorting functions
+  const handleBrandSort = (key) => {
+    let direction = 'asc';
+    if (brandSortConfig.key === key && brandSortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setBrandSortConfig({ key, direction });
+  };
+
+  const handleSupplierSort = (key) => {
+    let direction = 'asc';
+    if (supplierSortConfig.key === key && supplierSortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSupplierSortConfig({ key, direction });
+  };
+
+  // Sort brands
+  const sortedBrands = [...orphanedBrands].sort((a, b) => {
+    if (!brandSortConfig.key) return 0;
+    
+    const aValue = a[brandSortConfig.key];
+    const bValue = b[brandSortConfig.key];
+    
+    if (aValue === null || aValue === undefined) return 1;
+    if (bValue === null || bValue === undefined) return -1;
+    
+    if (brandSortConfig.key === 'brand_name') {
+      return brandSortConfig.direction === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    }
+    
+    if (brandSortConfig.key === 'orphaned_at' || brandSortConfig.key === 'created_at') {
+      const aDate = new Date(aValue);
+      const bDate = new Date(bValue);
+      return brandSortConfig.direction === 'asc' 
+        ? aDate - bDate
+        : bDate - aDate;
+    }
+    
+    return 0;
+  });
+
+  // Sort suppliers
+  const sortedSuppliers = [...orphanedSuppliers].sort((a, b) => {
+    if (!supplierSortConfig.key) return 0;
+    
+    const aValue = a[supplierSortConfig.key];
+    const bValue = b[supplierSortConfig.key];
+    
+    if (aValue === null || aValue === undefined) return 1;
+    if (bValue === null || bValue === undefined) return -1;
+    
+    if (supplierSortConfig.key === 'supplier_name') {
+      return supplierSortConfig.direction === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    }
+    
+    if (supplierSortConfig.key === 'orphaned_at' || supplierSortConfig.key === 'created_at') {
+      const aDate = new Date(aValue);
+      const bDate = new Date(bValue);
+      return supplierSortConfig.direction === 'asc' 
+        ? aDate - bDate
+        : bDate - aDate;
+    }
+    
+    return 0;
+  });
+
   if (loading) {
     return <div style={{ padding: 20 }}>Loading orphaned relationships...</div>;
   }
@@ -308,13 +383,59 @@ export default function OrphansAuditPage() {
           }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                <th style={headerStyle}>Brand Name</th>
-                <th style={headerStyle}>Date Orphaned</th>
+                <th style={headerStyle}>
+                  <button
+                    onClick={() => handleBrandSort('brand_name')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontWeight: 600,
+                      color: '#475569',
+                      fontSize: 13
+                    }}
+                  >
+                    Brand Name
+                    {brandSortConfig.key === 'brand_name' && (
+                      <span style={{ fontSize: 12 }}>
+                        {brandSortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </button>
+                </th>
+                <th style={headerStyle}>
+                  <button
+                    onClick={() => handleBrandSort('orphaned_at')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      fontWeight: 600,
+                      color: '#475569',
+                      fontSize: 13
+                    }}
+                  >
+                    Date Orphaned
+                    {brandSortConfig.key === 'orphaned_at' && (
+                      <span style={{ fontSize: 12 }}>
+                        {brandSortConfig.direction === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </button>
+                </th>
                 <th style={headerStyle}>Link to Supplier</th>
               </tr>
             </thead>
             <tbody>
-              {orphanedBrands.map(brand => (
+              {sortedBrands.map(brand => (
                 <tr key={brand.brand_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={cellStyle}>
                     <strong>{brand.brand_name}</strong>
@@ -387,13 +508,59 @@ export default function OrphansAuditPage() {
               }}>
                 <thead>
                   <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    <th style={headerStyle}>Supplier Name</th>
-                    <th style={headerStyle}>Date Orphaned</th>
+                    <th style={headerStyle}>
+                      <button
+                        onClick={() => handleSupplierSort('supplier_name')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontWeight: 600,
+                          color: '#475569',
+                          fontSize: 13
+                        }}
+                      >
+                        Supplier Name
+                        {supplierSortConfig.key === 'supplier_name' && (
+                          <span style={{ fontSize: 12 }}>
+                            {supplierSortConfig.direction === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </button>
+                    </th>
+                    <th style={headerStyle}>
+                      <button
+                        onClick={() => handleSupplierSort('orphaned_at')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontWeight: 600,
+                          color: '#475569',
+                          fontSize: 13
+                        }}
+                      >
+                        Date Orphaned
+                        {supplierSortConfig.key === 'orphaned_at' && (
+                          <span style={{ fontSize: 12 }}>
+                            {supplierSortConfig.direction === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </button>
+                    </th>
                     <th style={headerStyle}>Link to Distributor (Requires State)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {orphanedSuppliers.map(supplier => (
+                  {sortedSuppliers.map(supplier => (
                     <tr key={supplier.supplier_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                       <td style={cellStyle}>
                         <strong>{supplier.supplier_name}</strong>
