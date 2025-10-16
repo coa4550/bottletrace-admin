@@ -68,10 +68,10 @@ export default function Navigation() {
           Data Import
         </h4>
         <a href="/import/brand" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Brand</a>
-        <a href="/import/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Supplier Portfolio</a>
-        <a href="/import/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Distributor Portfolio</a>
         <a href="/import/add-supplier" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Supplier</a>
         <a href="/import/add-distributor" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Distributor</a>
+        <a href="/import/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Supplier Portfolio</a>
+        <a href="/import/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Distributor Portfolio</a>
         <a href="/import/logs" style={{ color:'#22d3ee', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>📋 Import History</a>
       </nav>
 
