@@ -14,6 +14,7 @@ export default function AuditSupplierPortfolioPage() {
   const [portfolioBrands, setPortfolioBrands] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState(new Set());
+  const [allSuppliers, setAllSuppliers] = useState([]);
 
   // Fetch all suppliers on mount
   useEffect(() => {
@@ -148,12 +149,25 @@ export default function AuditSupplierPortfolioPage() {
           }
         });
 
+        // Fetch all suppliers for the supplier dropdown
+        const { data: allSuppliers, error: suppliersError } = await supabase
+          .from('core_suppliers')
+          .select('supplier_id, supplier_name')
+          .order('supplier_name');
+
+        if (suppliersError) throw suppliersError;
+
+        // Store all suppliers for the supplier dropdown
+        setAllSuppliers(allSuppliers || []);
+
         // Merge data
         const enrichedBrands = brands.map(brand => ({
           ...brand,
           categories: catsMap[brand.brand_id]?.join(', ') || '',
           sub_categories: subcatsMap[brand.brand_id]?.join(', ') || '',
-          last_verified_at: relationshipMap[brand.brand_id]?.last_verified_at || null
+          last_verified_at: relationshipMap[brand.brand_id]?.last_verified_at || null,
+          current_supplier_id: relationshipMap[brand.brand_id]?.supplier_id || null,
+          current_supplier_name: supplier.supplier_name // The selected supplier
         }));
 
         setPortfolioBrands(enrichedBrands);
@@ -196,6 +210,59 @@ export default function AuditSupplierPortfolioPage() {
     } catch (err) {
       console.error('Update error:', err.message);
       alert('Failed to update brand.');
+    }
+  };
+
+  const handleSupplierChange = async (brandId, newSupplierId) => {
+    try {
+      // Delete existing brand-supplier relationships
+      const { error: deleteError } = await supabase
+        .from('brand_supplier')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new relationship if supplier is selected
+      if (newSupplierId) {
+        const { error: insertError } = await supabase
+          .from('brand_supplier')
+          .insert({
+            brand_id: brandId,
+            supplier_id: newSupplierId,
+            is_verified: false,
+            last_verified_at: null,
+            relationship_source: 'audit_portfolio_update'
+          });
+
+        if (insertError) throw insertError;
+      }
+
+      // Update local state with new supplier name
+      const newSupplierName = newSupplierId ? 
+        allSuppliers.find(s => s.supplier_id === newSupplierId)?.supplier_name || '' : '';
+
+      setPortfolioBrands(prev =>
+        prev.map(b => (b.brand_id === brandId ? { 
+          ...b, 
+          current_supplier_id: newSupplierId,
+          current_supplier_name: newSupplierName
+        } : b))
+      );
+
+      // If the brand was moved to a different supplier, remove it from current portfolio
+      if (newSupplierId && newSupplierId !== selectedSupplier) {
+        setPortfolioBrands(prev => prev.filter(b => b.brand_id !== brandId));
+        setSelectedBrands(prev => {
+          const updated = new Set(prev);
+          updated.delete(brandId);
+          return updated;
+        });
+        alert(`Brand moved to ${newSupplierName}. It will no longer appear in this supplier's portfolio.`);
+      }
+    } catch (err) {
+      console.error('Supplier change error:', err.message);
+      alert('Failed to change supplier: ' + err.message);
     }
   };
 
@@ -517,12 +584,13 @@ export default function AuditSupplierPortfolioPage() {
                           title="Select all brands"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '16%' }}>Brand Name</th>
-                      <th style={{ ...headerStyle, width: '12%' }}>Verified Date</th>
-                      <th style={{ ...headerStyle, width: '13%' }}>Categories</th>
-                      <th style={{ ...headerStyle, width: '13%' }}>Sub-Categories</th>
-                      <th style={{ ...headerStyle, width: '18%' }}>Brand URL</th>
-                      <th style={{ ...headerStyle, width: '18%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '14%' }}>Brand Name</th>
+                      <th style={{ ...headerStyle, width: '14%' }}>Supplier</th>
+                      <th style={{ ...headerStyle, width: '10%' }}>Verified Date</th>
+                      <th style={{ ...headerStyle, width: '12%' }}>Categories</th>
+                      <th style={{ ...headerStyle, width: '12%' }}>Sub-Categories</th>
+                      <th style={{ ...headerStyle, width: '16%' }}>Brand URL</th>
+                      <th style={{ ...headerStyle, width: '16%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -547,6 +615,14 @@ export default function AuditSupplierPortfolioPage() {
                           <EditableCell
                             value={brand.brand_name}
                             onChange={(val) => handleBrandEdit(brand.brand_id, 'brand_name', val)}
+                          />
+                        </td>
+                        <td style={cellStyle}>
+                          <SupplierDropdown
+                            currentSupplierId={brand.current_supplier_id}
+                            currentSupplierName={brand.current_supplier_name}
+                            allSuppliers={allSuppliers}
+                            onChange={(newSupplierId) => handleSupplierChange(brand.brand_id, newSupplierId)}
                           />
                         </td>
                         <td style={cellStyle}>
@@ -749,6 +825,136 @@ function VerifiedDate({ date }) {
       <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
         {relativeTime}
       </div>
+    </div>
+  );
+}
+
+// Component for supplier dropdown
+function SupplierDropdown({ currentSupplierId, currentSupplierName, allSuppliers, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredSuppliers = allSuppliers.filter(supplier =>
+    supplier.supplier_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSupplierSelect = (supplierId) => {
+    onChange(supplierId);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const handleRemoveSupplier = () => {
+    onChange(null);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          padding: '6px 8px',
+          cursor: 'pointer',
+          minHeight: 32,
+          borderRadius: 4,
+          border: '1px solid transparent',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          width: '100%',
+          maxWidth: '100%',
+          background: isOpen ? '#f8fafc' : 'transparent'
+        }}
+        onMouseEnter={(e) => !isOpen && (e.target.style.background = '#f8fafc')}
+        onMouseLeave={(e) => !isOpen && (e.target.style.background = 'transparent')}
+        title={currentSupplierName || "Click to change supplier"}
+      >
+        {currentSupplierName || '—'}
+      </div>
+      
+      {isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'white',
+          border: '1px solid #e2e8f0',
+          borderRadius: 8,
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+          zIndex: 1000,
+          width: '400px',
+          maxHeight: '500px',
+          overflow: 'hidden'
+        }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid #e2e8f0' }}>
+            <input
+              type="text"
+              placeholder="Search suppliers..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                fontSize: 14
+              }}
+              autoFocus
+            />
+          </div>
+          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+            <div
+              onClick={handleRemoveSupplier}
+              style={{
+                padding: '12px 16px',
+                cursor: 'pointer',
+                borderBottom: '1px solid #f1f5f9',
+                color: '#ef4444',
+                fontWeight: 500
+              }}
+              onMouseEnter={(e) => e.target.style.background = '#fef2f2'}
+              onMouseLeave={(e) => e.target.style.background = 'transparent'}
+            >
+              No Supplier
+            </div>
+            {filteredSuppliers.map(supplier => (
+              <div
+                key={supplier.supplier_id}
+                onClick={() => handleSupplierSelect(supplier.supplier_id)}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid #f1f5f9',
+                  background: supplier.supplier_id === currentSupplierId ? '#eff6ff' : 'transparent'
+                }}
+                onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+                onMouseLeave={(e) => e.target.style.background = supplier.supplier_id === currentSupplierId ? '#eff6ff' : 'transparent'}
+              >
+                {supplier.supplier_name}
+              </div>
+            ))}
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', textAlign: 'right' }}>
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{
+                padding: '6px 12px',
+                background: '#6b7280',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer',
+                fontSize: 13
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
