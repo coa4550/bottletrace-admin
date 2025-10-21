@@ -363,8 +363,8 @@ export default function BrandsPage() {
           .insert({
             brand_id: brandId,
             supplier_id: newSupplierId,
-            is_verified: false,
-            last_verified_at: null,
+            is_verified: true,
+            last_verified_at: new Date().toISOString(),
             relationship_source: 'admin_edit'
           });
 
