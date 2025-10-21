@@ -15,6 +15,7 @@ export default function AuditSupplierPortfolioPage() {
   const [loading, setLoading] = useState(false);
   const [selectedBrands, setSelectedBrands] = useState(new Set());
   const [allSuppliers, setAllSuppliers] = useState([]);
+  const [showBulkSupplierModal, setShowBulkSupplierModal] = useState(false);
 
   // Fetch all suppliers on mount
   useEffect(() => {
@@ -263,6 +264,94 @@ export default function AuditSupplierPortfolioPage() {
     } catch (err) {
       console.error('Supplier change error:', err.message);
       alert('Failed to change supplier: ' + err.message);
+    }
+  };
+
+  const handleBulkSupplierReassignment = () => {
+    if (selectedBrands.size === 0) {
+      alert('No brands selected');
+      return;
+    }
+    setShowBulkSupplierModal(true);
+  };
+
+  const handleBulkSupplierChange = async (newSupplierId) => {
+    try {
+      const brandIdsToReassign = Array.from(selectedBrands);
+      const brandNames = portfolioBrands
+        .filter(b => selectedBrands.has(b.brand_id))
+        .map(b => b.brand_name);
+
+      const newSupplierName = newSupplierId ? 
+        allSuppliers.find(s => s.supplier_id === newSupplierId)?.supplier_name || '' : '';
+
+      if (!confirm(`Reassign ${brandIdsToReassign.length} brand${brandIdsToReassign.length > 1 ? 's' : ''} to ${newSupplierName || 'No Supplier'}?\n\n• ${brandNames.join('\n• ')}\n\nBrands will be removed from this portfolio if reassigned to a different supplier.`)) {
+        return;
+      }
+
+      let reassignedCount = 0;
+      let removedFromPortfolioCount = 0;
+
+      // Process each brand
+      for (const brandId of brandIdsToReassign) {
+        // Delete existing brand-supplier relationships
+        const { error: deleteError } = await supabase
+          .from('brand_supplier')
+          .delete()
+          .eq('brand_id', brandId);
+
+        if (deleteError) throw deleteError;
+
+        // Insert new relationship if supplier is selected
+        if (newSupplierId) {
+          const { error: insertError } = await supabase
+            .from('brand_supplier')
+            .insert({
+              brand_id: brandId,
+              supplier_id: newSupplierId,
+              is_verified: false,
+              last_verified_at: null,
+              relationship_source: 'bulk_audit_portfolio_update'
+            });
+
+          if (insertError) throw insertError;
+        }
+
+        reassignedCount++;
+
+        // If the brand was moved to a different supplier, remove it from current portfolio
+        if (newSupplierId && newSupplierId !== selectedSupplier) {
+          removedFromPortfolioCount++;
+        }
+      }
+
+      // Update local state
+      if (newSupplierId && newSupplierId !== selectedSupplier) {
+        // Remove brands that were reassigned to different suppliers
+        setPortfolioBrands(prev => prev.filter(b => !selectedBrands.has(b.brand_id)));
+        setSelectedBrands(new Set());
+      } else {
+        // Update brands that stayed with current supplier
+        setPortfolioBrands(prev =>
+          prev.map(b => selectedBrands.has(b.brand_id) ? { 
+            ...b, 
+            current_supplier_id: newSupplierId,
+            current_supplier_name: newSupplierName
+          } : b)
+        );
+        setSelectedBrands(new Set());
+      }
+
+      setShowBulkSupplierModal(false);
+
+      let message = `Successfully reassigned ${reassignedCount} brand${reassignedCount > 1 ? 's' : ''} to ${newSupplierName || 'No Supplier'}!`;
+      if (removedFromPortfolioCount > 0) {
+        message += ` ${removedFromPortfolioCount} brand${removedFromPortfolioCount > 1 ? 's were' : ' was'} removed from this portfolio.`;
+      }
+      alert(message);
+    } catch (err) {
+      console.error('Bulk supplier change error:', err.message);
+      alert('Failed to reassign brands: ' + err.message);
     }
   };
 
@@ -544,21 +633,38 @@ export default function AuditSupplierPortfolioPage() {
                 Supplier Portfolio ({portfolioBrands.length} brands)
               </h2>
               {selectedBrands.size > 0 && (
-                <button
-                  onClick={handleBulkRemoveRelationships}
-                  style={{
-                    padding: '8px 16px',
-                    background: '#f59e0b',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    fontSize: 14
-                  }}
-                >
-                  Remove {selectedBrands.size} Relationship{selectedBrands.size > 1 ? 's' : ''}
-                </button>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    onClick={handleBulkSupplierReassignment}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      fontSize: 14
+                    }}
+                  >
+                    Reassign {selectedBrands.size} Brand{selectedBrands.size > 1 ? 's' : ''} to Supplier
+                  </button>
+                  <button
+                    onClick={handleBulkRemoveRelationships}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#f59e0b',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontWeight: 500,
+                      fontSize: 14
+                    }}
+                  >
+                    Remove {selectedBrands.size} Relationship{selectedBrands.size > 1 ? 's' : ''}
+                  </button>
+                </div>
               )}
             </div>
             {portfolioBrands.length === 0 ? (
@@ -673,6 +779,185 @@ export default function AuditSupplierPortfolioPage() {
           Please select a supplier to view and audit their portfolio.
         </p>
       )}
+
+      {/* Bulk Supplier Reassignment Modal */}
+      {showBulkSupplierModal && (
+        <BulkSupplierReassignmentModal
+          selectedBrands={selectedBrands}
+          portfolioBrands={portfolioBrands}
+          allSuppliers={allSuppliers}
+          onSupplierSelect={handleBulkSupplierChange}
+          onClose={() => setShowBulkSupplierModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Component for bulk supplier reassignment modal
+function BulkSupplierReassignmentModal({ selectedBrands, portfolioBrands, allSuppliers, onSupplierSelect, onClose }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+
+  const selectedBrandNames = portfolioBrands
+    .filter(b => selectedBrands.has(b.brand_id))
+    .map(b => b.brand_name);
+
+  const filteredSuppliers = allSuppliers.filter(supplier =>
+    supplier.supplier_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSupplierSelect = (supplierId) => {
+    setSelectedSupplierId(supplierId);
+  };
+
+  const handleConfirm = () => {
+    onSupplierSelect(selectedSupplierId);
+  };
+
+  const handleRemoveSupplier = () => {
+    setSelectedSupplierId(null);
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: 12,
+        padding: 24,
+        width: '90%',
+        maxWidth: 600,
+        maxHeight: '80vh',
+        overflow: 'hidden',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.15)'
+      }}>
+        <div style={{ marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 20, color: '#1e293b' }}>
+            Reassign {selectedBrands.size} Brand{selectedBrands.size > 1 ? 's' : ''} to Supplier
+          </h2>
+          <p style={{ margin: '8px 0 0 0', color: '#64748b', fontSize: 14 }}>
+            Select a new supplier for the selected brands:
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>
+            Selected Brands:
+          </h3>
+          <div style={{
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: 6,
+            padding: 12,
+            maxHeight: 120,
+            overflowY: 'auto'
+          }}>
+            {selectedBrandNames.map((name, index) => (
+              <div key={index} style={{ fontSize: 14, color: '#1e293b', marginBottom: 4 }}>
+                • {name}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>
+            Select New Supplier:
+          </h3>
+          <input
+            type="text"
+            placeholder="Search suppliers..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              fontSize: 14,
+              marginBottom: 12
+            }}
+          />
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+            <div
+              onClick={handleRemoveSupplier}
+              style={{
+                padding: '12px 16px',
+                cursor: 'pointer',
+                borderBottom: '1px solid #f1f5f9',
+                color: '#ef4444',
+                fontWeight: 500,
+                background: selectedSupplierId === null ? '#eff6ff' : 'transparent'
+              }}
+              onMouseEnter={(e) => e.target.style.background = '#fef2f2'}
+              onMouseLeave={(e) => e.target.style.background = selectedSupplierId === null ? '#eff6ff' : 'transparent'}
+            >
+              No Supplier
+            </div>
+            {filteredSuppliers.map(supplier => (
+              <div
+                key={supplier.supplier_id}
+                onClick={() => handleSupplierSelect(supplier.supplier_id)}
+                style={{
+                  padding: '12px 16px',
+                  cursor: 'pointer',
+                  borderBottom: '1px solid #f1f5f9',
+                  background: supplier.supplier_id === selectedSupplierId ? '#eff6ff' : 'transparent'
+                }}
+                onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+                onMouseLeave={(e) => e.target.style.background = supplier.supplier_id === selectedSupplierId ? '#eff6ff' : 'transparent'}
+              >
+                {supplier.supplier_name}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 20px',
+              background: '#6b7280',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 500
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={selectedSupplierId === ''}
+            style={{
+              padding: '10px 20px',
+              background: selectedSupplierId !== '' ? '#3b82f6' : '#9ca3af',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: selectedSupplierId !== '' ? 'pointer' : 'not-allowed',
+              fontSize: 14,
+              fontWeight: 500
+            }}
+          >
+            Reassign Brands
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
