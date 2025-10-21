@@ -362,13 +362,14 @@ export default function BrandsPage() {
             brand_id: brandId,
             supplier_id: newSupplierId,
             is_verified: false,
+            last_verified_at: null,
             relationship_source: 'admin_edit'
           });
 
         if (insertError) throw insertError;
       }
 
-      // Update local state with supplier name
+      // Update local state with supplier name and reset verification status
       const supplierName = newSupplierId ? 
         allSuppliers.find(s => s.supplier_id === newSupplierId)?.supplier_name || '' : '';
 
@@ -377,7 +378,9 @@ export default function BrandsPage() {
           ...b, 
           supplier_id: newSupplierId,
           supplier_name: supplierName,
-          relationship_source: newSupplierId ? 'admin_edit' : null
+          relationship_source: newSupplierId ? 'admin_edit' : null,
+          is_verified: false,
+          last_verified_at: null
         } : b))
       );
     } catch (err) {
