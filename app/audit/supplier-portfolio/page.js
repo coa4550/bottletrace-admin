@@ -232,7 +232,7 @@ export default function AuditSupplierPortfolioPage() {
             brand_id: brandId,
             supplier_id: newSupplierId,
             is_verified: false,
-            last_verified_at: null,
+            last_verified_at: new Date().toISOString(),
             relationship_source: 'audit_portfolio_update'
           });
 
@@ -310,7 +310,7 @@ export default function AuditSupplierPortfolioPage() {
               brand_id: brandId,
               supplier_id: newSupplierId,
               is_verified: false,
-              last_verified_at: null,
+              last_verified_at: new Date().toISOString(),
               relationship_source: 'bulk_audit_portfolio_update'
             });
 
