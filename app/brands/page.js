@@ -48,9 +48,8 @@ export default function BrandsPage() {
     fetchCategoriesSubCategoriesAndSuppliers();
   }, []);
 
-  // Fetch brands with categories and sub-categories
-  useEffect(() => {
-    async function fetchBrands() {
+  // Extract brands fetching logic into a reusable function
+  const fetchBrandsData = async () => {
       try {
         // Fetch ALL brands using pagination
         let allBrands = [];
@@ -223,8 +222,11 @@ export default function BrandsPage() {
       } finally {
         setLoading(false);
       }
-    }
-    fetchBrands();
+  };
+
+  // Fetch brands with categories and sub-categories
+  useEffect(() => {
+    fetchBrandsData();
   }, []);
 
   const startResize = (e, key) => {
@@ -369,20 +371,8 @@ export default function BrandsPage() {
         if (insertError) throw insertError;
       }
 
-      // Update local state with supplier name and reset verification status
-      const supplierName = newSupplierId ? 
-        allSuppliers.find(s => s.supplier_id === newSupplierId)?.supplier_name || '' : '';
-
-      setBrands((prev) =>
-        prev.map((b) => (b.brand_id === brandId ? { 
-          ...b, 
-          supplier_id: newSupplierId,
-          supplier_name: supplierName,
-          relationship_source: newSupplierId ? 'admin_edit' : null,
-          is_verified: false,
-          last_verified_at: null
-        } : b))
-      );
+      // Refresh the brands data to get updated verification information
+      await fetchBrandsData();
     } catch (err) {
       console.error('Update supplier error:', err.message);
       alert('Failed to update supplier: ' + err.message);
