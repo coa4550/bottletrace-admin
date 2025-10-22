@@ -5,9 +5,7 @@ export async function POST(req) {
   try {
     const { 
       rows, 
-      manualMatches = {},
-      supplierMatches = {},
-      distributorMatches = {},
+      confirmedMatches = {}, 
       fileName,
       isFirstBatch = true,
       isLastBatch = true,
@@ -26,7 +24,7 @@ export async function POST(req) {
       const { data: importLog, error: logError } = await supabaseAdmin
         .from('import_logs')
         .insert({
-          import_type: 'distributor_supplier_portfolio',
+          import_type: 'distributor_portfolio',
           file_name: fileName || 'unknown',
           rows_processed: 0
         })
@@ -44,6 +42,9 @@ export async function POST(req) {
     let skipped = 0;
     const errors = [];
     const changes = [];
+    
+    // Track which distributor-supplier-state combos are in the import
+    const importedRelationships = new Map(); // Map<distributorId, Map<supplierId, Set<stateId>>>
     
     // Pre-load all distributors, suppliers, and states
     let allDistributors = [];
@@ -98,16 +99,17 @@ export async function POST(req) {
     // Build lookup maps
     const distributorMap = new Map(allDistributors?.map(d => [d.distributor_name, d]) || []);
     const supplierMap = new Map(allSuppliers?.map(s => [s.supplier_name, s]) || []);
-    const stateCodeMap = new Map(allStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
-    const stateNameMap = new Map(allStates?.map(s => [s.state_name?.toLowerCase(), s]) || []);
+    const distributorIdMap = new Map(allDistributors?.map(d => [d.distributor_id, d]) || []);
+    const supplierIdMap = new Map(allSuppliers?.map(s => [s.supplier_id, s]) || []);
     
     console.log(`Loaded ${allDistributors?.length || 0} distributors, ${allSuppliers?.length || 0} suppliers, ${allStates?.length || 0} states`);
     
+    // Collect items to create
     const distributorsToCreate = [];
     const suppliersToCreate = [];
     const rowData = [];
     
-    // Step 1: Process rows
+    // Step 1: Process rows and identify what needs to be created
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
       const row = rows[rowIndex];
       const distributorName = (row.distributor_name || '').trim();
@@ -121,34 +123,43 @@ export async function POST(req) {
       }
 
       try {
-        // Check for manual matches first
-        const distributorMatch = manualMatches[`distributor_${distributorName}`];
-        const supplierMatch = manualMatches[`supplier_${supplierName}`];
+        // Find or queue distributor creation (respect user overrides)
+        let targetDistributorName = distributorName;
+        const distributorMatchKey = `${distributorName}|${supplierName}|${rowIndex}`;
+        if (confirmedMatches[rowIndex] && confirmedMatches[rowIndex].useExistingDistributor) {
+          const matchId = confirmedMatches[rowIndex].existingDistributorId;
+          const existingDistributor = distributorIdMap.get(matchId);
+          
+          if (existingDistributor) {
+            targetDistributorName = existingDistributor.distributor_name;
+          } else {
+            console.error(`Distributor ID ${matchId} not found!`);
+            errors.push(`Warning: Could not find confirmed distributor match for ${distributorName}. Creating new distributor.`);
+            targetDistributorName = distributorName;
+          }
+        }
         
-        // Check for relationship-specific matches
-        const relationshipKey = `${distributorName}_${supplierName}_${rowIndex}`;
-        const relationshipSupplierMatch = supplierMatches[relationshipKey];
-        const relationshipDistributorMatch = distributorMatches[relationshipKey];
-        
-        // Use relationship-specific match if available, otherwise use manual match, otherwise check if exists or needs to be created
-        if (relationshipDistributorMatch) {
-          // Relationship-specific distributor match found - use the existing distributor
-          distributorMap.set(distributorName, relationshipDistributorMatch);
-        } else if (distributorMatch) {
-          // Manual match found - use the existing distributor
-          distributorMap.set(distributorName, distributorMatch);
-        } else if (!distributorMap.has(distributorName) && !distributorsToCreate.some(d => d.name === distributorName)) {
-          distributorsToCreate.push({ name: distributorName, row });
+        if (!distributorMap.has(targetDistributorName) && !distributorsToCreate.some(d => d.name === targetDistributorName)) {
+          distributorsToCreate.push({ name: targetDistributorName, row });
         }
 
-        if (relationshipSupplierMatch) {
-          // Relationship-specific supplier match found - use the existing supplier
-          supplierMap.set(supplierName, relationshipSupplierMatch);
-        } else if (supplierMatch) {
-          // Manual match found - use the existing supplier
-          supplierMap.set(supplierName, supplierMatch);
-        } else if (!supplierMap.has(supplierName) && !suppliersToCreate.some(s => s.name === supplierName)) {
-          suppliersToCreate.push({ name: supplierName, row });
+        // Find or queue supplier creation (respect user overrides)
+        let targetSupplierName = supplierName;
+        if (confirmedMatches[rowIndex] && confirmedMatches[rowIndex].useExistingSupplier) {
+          const matchId = confirmedMatches[rowIndex].existingSupplierId;
+          const existingSupplier = supplierIdMap.get(matchId);
+          
+          if (existingSupplier) {
+            targetSupplierName = existingSupplier.supplier_name;
+          } else {
+            console.error(`Supplier ID ${matchId} not found!`);
+            errors.push(`Warning: Could not find confirmed supplier match for ${supplierName}. Creating new supplier.`);
+            targetSupplierName = supplierName;
+          }
+        }
+        
+        if (!supplierMap.has(targetSupplierName) && !suppliersToCreate.some(s => s.name === targetSupplierName)) {
+          suppliersToCreate.push({ name: targetSupplierName, row });
         }
 
         // Find states
@@ -162,34 +173,35 @@ export async function POST(req) {
           
           const allStatesToCheck = [...stateCodesToCheck, ...stateNamesToCheck];
           const foundStates = [];
-          const notFoundStates = [];
 
           for (const stateToCheck of allStatesToCheck) {
-            let state = null;
             if (stateToCheck) {
-              state = stateCodeMap.get(stateToCheck.toLowerCase()) || stateNameMap.get(stateToCheck.toLowerCase());
+              const state = allStates?.find(s => 
+                s.state_code?.toLowerCase() === stateToCheck.toLowerCase() ||
+                s.state_name?.toLowerCase() === stateToCheck.toLowerCase()
+              );
+              if (state) {
+                foundStates.push(state);
+              }
             }
-            
-            if (state) {
-              foundStates.push(state);
-            } else {
-              notFoundStates.push(stateToCheck);
-            }
-          }
-
-          if (notFoundStates.length > 0) {
-            errors.push(`States not found: ${notFoundStates.join(', ')} (row: ${distributorName} - ${supplierName})`);
-          }
-
-          if (foundStates.length === 0) {
-            skipped++;
-            continue; // Skip this row if no valid states found
           }
 
           stateIds = foundStates.map(s => s.state_id);
         }
 
-        rowData.push({ rowIndex, row, distributorName, supplierName, stateIds });
+        if (stateIds.length === 0) {
+          errors.push(`No valid states found for ${distributorName} - ${supplierName}`);
+          skipped++;
+          continue;
+        }
+
+        rowData.push({ 
+          rowIndex, 
+          row, 
+          distributorName: targetDistributorName, 
+          supplierName: targetSupplierName,
+          stateIds 
+        });
       } catch (rowError) {
         errors.push(`Error processing ${distributorName} - ${supplierName}: ${rowError.message}`);
         skipped++;
@@ -206,7 +218,10 @@ export async function POST(req) {
       if (distributorError) throw distributorError;
 
       distributorsCreated += newDistributors?.length || 0;
-      newDistributors?.forEach(d => distributorMap.set(d.distributor_name, d));
+      newDistributors?.forEach(d => {
+        distributorMap.set(d.distributor_name, d);
+        distributorIdMap.set(d.distributor_id, d);
+      });
 
       newDistributors?.forEach((d, idx) => {
         changes.push({
@@ -231,7 +246,10 @@ export async function POST(req) {
       if (supplierError) throw supplierError;
 
       suppliersCreated += newSuppliers?.length || 0;
-      newSuppliers?.forEach(s => supplierMap.set(s.supplier_name, s));
+      newSuppliers?.forEach(s => {
+        supplierMap.set(s.supplier_name, s);
+        supplierIdMap.set(s.supplier_id, s);
+      });
 
       newSuppliers?.forEach((s, idx) => {
         changes.push({
@@ -248,32 +266,15 @@ export async function POST(req) {
 
     // Step 4: Load existing relationships for all distributors
     const allDistributorIds = [...new Set(rowData.map(r => distributorMap.get(r.distributorName)?.distributor_id).filter(Boolean))];
-    const existingRelsMap = new Map();
+    const existingRelsMap = new Map(); // Map<distributorId_supplierId_stateId, true>
     
     if (allDistributorIds.length > 0) {
-      let allExistingRels = [];
-      start = 0;
-      hasMore = true;
+      const { data: existingRels } = await supabaseAdmin
+        .from('distributor_supplier_state')
+        .select('distributor_id, supplier_id, state_id')
+        .in('distributor_id', allDistributorIds);
 
-      while (hasMore) {
-        const { data, error } = await supabaseAdmin
-          .from('distributor_supplier_state')
-          .select('distributor_id, supplier_id, state_id')
-          .in('distributor_id', allDistributorIds)
-          .range(start, start + pageSize - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allExistingRels = [...allExistingRels, ...data];
-          start += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      allExistingRels?.forEach(rel => {
+      existingRels?.forEach(rel => {
         existingRelsMap.set(`${rel.distributor_id}_${rel.supplier_id}_${rel.state_id}`, true);
       });
     }
@@ -299,6 +300,14 @@ export async function POST(req) {
         continue;
       }
 
+      // Track imported relationships
+      if (!importedRelationships.has(distributor.distributor_id)) {
+        importedRelationships.set(distributor.distributor_id, new Map());
+      }
+      if (!importedRelationships.get(distributor.distributor_id).has(supplier.supplier_id)) {
+        importedRelationships.get(distributor.distributor_id).set(supplier.supplier_id, new Set());
+      }
+
       for (const stateId of stateIds) {
         const relKey = `${distributor.distributor_id}_${supplier.supplier_id}_${stateId}`;
         
@@ -306,7 +315,9 @@ export async function POST(req) {
           relationshipsToUpdate.push({
             distributor_id: distributor.distributor_id,
             supplier_id: supplier.supplier_id,
-            state_id: stateId
+            state_id: stateId,
+            is_verified: verifyRelationships,
+            last_verified_at: verifyRelationships ? now : null
           });
         } else {
           relationshipsToCreate.push({
@@ -317,22 +328,35 @@ export async function POST(req) {
             last_verified_at: verifyRelationships ? now : null
           });
         }
+
+        // Track this relationship as imported
+        importedRelationships.get(distributor.distributor_id).get(supplier.supplier_id).add(stateId);
       }
     }
 
-    // Step 6: Bulk insert new relationships
+    // Step 6: Bulk upsert relationships
     if (relationshipsToCreate.length > 0) {
       const { error: createError } = await supabaseAdmin
         .from('distributor_supplier_state')
         .insert(relationshipsToCreate);
 
-      if (createError && createError.code !== '23505') {
-        throw createError;
-      }
+      if (createError) throw createError;
+
       relationshipsCreated += relationshipsToCreate.length;
+
+      relationshipsToCreate.forEach(rel => {
+        changes.push({
+          import_log_id: importLogId,
+          change_type: 'relationship_created',
+          entity_type: 'distributor_supplier_state',
+          entity_id: `${rel.distributor_id}_${rel.supplier_id}_${rel.state_id}`,
+          entity_name: `${distributorMap.get(rel.distributor_id)?.distributor_name} → ${supplierMap.get(rel.supplier_id)?.supplier_name} (${allStates?.find(s => s.state_id === rel.state_id)?.state_name})`,
+          new_value: rel,
+          source_row: null
+        });
+      });
     }
 
-    // Step 7: Update existing relationships with verification
     if (relationshipsToUpdate.length > 0) {
       for (const rel of relationshipsToUpdate) {
         const { error: updateError } = await supabaseAdmin
@@ -346,51 +370,45 @@ export async function POST(req) {
           .eq('state_id', rel.state_id);
 
         if (updateError) throw updateError;
-        if (verifyRelationships) {
-          relationshipsVerified++;
-        }
       }
+
+      relationshipsVerified += relationshipsToUpdate.length;
+
+      relationshipsToUpdate.forEach(rel => {
+        changes.push({
+          import_log_id: importLogId,
+          change_type: 'relationship_updated',
+          entity_type: 'distributor_supplier_state',
+          entity_id: `${rel.distributor_id}_${rel.supplier_id}_${rel.state_id}`,
+          entity_name: `${distributorMap.get(rel.distributor_id)?.distributor_name} → ${supplierMap.get(rel.supplier_id)?.supplier_name} (${allStates?.find(s => s.state_id === rel.state_id)?.state_name})`,
+          new_value: rel,
+          source_row: null
+        });
+      });
     }
 
-    // Save changes
+    // Step 7: Save all changes to import_log_details
     if (changes.length > 0) {
-      const { error: changesError } = await supabaseAdmin
-        .from('import_changes')
+      const { error: detailsError } = await supabaseAdmin
+        .from('import_log_details')
         .insert(changes);
 
-      if (changesError) {
-        console.error('Error saving import changes:', changesError);
+      if (detailsError) {
+        console.error('Error saving import log details:', detailsError);
+        // Don't throw - this is not critical
       }
     }
 
-    // Update import log
-    if (importLogId) {
-      if (isLastBatch) {
-        await supabaseAdmin
-          .from('import_logs')
-          .update({ status: errors.length > 0 ? 'partial' : 'completed' })
-          .eq('import_log_id', importLogId);
-      }
-      
-      const { data: currentLog } = await supabaseAdmin
-        .from('import_logs')
-        .select('suppliers_created, relationships_created, relationships_verified, rows_skipped, errors_count, rows_processed')
-        .eq('import_log_id', importLogId)
-        .single();
-      
-      if (currentLog) {
-        await supabaseAdmin
-          .from('import_logs')
-          .update({
-            suppliers_created: (currentLog.suppliers_created || 0) + distributorsCreated + suppliersCreated,
-            relationships_created: (currentLog.relationships_created || 0) + relationshipsCreated,
-            relationships_verified: (currentLog.relationships_verified || 0) + relationshipsVerified,
-            rows_skipped: (currentLog.rows_skipped || 0) + skipped,
-            errors_count: (currentLog.errors_count || 0) + errors.length,
-            rows_processed: (currentLog.rows_processed || 0) + rows.length
-          })
-          .eq('import_log_id', importLogId);
-      }
+    // Step 8: Update import log with final counts
+    const totalRowsProcessed = rowData.length;
+    const { error: updateLogError } = await supabaseAdmin
+      .from('import_logs')
+      .update({ rows_processed: totalRowsProcessed })
+      .eq('import_log_id', importLogId);
+
+    if (updateLogError) {
+      console.error('Error updating import log:', updateLogError);
+      // Don't throw - this is not critical
     }
 
     return NextResponse.json({
@@ -399,7 +417,7 @@ export async function POST(req) {
       relationshipsCreated,
       relationshipsVerified,
       skipped,
-      errors: errors.slice(0, 20),
+      errors,
       importLogId
     });
 
@@ -408,4 +426,3 @@ export async function POST(req) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

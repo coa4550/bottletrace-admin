@@ -1,6 +1,67 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
+// Normalize names for fuzzy matching
+function normalizeName(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
+    .replace(/[^\w\s]/g, ''); // Remove special characters
+}
+
+// Get first significant word from name (excluding "the")
+function getFirstWord(name) {
+  const normalized = normalizeName(name);
+  const words = normalized.split(' ').filter(w => w.length > 0);
+  
+  // Skip "the" if it's the first word
+  if (words.length > 0 && words[0] === 'the') {
+    return words[1] || words[0];
+  }
+  
+  return words[0] || '';
+}
+
+// Calculate similarity between two strings (simple Levenshtein-based)
+function similarity(s1, s2) {
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+function levenshteinDistance(str1, str2) {
+  const matrix = [];
+
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  return matrix[str2.length][str1.length];
+}
+
 export async function POST(req) {
   try {
     const { rows } = await req.json();
@@ -9,19 +70,50 @@ export async function POST(req) {
       return NextResponse.json({ error: 'No rows provided' }, { status: 400 });
     }
 
-    // Fetch all existing distributors
-    const { data: existingDistributors, error: distributorsError } = await supabaseAdmin
-      .from('core_distributors')
-      .select('distributor_id, distributor_name, distributor_logo_url');
+    // Fetch ALL existing distributors for fuzzy matching (with pagination)
+    let existingDistributors = [];
+    let start = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (distributorsError) throw distributorsError;
+    while (hasMore) {
+      const { data, error } = await supabaseAdmin
+        .from('core_distributors')
+        .select('distributor_id, distributor_name')
+        .range(start, start + pageSize - 1);
 
-    // Fetch all existing suppliers
-    const { data: existingSuppliers, error: suppliersError } = await supabaseAdmin
-      .from('core_suppliers')
-      .select('supplier_id, supplier_name, supplier_logo_url');
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        existingDistributors = [...existingDistributors, ...data];
+        start += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
 
-    if (suppliersError) throw suppliersError;
+    // Fetch ALL existing suppliers for fuzzy matching (with pagination)
+    let existingSuppliers = [];
+    start = 0;
+    hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabaseAdmin
+        .from('core_suppliers')
+        .select('supplier_id, supplier_name')
+        .range(start, start + pageSize - 1);
+
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        existingSuppliers = [...existingSuppliers, ...data];
+        start += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
 
     // Fetch all existing states
     const { data: existingStates, error: statesError } = await supabaseAdmin
@@ -30,281 +122,197 @@ export async function POST(req) {
 
     if (statesError) throw statesError;
 
-    // Build lookup maps
-    const distributorMap = new Map(existingDistributors?.map(d => [d.distributor_name.toLowerCase(), d]) || []);
-    const supplierMap = new Map(existingSuppliers?.map(s => [s.supplier_name.toLowerCase(), s]) || []);
-    const distributorNameMap = new Map(existingDistributors?.map(d => [d.distributor_name, d]) || []);
-    const supplierNameMap = new Map(existingSuppliers?.map(s => [s.supplier_name, s]) || []);
-    const stateCodeMap = new Map(existingStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
-    const stateNameMap = new Map(existingStates?.map(s => [s.state_name?.toLowerCase(), s]) || []);
+    // Similarity threshold (75% match or higher)
+    const THRESHOLD = 0.75;
 
-    // Fuzzy matching function
-    const calculateSimilarity = (str1, str2) => {
-      const s1 = str1.toLowerCase().trim();
-      const s2 = str2.toLowerCase().trim();
-      
-      if (s1 === s2) return 1;
-      if (s1.length === 0 || s2.length === 0) return 0;
-      
-      // Check if one contains the other
-      if (s1.includes(s2) || s2.includes(s1)) {
-        const shorter = Math.min(s1.length, s2.length);
-        const longer = Math.max(s1.length, s2.length);
-        return shorter / longer;
-      }
-      
-      // Simple Levenshtein distance calculation
-      const matrix = [];
-      for (let i = 0; i <= s2.length; i++) {
-        matrix[i] = [i];
-      }
-      for (let j = 0; j <= s1.length; j++) {
-        matrix[0][j] = j;
-      }
-      
-      for (let i = 1; i <= s2.length; i++) {
-        for (let j = 1; j <= s1.length; j++) {
-          if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
-            matrix[i][j] = matrix[i - 1][j - 1];
-          } else {
-            matrix[i][j] = Math.min(
-              matrix[i - 1][j - 1] + 1,
-              matrix[i][j - 1] + 1,
-              matrix[i - 1][j] + 1
-            );
-          }
-        }
-      }
-      
-      const maxLength = Math.max(s1.length, s2.length);
-      return maxLength === 0 ? 0 : (maxLength - matrix[s2.length][s1.length]) / maxLength;
-    };
-
-    const findBestMatch = (name, existingItems, threshold = 0.7) => {
-      let bestMatch = null;
-      let bestSimilarity = 0;
-      
-      for (const item of existingItems) {
-        const similarity = calculateSimilarity(name, item.name);
-        if (similarity > bestSimilarity && similarity >= threshold) {
-          bestSimilarity = similarity;
-          bestMatch = { ...item, similarity };
-        }
-      }
-      
-      return bestMatch;
-    };
-
-    // Track what will be created
-    const newDistributorNames = new Set();
-    const newSupplierNames = new Set();
-    const newRelationships = new Set();
-    const existingRelationships = new Set();
-    const warnings = [];
-
-    // Get unique distributor-supplier-state combos from import
-    const importRelationships = new Map(); // Map<distributorName, Map<supplierName, Set<stateId>>>
-
-    for (const row of rows) {
+    // Get unique distributor-supplier relationships from import
+    const relationshipKeys = new Set();
+    const relationshipMap = new Map();
+    
+    rows.forEach((row, index) => {
       const distributorName = (row.distributor_name || '').trim();
       const supplierName = (row.supplier_name || '').trim();
       const stateName = (row.state_name || '').trim();
       const stateCode = (row.state_code || '').trim();
-
-      if (!distributorName || !supplierName || (!stateName && !stateCode)) {
-        warnings.push(`Skipping row with missing data: ${JSON.stringify(row)}`);
-        continue;
-      }
-
-      // Find state(s)
-      let stateIds = [];
-      if (stateCode && stateCode.toUpperCase() === 'ALL') {
-        stateIds = existingStates?.map(s => s.state_id) || [];
-      } else {
-        // Handle comma-separated state codes
-        const stateCodesToCheck = stateCode ? stateCode.split(',').map(s => s.trim()) : [];
-        const stateNamesToCheck = stateName ? stateName.split(',').map(s => s.trim()) : [];
-        
-        const allStatesToCheck = [...stateCodesToCheck, ...stateNamesToCheck];
-        const foundStates = [];
-        const notFoundStates = [];
-
-        for (const stateToCheck of allStatesToCheck) {
-          let state = null;
-          if (stateToCheck) {
-            state = stateCodeMap.get(stateToCheck.toLowerCase()) || stateNameMap.get(stateToCheck.toLowerCase());
-          }
-          
-          if (state) {
-            foundStates.push(state);
-          } else {
-            notFoundStates.push(stateToCheck);
-          }
-        }
-
-        if (notFoundStates.length > 0) {
-          warnings.push(`States not found: ${notFoundStates.join(', ')} (row: ${distributorName} - ${supplierName})`);
-        }
-
-        if (foundStates.length === 0) {
-          continue; // Skip this row if no valid states found
-        }
-
-        stateIds = foundStates.map(s => s.state_id);
-      }
-
-      // Track new distributors (with fuzzy matching)
-      const distributorExists = distributorMap.has(distributorName.toLowerCase());
-      if (!distributorExists) {
-        newDistributorNames.add(distributorName);
-      }
-
-      // Track new suppliers (with fuzzy matching)
-      const supplierExists = supplierMap.has(supplierName.toLowerCase());
-      if (!supplierExists) {
-        newSupplierNames.add(supplierName);
-      }
-
-      // Track for relationship counting
-      if (!importRelationships.has(distributorName)) {
-        importRelationships.set(distributorName, new Map());
-      }
-      if (!importRelationships.get(distributorName).has(supplierName)) {
-        importRelationships.get(distributorName).set(supplierName, new Set());
-      }
-      stateIds.forEach(stateId => {
-        importRelationships.get(distributorName).get(supplierName).add(stateId);
-      });
-    }
-
-    // Load existing relationships to count new vs existing
-    const allDistributorIds = [];
-    importRelationships.forEach((suppliers, distributorName) => {
-      const dist = distributorMap.get(distributorName.toLowerCase());
-      if (dist) allDistributorIds.push(dist.distributor_id);
-    });
-
-    let existingRelsMap = new Map(); // Map<distributorId_supplierId_stateId, true>
-    
-    if (allDistributorIds.length > 0) {
-      const { data: existingRels } = await supabaseAdmin
-        .from('distributor_supplier_state')
-        .select('distributor_id, supplier_id, state_id')
-        .in('distributor_id', allDistributorIds);
-
-      existingRels?.forEach(rel => {
-        existingRelsMap.set(`${rel.distributor_id}_${rel.supplier_id}_${rel.state_id}`, true);
-      });
-    }
-
-    // Count new vs existing relationships
-    importRelationships.forEach((suppliers, distributorName) => {
-      const dist = distributorMap.get(distributorName.toLowerCase());
-      const distId = dist?.distributor_id || 'NEW';
-
-      suppliers.forEach((stateIds, supplierName) => {
-        const supp = supplierMap.get(supplierName.toLowerCase());
-        const suppId = supp?.supplier_id || 'NEW';
-
-        stateIds.forEach(stateId => {
-          const relKey = `${distId}_${suppId}_${stateId}`;
-          
-          if (distId === 'NEW' || suppId === 'NEW' || !existingRelsMap.has(relKey)) {
-            newRelationships.add(relKey);
-          } else {
-            existingRelationships.add(relKey);
-          }
-        });
-      });
-    });
-
-    // Get detailed lists for review
-    const newDistributorsList = Array.from(newDistributorNames);
-    const newSuppliersList = Array.from(newSupplierNames);
-    const existingDistributorsList = [];
-    const existingSuppliersList = [];
-    
-    // Find existing distributors and suppliers from the import
-    const importDistributorNames = new Set();
-    const importSupplierNames = new Set();
-    
-    for (const row of rows) {
-      const distributorName = (row.distributor_name || '').trim();
-      const supplierName = (row.supplier_name || '').trim();
-      if (distributorName) importDistributorNames.add(distributorName);
-      if (supplierName) importSupplierNames.add(supplierName);
-    }
-    
-    importDistributorNames.forEach(name => {
-      if (!newDistributorNames.has(name)) {
-        existingDistributorsList.push(name);
-      }
-    });
-    
-    importSupplierNames.forEach(name => {
-      if (!newSupplierNames.has(name)) {
-        existingSuppliersList.push(name);
-      }
-    });
-
-    // Build relationship details for the UI
-    const relationshipDetails = [];
-    importRelationships.forEach((suppliers, distributorName) => {
-      suppliers.forEach((stateIds, supplierName) => {
-        const distExists = !newDistributorNames.has(distributorName);
-        const suppExists = !newSupplierNames.has(supplierName);
-        
-        const distributorInfo = distributorNameMap.get(distributorName);
-        const supplierInfo = supplierNameMap.get(supplierName);
-        
-        // Find fuzzy matches for distributors and suppliers
-        let distributorFuzzyMatch = null;
-        let supplierFuzzyMatch = null;
-        
-        if (!distExists) {
-          const distributorItems = existingDistributors.map(d => ({ name: d.distributor_name, ...d }));
-          distributorFuzzyMatch = findBestMatch(distributorName, distributorItems);
-        }
-        
-        if (!suppExists) {
-          const supplierItems = existingSuppliers.map(s => ({ name: s.supplier_name, ...s }));
-          supplierFuzzyMatch = findBestMatch(supplierName, supplierItems);
-        }
-        
-        relationshipDetails.push({
+      
+      if (!distributorName || !supplierName || (!stateName && !stateCode)) return;
+      
+      const key = `${distributorName}|${supplierName}`;
+      relationshipKeys.add(key);
+      
+      if (!relationshipMap.has(key)) {
+        relationshipMap.set(key, {
           distributorName,
           supplierName,
-          distributorExists: distExists,
-          supplierExists: suppExists,
-          distributorFuzzyMatch,
-          supplierFuzzyMatch,
-          distributorLogoUrl: distributorInfo?.distributor_logo_url || null,
-          supplierLogoUrl: supplierInfo?.supplier_logo_url || null,
-          stateCount: stateIds.size,
-          states: Array.from(stateIds).map(stateId => {
-            const state = existingStates.find(s => s.state_id === stateId);
-            return state ? { id: state.state_id, code: state.state_code, name: state.state_name } : null;
-          }).filter(Boolean)
+          rows: []
         });
-      });
+      }
+      
+      relationshipMap.get(key).rows.push({ ...row, originalIndex: index });
     });
+
+    // Build comprehensive review data for each relationship
+    const relationshipReviews = [];
+
+    for (const [key, relationship] of relationshipMap) {
+      const { distributorName, supplierName, rows: relationshipRows } = relationship;
+      
+      // Find or create distributor ID
+      let distributor = existingDistributors.find(d => d.distributor_name === distributorName);
+      let distributorId = distributor?.distributor_id;
+
+      // Find or create supplier ID
+      let supplier = existingSuppliers.find(s => s.supplier_name === supplierName);
+      let supplierId = supplier?.supplier_id;
+
+      // Process distributor matching
+      let distributorMatchType = 'new';
+      let distributorMatched = distributor;
+      let distributorSimilarity = 0;
+
+      if (distributor) {
+        distributorMatchType = 'exact';
+      } else {
+        // Check for fuzzy match
+        const normalizedDistributorName = normalizeName(distributorName);
+        const distributorFirstWord = getFirstWord(distributorName);
+        
+        for (const existing of existingDistributors) {
+          const normalizedExisting = normalizeName(existing.distributor_name);
+          const existingFirstWord = getFirstWord(existing.distributor_name);
+          
+          // High confidence if first words match (excluding "the")
+          if (distributorFirstWord && distributorFirstWord === existingFirstWord && distributorFirstWord.length > 2) {
+            const sim = 0.95; // High confidence score for first word match
+            if (sim > distributorSimilarity) {
+              distributorMatched = existing;
+              distributorSimilarity = sim;
+            }
+          } else {
+            // Regular Levenshtein similarity
+            const sim = similarity(normalizedDistributorName, normalizedExisting);
+            
+            if (sim >= THRESHOLD && sim > distributorSimilarity) {
+              distributorMatched = existing;
+              distributorSimilarity = sim;
+            }
+          }
+        }
+
+        if (distributorMatched && distributorSimilarity >= THRESHOLD) {
+          distributorMatchType = 'fuzzy';
+        }
+      }
+
+      // Process supplier matching
+      let supplierMatchType = 'new';
+      let supplierMatched = supplier;
+      let supplierSimilarity = 0;
+
+      if (supplier) {
+        supplierMatchType = 'exact';
+      } else {
+        // Check for fuzzy match
+        const normalizedSupplierName = normalizeName(supplierName);
+        const supplierFirstWord = getFirstWord(supplierName);
+        
+        for (const existing of existingSuppliers) {
+          const normalizedExisting = normalizeName(existing.supplier_name);
+          const existingFirstWord = getFirstWord(existing.supplier_name);
+          
+          // High confidence if first words match (excluding "the")
+          if (supplierFirstWord && supplierFirstWord === existingFirstWord && supplierFirstWord.length > 2) {
+            const sim = 0.95; // High confidence score for first word match
+            if (sim > supplierSimilarity) {
+              supplierMatched = existing;
+              supplierSimilarity = sim;
+            }
+          } else {
+            // Regular Levenshtein similarity
+            const sim = similarity(normalizedSupplierName, normalizedExisting);
+            
+            if (sim >= THRESHOLD && sim > supplierSimilarity) {
+              supplierMatched = existing;
+              supplierSimilarity = sim;
+            }
+          }
+        }
+
+        if (supplierMatched && supplierSimilarity >= THRESHOLD) {
+          supplierMatchType = 'fuzzy';
+        }
+      }
+
+      // Process states
+      const processedStates = [];
+      for (const row of relationshipRows) {
+        const stateName = (row.state_name || '').trim();
+        const stateCode = (row.state_code || '').trim();
+        
+        // Find state(s)
+        let stateIds = [];
+        if (stateCode && stateCode.toUpperCase() === 'ALL') {
+          stateIds = existingStates?.map(s => s.state_id) || [];
+        } else {
+          // Handle comma-separated state codes
+          const stateCodesToCheck = stateCode ? stateCode.split(',').map(s => s.trim()) : [];
+          const stateNamesToCheck = stateName ? stateName.split(',').map(s => s.trim()) : [];
+          
+          const allStatesToCheck = [...stateCodesToCheck, ...stateNamesToCheck];
+          const foundStates = [];
+
+          for (const stateToCheck of allStatesToCheck) {
+            if (stateToCheck) {
+              const state = existingStates?.find(s => 
+                s.state_code?.toLowerCase() === stateToCheck.toLowerCase() ||
+                s.state_name?.toLowerCase() === stateToCheck.toLowerCase()
+              );
+              if (state) {
+                foundStates.push(state);
+              }
+            }
+          }
+
+          stateIds = foundStates.map(s => s.state_id);
+        }
+
+        processedStates.push(...stateIds.map(stateId => ({
+          stateId,
+          state: existingStates.find(s => s.state_id === stateId)
+        })));
+      }
+
+      // Remove duplicate states
+      const uniqueStates = processedStates.filter((state, index, self) => 
+        index === self.findIndex(s => s.stateId === state.stateId)
+      );
+
+      relationshipReviews.push({
+        distributorName,
+        supplierName,
+        distributorMatchType,
+        supplierMatchType,
+        distributorMatched: distributorMatched ? {
+          distributor_id: distributorMatched.distributor_id,
+          distributor_name: distributorMatched.distributor_name
+        } : null,
+        supplierMatched: supplierMatched ? {
+          supplier_id: supplierMatched.supplier_id,
+          supplier_name: supplierMatched.supplier_name
+        } : null,
+        distributorSimilarity: distributorMatchType === 'fuzzy' ? distributorSimilarity : null,
+        supplierSimilarity: supplierMatchType === 'fuzzy' ? supplierSimilarity : null,
+        states: uniqueStates,
+        rows: relationshipRows
+      });
+    }
 
     return NextResponse.json({
       totalRows: rows.length,
-      newDistributors: newDistributorNames.size,
-      newSuppliers: newSupplierNames.size,
-      existingDistributors: existingDistributorsList.length,
-      existingSuppliers: existingSuppliersList.length,
-      newRelationships: newRelationships.size,
-      existingRelationships: existingRelationships.size,
-      newDistributorsList,
-      newSuppliersList,
-      existingDistributorsList,
-      existingSuppliersList,
-      relationshipDetails,
+      relationshipReviews,
       allExistingDistributors: existingDistributors.sort((a, b) => a.distributor_name.localeCompare(b.distributor_name)),
       allExistingSuppliers: existingSuppliers.sort((a, b) => a.supplier_name.localeCompare(b.supplier_name)),
-      warnings: warnings.slice(0, 50)
+      allExistingStates: existingStates?.sort((a, b) => a.state_name.localeCompare(b.state_name)) || []
     });
 
   } catch (error) {
@@ -312,4 +320,3 @@ export async function POST(req) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

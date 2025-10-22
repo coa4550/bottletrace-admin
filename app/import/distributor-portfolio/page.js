@@ -2,46 +2,15 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
 
-export default function ImportDistributorSupplierPortfolio() {
+export default function ImportDistributorPortfolio() {
   const [file, setFile] = useState(null);
   const [parsed, setParsed] = useState([]);
   const [validation, setValidation] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [relationshipMatches, setRelationshipMatches] = useState({});
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
-  const [manualMatches, setManualMatches] = useState({});
   const [verifyRelationships, setVerifyRelationships] = useState(false);
-  const [supplierMatches, setSupplierMatches] = useState({});
-  const [distributorMatches, setDistributorMatches] = useState({});
-
-  const handleMatch = (itemName, existingItem, type) => {
-    console.log('Matching:', itemName, 'to', existingItem, 'type:', type);
-    setManualMatches(prev => ({
-      ...prev,
-      [`${type}_${itemName}`]: existingItem
-    }));
-  };
-
-  const handleSupplierMatch = (relationshipKey, selectedSupplierId, selectedSupplierName) => {
-    setSupplierMatches(prev => ({
-      ...prev,
-      [relationshipKey]: {
-        supplier_id: selectedSupplierId,
-        supplier_name: selectedSupplierName
-      }
-    }));
-  };
-
-  const handleDistributorMatch = (relationshipKey, selectedDistributorId, selectedDistributorName) => {
-    setDistributorMatches(prev => ({
-      ...prev,
-      [relationshipKey]: {
-        distributor_id: selectedDistributorId,
-        distributor_name: selectedDistributorName
-      }
-    }));
-  };
-
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -49,6 +18,7 @@ export default function ImportDistributorSupplierPortfolio() {
     setFile(selectedFile);
     setValidation(null);
     setResults(null);
+    setRelationshipMatches({});
     parseFile(selectedFile);
   };
 
@@ -76,6 +46,7 @@ export default function ImportDistributorSupplierPortfolio() {
   const handleValidate = async () => {
     setLoading(true);
     try {
+      console.log('Validating with rows:', parsed);
       const response = await fetch('/api/import/distributor-portfolio/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,6 +54,7 @@ export default function ImportDistributorSupplierPortfolio() {
       });
       
       const result = await response.json();
+      console.log('Validation result:', result);
       
       if (result.error) {
         alert('Validation error: ' + result.error);
@@ -91,6 +63,26 @@ export default function ImportDistributorSupplierPortfolio() {
       }
       
       setValidation(result);
+      
+      // Initialize relationship matches with defaults
+      const matches = {};
+      result.relationshipReviews?.forEach(review => {
+        review.rows.forEach(row => {
+          const key = `${review.distributorName}|${review.supplierName}|${row.originalIndex}`;
+          matches[key] = {
+            useExistingDistributor: review.distributorMatchType !== 'new',
+            existingDistributorId: review.distributorMatched?.distributor_id,
+            existingDistributorName: review.distributorMatched?.distributor_name,
+            useExistingSupplier: review.supplierMatchType !== 'new',
+            existingSupplierId: review.supplierMatched?.supplier_id,
+            existingSupplierName: review.supplierMatched?.supplier_name,
+            importDistributorName: review.distributorName,
+            importSupplierName: review.supplierName
+          };
+        });
+      });
+      console.log('Relationship matches initialized:', matches);
+      setRelationshipMatches(matches);
     } catch (error) {
       console.error('Validation error:', error);
       alert('Validation failed: ' + error.message);
@@ -104,7 +96,8 @@ export default function ImportDistributorSupplierPortfolio() {
     setProgress({ current: 0, total: parsed.length, message: 'Starting import...' });
     
     try {
-      const BATCH_SIZE = 50;
+      // Process in batches for progress updates
+      const BATCH_SIZE = 10;
       const batches = [];
       for (let i = 0; i < parsed.length; i += BATCH_SIZE) {
         batches.push(parsed.slice(i, i + BATCH_SIZE));
@@ -128,28 +121,39 @@ export default function ImportDistributorSupplierPortfolio() {
           message: `Processing rows ${batchStartIndex + 1}-${Math.min(batchStartIndex + batch.length, parsed.length)} of ${parsed.length}...`
         });
 
+        // Extract confirmed matches for this batch only
+        const batchMatches = {};
+        batch.forEach((_, idx) => {
+          const originalIndex = batchStartIndex + idx;
+          const row = batch[idx];
+          const key = `${row.distributor_name}|${row.supplier_name}|${originalIndex}`;
+          if (relationshipMatches[key]) {
+            batchMatches[idx] = relationshipMatches[key];
+          }
+        });
+
         const response = await fetch('/api/import/distributor-portfolio', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             rows: batch,
-            manualMatches,
-            supplierMatches,
-            distributorMatches,
+            confirmedMatches: batchMatches,
             fileName: file?.name,
             isFirstBatch: i === 0,
             isLastBatch: i === batches.length - 1,
             existingImportLogId: importLogId,
-            verifyRelationships
+            verifyRelationships: verifyRelationships
           })
         });
         
         const result = await response.json();
         
+        // Save importLogId from first batch
         if (i === 0 && result.importLogId) {
           importLogId = result.importLogId;
         }
 
+        // Accumulate results
         totalDistributorsCreated += result.distributorsCreated || 0;
         totalSuppliersCreated += result.suppliersCreated || 0;
         totalRelationshipsCreated += result.relationshipsCreated || 0;
@@ -172,7 +176,7 @@ export default function ImportDistributorSupplierPortfolio() {
         relationshipsCreated: totalRelationshipsCreated,
         relationshipsVerified: totalRelationshipsVerified,
         skipped: totalSkipped,
-        errors: allErrors.slice(0, 20),
+        errors: allErrors.slice(0, 20), // Show up to 20 errors
         importLogId
       });
       
@@ -186,16 +190,64 @@ export default function ImportDistributorSupplierPortfolio() {
     }
   };
 
+  const updateMatch = (key, field, value) => {
+    setRelationshipMatches(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleManualMatch = (key, type, selectedId) => {
+    if (type === 'distributor') {
+      const selectedDistributor = validation.allExistingDistributors?.find(d => d.distributor_id === selectedId);
+      if (selectedDistributor) {
+        setRelationshipMatches(prev => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            useExistingDistributor: true,
+            existingDistributorId: selectedDistributor.distributor_id,
+            existingDistributorName: selectedDistributor.distributor_name
+          }
+        }));
+      }
+    } else if (type === 'supplier') {
+      const selectedSupplier = validation.allExistingSuppliers?.find(s => s.supplier_id === selectedId);
+      if (selectedSupplier) {
+        setRelationshipMatches(prev => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            useExistingSupplier: true,
+            existingSupplierId: selectedSupplier.supplier_id,
+            existingSupplierName: selectedSupplier.supplier_name
+          }
+        }));
+      }
+    }
+  };
+
+  const getStatusBadge = (matchType, similarity) => {
+    if (matchType === 'exact') {
+      return <span style={{ padding: '2px 8px', background: '#d1fae5', color: '#065f46', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>✓ Exact Match</span>;
+    } else if (matchType === 'fuzzy') {
+      return <span style={{ padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>~ Fuzzy ({Math.round(similarity * 100)}%)</span>;
+    } else {
+      return <span style={{ padding: '2px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>+ New</span>;
+    }
+  };
+
   return (
     <div style={{ padding: 20 }}>
       <h1>Import Distributor Portfolio</h1>
       <p style={{ color: '#64748b', marginTop: 8 }}>
-        Upload a spreadsheet with distributor-supplier relationships by state. Expected columns: distributor_name, supplier_name, state_code (or state_name)
+        Upload a spreadsheet with distributor portfolios. Expected columns: distributor_name, supplier_name, state_name or state_code
       </p>
       <p style={{ color: '#64748b', marginTop: 4, fontSize: 14 }}>
-        💡 <strong>Tips:</strong> 
-        <br/>• Use <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>ALL</code> for nationwide distribution
-        <br/>• Use comma-separated values like <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>CA, NY, TX</code> for multiple states
+        💡 <strong>Note:</strong> Each distributor-supplier relationship can be specific to one or more states. Use "ALL" for nationwide relationships.
       </p>
 
       <div style={{ marginTop: 32 }}>
@@ -242,34 +294,22 @@ export default function ImportDistributorSupplierPortfolio() {
         </label>
       </div>
 
-      {validation && (
+      {validation && validation.relationshipReviews && (
         <div style={{ marginTop: 32 }}>
           <h2>Review Import Changes</h2>
           <p style={{ color: '#64748b', marginBottom: 24 }}>
-            Review all distributor-supplier relationships below. You can manually adjust matches before importing.
+            Review all relationships below. You can manually adjust matches before importing.
           </p>
 
-          {validation.relationshipDetails?.map((rel, idx) => {
-            // Group relationships by type
-            const exactMatches = [];
-            const fuzzyMatches = [];
-            const newRelationships = [];
+          {validation.relationshipReviews.map((relationship, idx) => {
+            // Group by match types
+            const distributorExact = relationship.distributorMatchType === 'exact';
+            const distributorFuzzy = relationship.distributorMatchType === 'fuzzy';
+            const distributorNew = relationship.distributorMatchType === 'new';
             
-            // Determine relationship type based on existence
-            if (rel.distributorExists && rel.supplierExists) {
-              exactMatches.push(rel);
-            } else if (rel.distributorExists && !rel.supplierExists) {
-              // Only show as fuzzy match if distributor exists but supplier doesn't
-              // This allows us to suggest existing suppliers for the new supplier name
-              fuzzyMatches.push(rel);
-            } else if (!rel.distributorExists && rel.supplierExists) {
-              // Only show as fuzzy match if supplier exists but distributor doesn't
-              // This allows us to suggest existing distributors for the new distributor name
-              fuzzyMatches.push(rel);
-            } else {
-              // Both are new - this is a completely new relationship
-              newRelationships.push(rel);
-            }
+            const supplierExact = relationship.supplierMatchType === 'exact';
+            const supplierFuzzy = relationship.supplierMatchType === 'fuzzy';
+            const supplierNew = relationship.supplierMatchType === 'new';
 
             return (
               <div key={idx} style={{ marginBottom: 40 }}>
@@ -280,7 +320,7 @@ export default function ImportDistributorSupplierPortfolio() {
                   borderRadius: '8px 8px 0 0',
                   margin: 0
                 }}>
-                  {rel.distributorName} ↔ {rel.supplierName}
+                  {relationship.distributorName} → {relationship.supplierName}
                 </h3>
 
                 {/* Column Headers */}
@@ -295,72 +335,102 @@ export default function ImportDistributorSupplierPortfolio() {
                   </div>
                 </div>
 
-                {/* Exact Matches - Ignore */}
-                {exactMatches.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                    <div style={{ padding: '12px 16px', background: '#d1fae5', borderBottom: '1px solid #10b981' }}>
-                      <strong style={{ color: '#065f46' }}>✓ Exact Match - Ignore ({exactMatches.length})</strong>
-                      <span style={{ fontSize: 13, color: '#065f46', marginLeft: 8 }}>
-                        - Will re-verify these relationships
-                      </span>
+                {/* Relationship Details */}
+                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                    {/* Left Column - Import Relationship */}
+                    <div style={{ padding: '12px 16px', borderRight: '2px solid #cbd5e1' }}>
+                      <div style={{ marginBottom: 8 }}>
+                        <strong>Distributor:</strong> {relationship.distributorName}
+                        {distributorExact && <span style={{ marginLeft: 8 }}>✓</span>}
+                        {distributorFuzzy && <span style={{ marginLeft: 8 }}>~</span>}
+                        {distributorNew && <span style={{ marginLeft: 8 }}>+</span>}
+                      </div>
+                      <div style={{ marginBottom: 8 }}>
+                        <strong>Supplier:</strong> {relationship.supplierName}
+                        {supplierExact && <span style={{ marginLeft: 8 }}>✓</span>}
+                        {supplierFuzzy && <span style={{ marginLeft: 8 }}>~</span>}
+                        {supplierNew && <span style={{ marginLeft: 8 }}>+</span>}
+                      </div>
+                      <div>
+                        <strong>States:</strong> {relationship.states.map(s => s.state.state_name).join(', ')}
+                      </div>
                     </div>
-                    {exactMatches.map((rel, relIdx) => (
-                      <TwoColumnRelationshipRow 
-                        key={relIdx} 
-                        relationship={rel} 
-                        type="exact"
-                      />
-                    ))}
-                  </div>
-                )}
 
-                {/* Fuzzy Matches - Confirm */}
-                {fuzzyMatches.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                    <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fbbf24' }}>
-                      <strong style={{ color: '#92400e' }}>~ Fuzzy Match - Confirm ({fuzzyMatches.length})</strong>
-                      <span style={{ fontSize: 13, color: '#92400e', marginLeft: 8 }}>
-                        - Review and confirm matches
-                      </span>
-                    </div>
-                    {fuzzyMatches.map((rel, relIdx) => {
-                      const relationshipKey = `${rel.distributorName}_${rel.supplierName}_${relIdx}`;
-                      return (
-                        <TwoColumnRelationshipRow 
-                          key={relIdx} 
-                          relationship={rel} 
-                          type="fuzzy"
-                          allSuppliers={validation.allExistingSuppliers}
-                          allDistributors={validation.allExistingDistributors}
-                          relationshipKey={relationshipKey}
-                          supplierMatches={supplierMatches}
-                          distributorMatches={distributorMatches}
-                          onSupplierMatch={handleSupplierMatch}
-                          onDistributorMatch={handleDistributorMatch}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
+                    {/* Right Column - Existing Relationship */}
+                    <div style={{ padding: '12px 16px' }}>
+                      <div style={{ marginBottom: 12 }}>
+                        <strong>Distributor Match:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          <select
+                            value={relationshipMatches[`${relationship.distributorName}|${relationship.supplierName}|${relationship.rows[0].originalIndex}`]?.useExistingDistributor ? 
+                              relationshipMatches[`${relationship.distributorName}|${relationship.supplierName}|${relationship.rows[0].originalIndex}`]?.existingDistributorId : 'CREATE_NEW'}
+                            onChange={(e) => {
+                              const key = `${relationship.distributorName}|${relationship.supplierName}|${relationship.rows[0].originalIndex}`;
+                              if (e.target.value === 'CREATE_NEW') {
+                                updateMatch(key, 'useExistingDistributor', false);
+                              } else if (e.target.value) {
+                                handleManualMatch(key, 'distributor', e.target.value);
+                              }
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: 4,
+                              fontSize: 14,
+                              minWidth: 250,
+                              maxWidth: 300,
+                              background: 'white'
+                            }}
+                          >
+                            <option value="CREATE_NEW">🆕 Create New: "{relationship.distributorName}"</option>
+                            <option disabled style={{ color: '#94a3b8' }}>─── Match to Existing ───</option>
+                            {validation.allExistingDistributors?.map(d => (
+                              <option key={d.distributor_id} value={d.distributor_id}>
+                                {d.distributor_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
 
-                {/* New Relationships - Add */}
-                {newRelationships.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                    <div style={{ padding: '12px 16px', background: '#dbeafe', borderBottom: '1px solid #3b82f6' }}>
-                      <strong style={{ color: '#1e40af' }}>+ New Relationship - Add ({newRelationships.length})</strong>
-                      <span style={{ fontSize: 13, color: '#1e40af', marginLeft: 8 }}>
-                        - Will create these relationships
-                      </span>
+                      <div>
+                        <strong>Supplier Match:</strong>
+                        <div style={{ marginTop: 4 }}>
+                          <select
+                            value={relationshipMatches[`${relationship.distributorName}|${relationship.supplierName}|${relationship.rows[0].originalIndex}`]?.useExistingSupplier ? 
+                              relationshipMatches[`${relationship.distributorName}|${relationship.supplierName}|${relationship.rows[0].originalIndex}`]?.existingSupplierId : 'CREATE_NEW'}
+                            onChange={(e) => {
+                              const key = `${relationship.distributorName}|${relationship.supplierName}|${relationship.rows[0].originalIndex}`;
+                              if (e.target.value === 'CREATE_NEW') {
+                                updateMatch(key, 'useExistingSupplier', false);
+                              } else if (e.target.value) {
+                                handleManualMatch(key, 'supplier', e.target.value);
+                              }
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: 4,
+                              fontSize: 14,
+                              minWidth: 250,
+                              maxWidth: 300,
+                              background: 'white'
+                            }}
+                          >
+                            <option value="CREATE_NEW">🆕 Create New: "{relationship.supplierName}"</option>
+                            <option disabled style={{ color: '#94a3b8' }}>─── Match to Existing ───</option>
+                            {validation.allExistingSuppliers?.map(s => (
+                              <option key={s.supplier_id} value={s.supplier_id}>
+                                {s.supplier_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
-                    {newRelationships.map((rel, relIdx) => (
-                      <TwoColumnRelationshipRow 
-                        key={relIdx} 
-                        relationship={rel} 
-                        type="new"
-                      />
-                    ))}
                   </div>
-                )}
+                </div>
               </div>
             );
           })}
@@ -383,6 +453,7 @@ export default function ImportDistributorSupplierPortfolio() {
             {loading ? 'Importing...' : 'Confirm & Import to Database'}
           </button>
 
+          {/* Progress Bar */}
           {loading && progress.total > 0 && (
             <div style={{ marginTop: 24 }}>
               <div style={{ marginBottom: 8, fontSize: 14, color: '#64748b' }}>
@@ -400,7 +471,10 @@ export default function ImportDistributorSupplierPortfolio() {
                   width: `${(progress.current / progress.total) * 100}%`,
                   height: '100%',
                   background: 'linear-gradient(90deg, #10b981, #059669)',
-                  transition: 'width 0.3s ease'
+                  transition: 'width 0.3s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}>
                   <span style={{ 
                     color: 'white', 
@@ -408,8 +482,7 @@ export default function ImportDistributorSupplierPortfolio() {
                     fontWeight: 600,
                     position: 'absolute',
                     left: '50%',
-                    transform: 'translateX(-50%)',
-                    lineHeight: '24px'
+                    transform: 'translateX(-50%)'
                   }}>
                     {Math.round((progress.current / progress.total) * 100)}%
                   </span>
@@ -460,163 +533,6 @@ export default function ImportDistributorSupplierPortfolio() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
-
-
-function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDistributors = [], relationshipKey, supplierMatches = {}, distributorMatches = {}, onSupplierMatch, onDistributorMatch }) {
-  return (
-    <div style={{ 
-      display: 'grid', 
-      gridTemplateColumns: '1fr 1fr', 
-      gap: 0,
-      borderBottom: '1px solid #e2e8f0'
-    }}>
-      {/* Left Column - Import Relationship */}
-      <div style={{ 
-        padding: '12px 16px', 
-        borderRight: '1px solid #e2e8f0',
-        background: 'white'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <div style={{ 
-            width: 32, 
-            height: 32, 
-            background: '#e2e8f0', 
-            borderRadius: 4,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
-            color: '#94a3b8'
-          }}>
-            📦
-          </div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{relationship.distributorName}</div>
-            <div style={{ fontSize: 12, color: '#64748b' }}>
-              {relationship.distributorExists ? '✓ Existing' : '+ New'}
-            </div>
-          </div>
-        </div>
-        <div style={{ fontSize: 12, color: '#64748b', marginLeft: 40 }}>
-          ↔ {relationship.supplierName}
-        </div>
-      </div>
-
-      {/* Right Column - Existing Relationship */}
-      <div style={{ 
-        padding: '12px 16px',
-        background: '#f8fafc'
-      }}>
-        {type === 'exact' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ 
-              width: 32, 
-              height: 32, 
-              background: '#d1fae5', 
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              color: '#065f46'
-            }}>
-              ✓
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: '#065f46' }}>
-                {relationship.distributorName} ↔ {relationship.supplierName}
-              </div>
-              <div style={{ fontSize: 12, color: '#065f46' }}>
-                ✓ Existing Relationship
-              </div>
-            </div>
-          </div>
-        ) : type === 'fuzzy' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ 
-              width: 32, 
-              height: 32, 
-              background: '#fef3c7', 
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              color: '#92400e'
-            }}>
-              ~
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 4 }}>
-                {relationship.supplierFuzzyMatch ? `Suggested: ${relationship.supplierFuzzyMatch.supplier_name}` : 'Suggested Supplier'}
-              </div>
-              <select
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 4,
-                  fontSize: 13,
-                  background: 'white'
-                }}
-                value={supplierMatches[relationshipKey]?.supplier_name || (relationship.supplierExists ? relationship.supplierName : (relationship.supplierFuzzyMatch ? relationship.supplierFuzzyMatch.supplier_name : ""))}
-                onChange={(e) => {
-                  const selectedSupplier = allSuppliers.find(s => s.supplier_name === e.target.value);
-                  if (selectedSupplier) {
-                    onSupplierMatch(relationshipKey, selectedSupplier.supplier_id, selectedSupplier.supplier_name);
-                  }
-                }}
-              >
-                {relationship.supplierExists ? (
-                  <option value={relationship.supplierName}>{relationship.supplierName}</option>
-                ) : relationship.supplierFuzzyMatch ? (
-                  <option value={relationship.supplierFuzzyMatch.supplier_name}>{relationship.supplierFuzzyMatch.supplier_name}</option>
-                ) : (
-                  <option value="">Select a supplier...</option>
-                )}
-                {allSuppliers?.map(supplier => (
-                  <option key={supplier.supplier_id} value={supplier.supplier_name}>
-                    {supplier.supplier_name}
-                  </option>
-                ))}
-              </select>
-              <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>
-                {relationship.supplierFuzzyMatch ? `${Math.round(relationship.supplierFuzzyMatch.similarity * 100)}% similar to "${relationship.supplierName}"` : 'Review and confirm'}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ 
-              width: 32, 
-              height: 32, 
-              background: '#dbeafe', 
-              borderRadius: 4,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 12,
-              color: '#1e40af'
-            }}>
-              +
-            </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: '#1e40af' }}>
-                New Relationship
-              </div>
-              <div style={{ fontSize: 12, color: '#1e40af' }}>
-                Will be created
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-
