@@ -9,7 +9,8 @@ export async function POST(req) {
       fileName,
       isFirstBatch = true,
       isLastBatch = true,
-      existingImportLogId = null
+      existingImportLogId = null,
+      verifyRelationships = true
     } = await req.json();
     
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -251,8 +252,8 @@ export async function POST(req) {
         relationshipsToCreate.push({
           brand_id: brand.brand_id,
           supplier_id: supplier.supplier_id,
-          is_verified: true,
-          last_verified_at: now,
+          is_verified: verifyRelationships,
+          last_verified_at: verifyRelationships ? now : null,
           relationship_source: 'csv_import'
         });
       }
@@ -276,15 +277,17 @@ export async function POST(req) {
         const { error: updateError } = await supabaseAdmin
           .from('brand_supplier')
           .update({
-            is_verified: true,
-            last_verified_at: now,
+            is_verified: verifyRelationships,
+            last_verified_at: verifyRelationships ? now : null,
             relationship_source: 'csv_import'
           })
           .eq('brand_id', rel.brand_id)
           .eq('supplier_id', rel.supplier_id);
 
         if (updateError) throw updateError;
-        relationshipsVerified++;
+        if (verifyRelationships) {
+          relationshipsVerified++;
+        }
       }
     }
 

@@ -10,6 +10,7 @@ export default function ImportSupplierPortfolio() {
   const [loading, setLoading] = useState(false);
   const [brandMatches, setBrandMatches] = useState({});
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
+  const [verifyRelationships, setVerifyRelationships] = useState(true);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -134,7 +135,8 @@ export default function ImportSupplierPortfolio() {
             fileName: file?.name,
             isFirstBatch: i === 0,
             isLastBatch: i === batches.length - 1,
-            existingImportLogId: importLogId
+            existingImportLogId: importLogId,
+            verifyRelationships: verifyRelationships
           })
         });
         
@@ -247,22 +249,33 @@ export default function ImportSupplierPortfolio() {
 
       {parsed.length > 0 && <p style={{ marginTop: 16, fontSize: 14, color: '#64748b' }}>Parsed {parsed.length} rows</p>}
 
-      <button
-        onClick={handleValidate}
-        disabled={loading || parsed.length === 0}
-        style={{
-          marginTop: 16,
-          padding: '10px 20px',
-          background: (loading || parsed.length === 0) ? '#94a3b8' : '#3b82f6',
-          color: 'white',
-          border: 'none',
-          borderRadius: 6,
-          cursor: (loading || parsed.length === 0) ? 'not-allowed' : 'pointer',
-          fontWeight: 500
-        }}
-      >
-        {loading ? 'Validating...' : 'Validate & Review Changes'}
-      </button>
+      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={handleValidate}
+          disabled={loading || parsed.length === 0}
+          style={{
+            padding: '10px 20px',
+            background: (loading || parsed.length === 0) ? '#94a3b8' : '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: (loading || parsed.length === 0) ? 'not-allowed' : 'pointer',
+            fontWeight: 500
+          }}
+        >
+          {loading ? 'Validating...' : 'Validate & Review Changes'}
+        </button>
+        
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#374151' }}>
+          <input
+            type="checkbox"
+            checked={verifyRelationships}
+            onChange={(e) => setVerifyRelationships(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          <span>Mark brand-supplier relationships as verified</span>
+        </label>
+      </div>
 
       {validation && validation.supplierReviews && (
         <div style={{ marginTop: 32 }}>
@@ -483,7 +496,11 @@ export default function ImportSupplierPortfolio() {
             <p>✅ Suppliers created: {results.suppliersCreated}</p>
             <p>✅ Brands created: {results.brandsCreated}</p>
             <p>✅ Relationships created: {results.relationshipsCreated}</p>
-            <p>🔄 Relationships re-verified: {results.relationshipsVerified}</p>
+            {verifyRelationships ? (
+              <p>🔄 Relationships verified: {results.relationshipsVerified}</p>
+            ) : (
+              <p>📝 Relationships updated (not verified): {results.relationshipsVerified}</p>
+            )}
             <p>⚠️ Rows skipped: {results.skipped}</p>
             {results.errors && results.errors.length > 0 && (
               <div style={{ marginTop: 12 }}>
