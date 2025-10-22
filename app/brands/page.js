@@ -379,6 +379,54 @@ export default function BrandsPage() {
     }
   };
 
+  const handleDeleteBrand = async (brandId, brandName) => {
+    if (!confirm(`Are you sure you want to delete the brand "${brandName}"?\n\nThis will permanently delete:\n• The brand record\n• All category associations\n• All sub-category associations\n• All supplier relationships\n\nThis action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      // Delete brand-category relationships
+      const { error: catError } = await supabase
+        .from('brand_categories')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (catError) throw catError;
+
+      // Delete brand-subcategory relationships
+      const { error: subCatError } = await supabase
+        .from('brand_sub_categories')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (subCatError) throw subCatError;
+
+      // Delete brand-supplier relationships
+      const { error: supplierError } = await supabase
+        .from('brand_supplier')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (supplierError) throw supplierError;
+
+      // Delete the brand itself
+      const { error: brandError } = await supabase
+        .from('core_brands')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (brandError) throw brandError;
+
+      // Remove from local state
+      setBrands(prev => prev.filter(b => b.brand_id !== brandId));
+      
+      alert(`Brand "${brandName}" has been successfully deleted.`);
+    } catch (err) {
+      console.error('Delete brand error:', err.message);
+      alert('Failed to delete brand: ' + err.message);
+    }
+  };
+
   const columns = [
     { key: 'brand_name', label: 'Brand Name', editable: true },
     { key: 'categories', label: 'Categories', editable: true, editHandler: 'categories' },
@@ -389,6 +437,7 @@ export default function BrandsPage() {
     { key: 'data_source', label: 'Data Source', editable: true },
     { key: 'brand_url', label: 'Website', editable: true },
     { key: 'brand_logo_url', label: 'Logo URL', editable: true },
+    { key: 'actions', label: 'Actions' },
   ];
 
   // Filter brands based on search term
@@ -566,6 +615,30 @@ export default function BrandsPage() {
                           value={value}
                           onChange={(val) => handleEdit(b.brand_id, col.key, val)}
                         />
+                      </td>
+                    );
+                  }
+
+                  // Special rendering for actions column
+                  if (col.key === 'actions') {
+                    return (
+                      <td key={col.key} style={cellStyle}>
+                        <button
+                          onClick={() => handleDeleteBrand(b.brand_id, b.brand_name)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontWeight: 500
+                          }}
+                          title="Delete brand"
+                        >
+                          Delete
+                        </button>
                       </td>
                     );
                   }
