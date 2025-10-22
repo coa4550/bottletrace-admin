@@ -258,9 +258,16 @@ export default function ImportDistributorSupplierPortfolio() {
             // Determine relationship type based on existence
             if (rel.distributorExists && rel.supplierExists) {
               exactMatches.push(rel);
-            } else if (rel.distributorExists || rel.supplierExists) {
+            } else if (rel.distributorExists && !rel.supplierExists) {
+              // Only show as fuzzy match if distributor exists but supplier doesn't
+              // This allows us to suggest existing suppliers for the new supplier name
+              fuzzyMatches.push(rel);
+            } else if (!rel.distributorExists && rel.supplierExists) {
+              // Only show as fuzzy match if supplier exists but distributor doesn't
+              // This allows us to suggest existing distributors for the new distributor name
               fuzzyMatches.push(rel);
             } else {
+              // Both are new - this is a completely new relationship
               newRelationships.push(rel);
             }
 
@@ -556,7 +563,7 @@ function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDi
                   fontSize: 13,
                   background: 'white'
                 }}
-                value={supplierMatches[relationshipKey]?.supplier_name || relationship.supplierName}
+                value={supplierMatches[relationshipKey]?.supplier_name || (relationship.supplierExists ? relationship.supplierName : "")}
                 onChange={(e) => {
                   const selectedSupplier = allSuppliers.find(s => s.supplier_name === e.target.value);
                   if (selectedSupplier) {
@@ -564,7 +571,11 @@ function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDi
                   }
                 }}
               >
-                <option value={relationship.supplierName}>{relationship.supplierName}</option>
+                {relationship.supplierExists ? (
+                  <option value={relationship.supplierName}>{relationship.supplierName}</option>
+                ) : (
+                  <option value="">Select a supplier...</option>
+                )}
                 {allSuppliers?.map(supplier => (
                   <option key={supplier.supplier_id} value={supplier.supplier_name}>
                     {supplier.supplier_name}
