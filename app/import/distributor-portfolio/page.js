@@ -9,7 +9,6 @@ export default function ImportDistributorSupplierPortfolio() {
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
-  const [selectedSummaryItem, setSelectedSummaryItem] = useState(null);
   const [manualMatches, setManualMatches] = useState({});
   const [verifyRelationships, setVerifyRelationships] = useState(false);
 
@@ -21,22 +20,6 @@ export default function ImportDistributorSupplierPortfolio() {
     }));
   };
 
-  const getModalData = () => {
-    if (selectedSummaryItem === 'newDistributors') {
-      return {
-        type: 'distributor',
-        items: validation.newDistributorsList,
-        existingItems: validation.allExistingDistributors
-      };
-    } else if (selectedSummaryItem === 'newSuppliers') {
-      return {
-        type: 'supplier',
-        items: validation.newSuppliersList,
-        existingItems: validation.allExistingSuppliers
-      };
-    }
-    return null;
-  };
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -341,62 +324,6 @@ export default function ImportDistributorSupplierPortfolio() {
             );
           })}
 
-          <h2 style={{ marginTop: 40, marginBottom: 16 }}>Validation Summary</h2>
-          
-          <div style={{ 
-            padding: 20, 
-            background: '#f8fafc', 
-            border: '1px solid #e2e8f0',
-            borderRadius: 8 
-          }}>
-            <div style={{ display: 'grid', gap: 16, fontSize: 14 }}>
-              <SummaryItem
-                label="Rows to process"
-                count={validation.totalRows}
-                onClick={() => setSelectedSummaryItem('rows')}
-              />
-              
-              <SummaryItem
-                label="New distributors to create"
-                count={validation.newDistributors}
-                items={validation.newDistributorsList}
-                type="distributor"
-                existingItems={validation.allExistingDistributors}
-                onClick={() => setSelectedSummaryItem('newDistributors')}
-              />
-              
-              <SummaryItem
-                label="New suppliers to create"
-                count={validation.newSuppliers}
-                items={validation.newSuppliersList}
-                type="supplier"
-                existingItems={validation.allExistingSuppliers}
-                onClick={() => setSelectedSummaryItem('newSuppliers')}
-              />
-              
-              <SummaryItem
-                label="New relationships to create"
-                count={validation.newRelationships}
-                onClick={() => setSelectedSummaryItem('newRelationships')}
-              />
-              
-              <SummaryItem
-                label="Existing relationships to verify"
-                count={validation.existingRelationships}
-                onClick={() => setSelectedSummaryItem('existingRelationships')}
-              />
-            </div>
-
-            {validation.warnings && validation.warnings.length > 0 && (
-              <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #e2e8f0' }}>
-                <p style={{ color: '#f59e0b', fontWeight: 500, marginBottom: 8 }}>⚠️ Warnings:</p>
-                {validation.warnings.slice(0, 10).map((warn, i) => (
-                  <p key={i} style={{ color: '#92400e', fontSize: 13, marginLeft: 16 }}>• {warn}</p>
-                ))}
-              </div>
-            )}
-          </div>
-
           <button
             onClick={handleImport}
             disabled={loading}
@@ -493,64 +420,10 @@ export default function ImportDistributorSupplierPortfolio() {
         </div>
       )}
 
-      {/* Match Modal */}
-      <MatchModal
-        isOpen={selectedSummaryItem !== null}
-        onClose={() => setSelectedSummaryItem(null)}
-        type={getModalData()?.type}
-        items={getModalData()?.items}
-        existingItems={getModalData()?.existingItems}
-        manualMatches={manualMatches}
-        onMatch={(itemName, existingItem) => {
-          const modalData = getModalData();
-          if (modalData?.type) {
-            handleMatch(itemName, existingItem, modalData.type);
-          }
-        }}
-      />
     </div>
   );
 }
 
-function SummaryItem({ label, count, items, type, existingItems, onClick }) {
-  return (
-    <div 
-      style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        padding: '8px 12px',
-        background: 'white',
-        border: '1px solid #e2e8f0',
-        borderRadius: 6,
-        cursor: onClick ? 'pointer' : 'default',
-        transition: 'all 0.2s ease'
-      }}
-      onClick={onClick}
-      onMouseEnter={onClick ? (e) => {
-        e.target.style.background = '#f8fafc';
-        e.target.style.borderColor = '#cbd5e1';
-      } : null}
-      onMouseLeave={onClick ? (e) => {
-        e.target.style.background = 'white';
-        e.target.style.borderColor = '#e2e8f0';
-      } : null}
-    >
-      <span style={{ color: '#64748b' }}>{label}:</span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <strong style={{ 
-          color: count > 0 ? (label.includes('New') ? '#3b82f6' : '#059669') : '#64748b',
-          fontSize: 16
-        }}>
-          {count}
-        </strong>
-        {onClick && (
-          <span style={{ fontSize: 12, color: '#94a3b8' }}>👆 click to edit</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function TwoColumnRelationshipRow({ relationship, type }) {
   return (
@@ -675,130 +548,4 @@ function TwoColumnRelationshipRow({ relationship, type }) {
   );
 }
 
-function MatchModal({ isOpen, onClose, type, items, existingItems, onMatch, manualMatches }) {
-  if (!isOpen) return null;
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000
-    }}>
-      <div style={{
-        background: 'white',
-        borderRadius: 12,
-        padding: 24,
-        maxWidth: 600,
-        maxHeight: '80vh',
-        overflow: 'auto',
-        width: '90%'
-      }}>
-        <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-          Match {type === 'distributor' ? 'Distributors' : 'Suppliers'}
-        </h3>
-        
-        <div style={{ marginBottom: 16 }}>
-          <p style={{ color: '#64748b', fontSize: 14, marginBottom: 12 }}>
-            Click on an item to match it to an existing {type}, or leave as "Create New"
-          </p>
-        </div>
-
-        {items?.map((item, index) => {
-          const matchKey = `${type}_${item}`;
-          const currentMatch = manualMatches[matchKey];
-          
-          return (
-            <div key={index} style={{
-              padding: 12,
-              border: '1px solid #e2e8f0',
-              borderRadius: 6,
-              marginBottom: 8,
-              background: currentMatch ? '#f0fdf4' : '#f8fafc'
-            }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                {item}
-                {currentMatch && (
-                  <span style={{ 
-                    marginLeft: 8, 
-                    fontSize: 12, 
-                    color: '#059669',
-                    fontWeight: 'normal'
-                  }}>
-                    ✓ Matched to: {currentMatch[`${type}_name`]}
-                  </span>
-                )}
-              </div>
-            
-            <div style={{ display: 'grid', gap: 8 }}>
-              <button
-                style={{
-                  padding: '8px 12px',
-                  background: '#dbeafe',
-                  color: '#1e40af',
-                  border: '1px solid #93c5fd',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 14
-                }}
-                onClick={() => onMatch(item, null)}
-              >
-                🆕 Create New: "{item}"
-              </button>
-              
-              <div style={{ fontSize: 12, color: '#64748b', textAlign: 'center' }}>
-                ─── OR Match to Existing ───
-              </div>
-              
-              <div style={{ display: 'grid', gap: 4, maxHeight: 200, overflow: 'auto' }}>
-                {existingItems?.map(existing => (
-                  <button
-                    key={existing[`${type}_id`]}
-                    style={{
-                      padding: '6px 10px',
-                      background: 'white',
-                      color: '#374151',
-                      border: '1px solid #d1d5db',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      textAlign: 'left'
-                    }}
-                    onClick={() => onMatch(item, existing)}
-                  >
-                    ✓ {existing[`${type}_name`]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            </div>
-          );
-        })}
-
-        <div style={{ marginTop: 20, textAlign: 'right' }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 20px',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: 6,
-              cursor: 'pointer',
-              fontWeight: 500
-            }}
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
