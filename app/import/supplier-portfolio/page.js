@@ -10,7 +10,7 @@ export default function ImportSupplierPortfolio() {
   const [loading, setLoading] = useState(false);
   const [brandMatches, setBrandMatches] = useState({});
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
-  const [verifyRelationships, setVerifyRelationships] = useState(true);
+  const [verifyRelationships, setVerifyRelationships] = useState(false);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];

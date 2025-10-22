@@ -10,7 +10,7 @@ export async function POST(req) {
       isFirstBatch = true,
       isLastBatch = true,
       existingImportLogId = null,
-      verifyRelationships = true
+      verifyRelationships = false
     } = await req.json();
     
     if (!Array.isArray(rows) || rows.length === 0) {
