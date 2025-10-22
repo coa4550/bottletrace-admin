@@ -237,7 +237,10 @@ export default function ImportDistributorSupplierPortfolio() {
 
       {validation && (
         <div style={{ marginTop: 32 }}>
-          <h2>Create Distributor - Supplier Relationships</h2>
+          <h2>Review Import Changes</h2>
+          <p style={{ color: '#64748b', marginBottom: 24 }}>
+            Review all distributor-supplier relationships below. You can manually adjust matches before importing.
+          </p>
           
           {/* Relationship Cards */}
           <div style={{ marginTop: 24, display: 'grid', gap: 24 }}>
