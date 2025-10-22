@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -16,24 +16,31 @@ export default function AuditSupplierPortfolioPage() {
   const [selectedBrands, setSelectedBrands] = useState(new Set());
   const [allSuppliers, setAllSuppliers] = useState([]);
   const [showBulkSupplierModal, setShowBulkSupplierModal] = useState(false);
+  const [allCategories, setAllCategories] = useState([]);
+  const [allSubCategories, setAllSubCategories] = useState([]);
 
-  // Fetch all suppliers on mount
+  // Fetch all suppliers, categories, and sub-categories on mount
   useEffect(() => {
-    async function fetchSuppliers() {
-      const { data, error } = await supabase
-        .from('core_suppliers')
-        .select('supplier_id, supplier_name')
-        .order('supplier_name');
-      
-      if (error) {
-        console.error('Error fetching suppliers:', error);
-      } else {
-        setSuppliers(data || []);
+    async function fetchInitialData() {
+      try {
+        const [suppliersRes, categoriesRes, subCategoriesRes] = await Promise.all([
+          supabase.from('core_suppliers').select('supplier_id, supplier_name').order('supplier_name'),
+          supabase.from('categories').select('category_id, category_name').order('category_name'),
+          supabase.from('sub_categories').select('sub_category_id, sub_category_name').order('sub_category_name')
+        ]);
+
+        if (suppliersRes.error) throw suppliersRes.error;
+        if (categoriesRes.error) throw categoriesRes.error;
+        if (subCategoriesRes.error) throw subCategoriesRes.error;
+
+        setSuppliers(suppliersRes.data || []);
+        setAllCategories(categoriesRes.data || []);
+        setAllSubCategories(subCategoriesRes.data || []);
         
         // Check for duplicate supplier names
         const nameCounts = {};
         const suppliersByName = {};
-        data?.forEach(s => {
+        suppliersRes.data?.forEach(s => {
           nameCounts[s.supplier_name] = (nameCounts[s.supplier_name] || 0) + 1;
           if (!suppliersByName[s.supplier_name]) {
             suppliersByName[s.supplier_name] = [];
@@ -49,13 +56,15 @@ export default function AuditSupplierPortfolioPage() {
         }
         
         // Check specifically for Hotaling
-        const hotalingSuppliers = data?.filter(s => s.supplier_name.includes('Hotaling'));
+        const hotalingSuppliers = suppliersRes.data?.filter(s => s.supplier_name.includes('Hotaling'));
         if (hotalingSuppliers && hotalingSuppliers.length > 0) {
           console.log('🔍 Hotaling suppliers found:', hotalingSuppliers);
         }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
       }
     }
-    fetchSuppliers();
+    fetchInitialData();
   }, []);
 
   // Fetch supplier details and portfolio when a supplier is selected
@@ -199,99 +208,96 @@ export default function AuditSupplierPortfolioPage() {
 
   const handleBrandEdit = async (brandId, field, newValue) => {
     try {
-      // For categories and sub_categories, we need to update the junction tables
-      if (field === 'categories' || field === 'sub_categories') {
-        // First, delete existing relationships
-        const tableName = field === 'categories' ? 'brand_categories' : 'brand_sub_categories';
-        const { error: deleteError } = await supabase
-          .from(tableName)
-          .delete()
-          .eq('brand_id', brandId);
+      const { error } = await supabase
+        .from('core_brands')
+        .update({ [field]: newValue })
+        .eq('brand_id', brandId);
 
-        if (deleteError) throw deleteError;
-
-        // If newValue is not empty, create new relationships
-        if (newValue && newValue.trim()) {
-          const categoryNames = newValue.split(',').map(name => name.trim()).filter(name => name);
-          
-          // For each category/sub-category, find or create the record and link it
-          for (const categoryName of categoryNames) {
-            if (field === 'categories') {
-              // Find or create category
-              let { data: category, error: catError } = await supabase
-                .from('categories')
-                .select('category_id')
-                .eq('category_name', categoryName)
-                .single();
-
-              if (catError && catError.code === 'PGRST116') {
-                // Category doesn't exist, create it
-                const { data: newCategory, error: createError } = await supabase
-                  .from('categories')
-                  .insert({ category_name: categoryName })
-                  .select('category_id')
-                  .single();
-                
-                if (createError) throw createError;
-                category = newCategory;
-              } else if (catError) {
-                throw catError;
-              }
-
-              // Link brand to category
-              const { error: linkError } = await supabase
-                .from('brand_categories')
-                .insert({ brand_id: brandId, category_id: category.category_id });
-
-              if (linkError) throw linkError;
-            } else {
-              // Find or create sub-category
-              let { data: subCategory, error: subCatError } = await supabase
-                .from('sub_categories')
-                .select('sub_category_id')
-                .eq('sub_category_name', categoryName)
-                .single();
-
-              if (subCatError && subCatError.code === 'PGRST116') {
-                // Sub-category doesn't exist, create it
-                const { data: newSubCategory, error: createError } = await supabase
-                  .from('sub_categories')
-                  .insert({ sub_category_name: categoryName })
-                  .select('sub_category_id')
-                  .single();
-                
-                if (createError) throw createError;
-                subCategory = newSubCategory;
-              } else if (subCatError) {
-                throw subCatError;
-              }
-
-              // Link brand to sub-category
-              const { error: linkError } = await supabase
-                .from('brand_sub_categories')
-                .insert({ brand_id: brandId, sub_category_id: subCategory.sub_category_id });
-
-              if (linkError) throw linkError;
-            }
-          }
-        }
-      } else {
-        // For other fields, update directly in core_brands
-        const { error } = await supabase
-          .from('core_brands')
-          .update({ [field]: newValue })
-          .eq('brand_id', brandId);
-
-        if (error) throw error;
-      }
-
-      // Update local state
+      if (error) throw error;
       setPortfolioBrands(prev =>
         prev.map(b => (b.brand_id === brandId ? { ...b, [field]: newValue } : b))
       );
     } catch (err) {
       console.error('Update error:', err.message);
       alert('Failed to update brand.');
+    }
+  };
+
+  const handleCategoriesEdit = async (brandId, selectedCategoryIds) => {
+    try {
+      // Delete existing brand-category relationships
+      const { error: deleteError } = await supabase
+        .from('brand_categories')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new relationships
+      if (selectedCategoryIds.length > 0) {
+        const relationships = selectedCategoryIds.map(categoryId => ({
+          brand_id: brandId,
+          category_id: categoryId
+        }));
+
+        const { error: insertError } = await supabase
+          .from('brand_categories')
+          .insert(relationships);
+
+        if (insertError) throw insertError;
+      }
+
+      // Update local state with category names
+      const categoryNames = selectedCategoryIds
+        .map(id => allCategories.find(c => c.category_id === id)?.category_name)
+        .filter(Boolean)
+        .join(', ');
+
+      setPortfolioBrands(prev =>
+        prev.map(b => (b.brand_id === brandId ? { ...b, categories: categoryNames } : b))
+      );
+    } catch (err) {
+      console.error('Update categories error:', err.message);
+      alert('Failed to update categories: ' + err.message);
+    }
+  };
+
+  const handleSubCategoriesEdit = async (brandId, selectedSubCategoryIds) => {
+    try {
+      // Delete existing brand-subcategory relationships
+      const { error: deleteError } = await supabase
+        .from('brand_sub_categories')
+        .delete()
+        .eq('brand_id', brandId);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new relationships
+      if (selectedSubCategoryIds.length > 0) {
+        const relationships = selectedSubCategoryIds.map(subCategoryId => ({
+          brand_id: brandId,
+          sub_category_id: subCategoryId
+        }));
+
+        const { error: insertError } = await supabase
+          .from('brand_sub_categories')
+          .insert(relationships);
+
+        if (insertError) throw insertError;
+      }
+
+      // Update local state with sub-category names
+      const subCategoryNames = selectedSubCategoryIds
+        .map(id => allSubCategories.find(sc => sc.sub_category_id === id)?.sub_category_name)
+        .filter(Boolean)
+        .join(', ');
+
+      setPortfolioBrands(prev =>
+        prev.map(b => (b.brand_id === brandId ? { ...b, sub_categories: subCategoryNames } : b))
+      );
+    } catch (err) {
+      console.error('Update sub-categories error:', err.message);
+      alert('Failed to update sub-categories: ' + err.message);
     }
   };
 
@@ -805,22 +811,36 @@ export default function AuditSupplierPortfolioPage() {
                           />
                         </td>
                         <td style={cellStyle}>
-                          <EditableCell
-                            value={brand.categories}
-                            onChange={(val) => handleBrandEdit(brand.brand_id, 'categories', val)}
+                          <MultiSelectCell
+                            currentValue={brand.categories}
+                            options={allCategories}
+                            optionIdKey="category_id"
+                            optionLabelKey="category_name"
+                            onChange={(selectedIds) => handleCategoriesEdit(brand.brand_id, selectedIds)}
                           />
                         </td>
                         <td style={cellStyle}>
-                          <EditableCell
-                            value={brand.sub_categories}
-                            onChange={(val) => handleBrandEdit(brand.brand_id, 'sub_categories', val)}
+                          <MultiSelectCell
+                            currentValue={brand.sub_categories}
+                            options={allSubCategories}
+                            optionIdKey="sub_category_id"
+                            optionLabelKey="sub_category_name"
+                            onChange={(selectedIds) => handleSubCategoriesEdit(brand.brand_id, selectedIds)}
                           />
                         </td>
                         <td style={cellStyle}>
-                          <VerifiedStatus isVerified={brand.last_verified_at} />
+                          {brand.last_verified_at ? (
+                            <span style={{ color: '#10b981', fontWeight: 500 }}>✓ Verified</span>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          )}
                         </td>
                         <td style={cellStyle}>
-                          <VerifiedDate date={brand.last_verified_at} />
+                          {brand.last_verified_at ? (
+                            <span>{new Date(brand.last_verified_at).toLocaleDateString()}</span>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          )}
                         </td>
                         <td style={cellStyle}>
                           <EditableCell
@@ -1205,6 +1225,216 @@ function VerifiedDate({ date }) {
       <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
         {relativeTime}
       </div>
+    </div>
+  );
+}
+
+function MultiSelectCell({ currentValue, options, optionIdKey, optionLabelKey, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selected, setSelected] = useState(() => {
+    // Parse current value (comma-separated names) into IDs
+    if (!currentValue) return [];
+    const names = currentValue.split(',').map(n => n.trim());
+    return options
+      .filter(opt => names.includes(opt[optionLabelKey]))
+      .map(opt => opt[optionIdKey]);
+  });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    // Update selected when currentValue or options change
+    if (!currentValue) {
+      setSelected([]);
+      return;
+    }
+    const names = currentValue.split(',').map(n => n.trim());
+    const ids = options
+      .filter(opt => names.includes(opt[optionLabelKey]))
+      .map(opt => opt[optionIdKey]);
+    setSelected(ids);
+  }, [currentValue, options, optionIdKey, optionLabelKey]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const toggleOption = (id) => {
+    const newSelected = selected.includes(id)
+      ? selected.filter(sid => sid !== id)
+      : [...selected, id];
+    setSelected(newSelected);
+  };
+
+  const handleOpen = () => {
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const viewportWidth = window.innerWidth;
+      
+      // Calculate position
+      let top = rect.bottom + 4;
+      let left = rect.left;
+      
+      // Adjust if dropdown would go off screen
+      if (top + 300 > viewportHeight) {
+        top = rect.top - 300 - 4; // Show above instead
+      }
+      if (left + 300 > viewportWidth) {
+        left = viewportWidth - 300 - 10; // Adjust left
+      }
+      if (left < 10) {
+        left = 10; // Minimum margin from edge
+      }
+      
+      setDropdownPosition({ top, left });
+    }
+    setIsOpen(true);
+  };
+
+  const handleSave = () => {
+    onChange(selected);
+    setIsOpen(false);
+  };
+
+  const displayValue = currentValue || '—';
+
+  return (
+    <div style={{ position: 'relative' }} ref={dropdownRef}>
+      <div
+        onClick={isOpen ? () => setIsOpen(false) : handleOpen}
+        style={{
+          cursor: 'pointer',
+          padding: '4px 8px',
+          border: '1px solid transparent',
+          borderRadius: 4,
+          minWidth: 100,
+          backgroundColor: isOpen ? '#f8fafc' : 'transparent'
+        }}
+        title="Click to edit"
+        onMouseEnter={(e) => {
+          if (!isOpen) e.currentTarget.style.backgroundColor = '#f8fafc';
+        }}
+        onMouseLeave={(e) => {
+          if (!isOpen) e.currentTarget.style.backgroundColor = 'transparent';
+        }}
+      >
+        {displayValue}
+      </div>
+
+      {isOpen && (
+        <>
+          {/* Backdrop to capture clicks outside */}
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 9998,
+              background: 'transparent'
+            }}
+            onClick={() => setIsOpen(false)}
+          />
+          {/* Dropdown */}
+          <div
+            style={{
+              position: 'fixed',
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              zIndex: 9999,
+              background: 'white',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              minWidth: 200,
+              maxWidth: 300,
+              maxHeight: 300,
+              overflowY: 'auto'
+            }}
+          >
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid #e2e8f0', fontWeight: 600, fontSize: 13 }}>
+            Select Options ({options.length} available)
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {options.length === 0 ? (
+              <div style={{ padding: '12px', color: '#94a3b8', fontSize: 14 }}>
+                No options available
+              </div>
+            ) : (
+              options.map(opt => (
+              <label
+                key={opt[optionIdKey]}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  ':hover': { background: '#f8fafc' }
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(opt[optionIdKey])}
+                  onChange={() => toggleOption(opt[optionIdKey])}
+                  style={{ marginRight: 8 }}
+                />
+                {opt[optionLabelKey]}
+              </label>
+              ))
+            )}
+          </div>
+          <div style={{ 
+            padding: 8, 
+            borderTop: '1px solid #e2e8f0',
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'flex-end'
+          }}>
+            <button
+              onClick={() => setIsOpen(false)}
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                border: '1px solid #cbd5e1',
+                borderRadius: 4,
+                background: 'white',
+                cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '6px 12px',
+                fontSize: 13,
+                border: 'none',
+                borderRadius: 4,
+                background: '#3b82f6',
+                color: 'white',
+                cursor: 'pointer',
+                fontWeight: 500
+              }}
+            >
+              Save
+            </button>
+          </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
