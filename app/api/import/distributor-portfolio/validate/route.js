@@ -38,6 +38,63 @@ export async function POST(req) {
     const stateCodeMap = new Map(existingStates?.map(s => [s.state_code?.toLowerCase(), s]) || []);
     const stateNameMap = new Map(existingStates?.map(s => [s.state_name?.toLowerCase(), s]) || []);
 
+    // Fuzzy matching function
+    const calculateSimilarity = (str1, str2) => {
+      const s1 = str1.toLowerCase().trim();
+      const s2 = str2.toLowerCase().trim();
+      
+      if (s1 === s2) return 1;
+      if (s1.length === 0 || s2.length === 0) return 0;
+      
+      // Check if one contains the other
+      if (s1.includes(s2) || s2.includes(s1)) {
+        const shorter = Math.min(s1.length, s2.length);
+        const longer = Math.max(s1.length, s2.length);
+        return shorter / longer;
+      }
+      
+      // Simple Levenshtein distance calculation
+      const matrix = [];
+      for (let i = 0; i <= s2.length; i++) {
+        matrix[i] = [i];
+      }
+      for (let j = 0; j <= s1.length; j++) {
+        matrix[0][j] = j;
+      }
+      
+      for (let i = 1; i <= s2.length; i++) {
+        for (let j = 1; j <= s1.length; j++) {
+          if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
+            matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j - 1] + 1,
+              matrix[i][j - 1] + 1,
+              matrix[i - 1][j] + 1
+            );
+          }
+        }
+      }
+      
+      const maxLength = Math.max(s1.length, s2.length);
+      return maxLength === 0 ? 0 : (maxLength - matrix[s2.length][s1.length]) / maxLength;
+    };
+
+    const findBestMatch = (name, existingItems, threshold = 0.7) => {
+      let bestMatch = null;
+      let bestSimilarity = 0;
+      
+      for (const item of existingItems) {
+        const similarity = calculateSimilarity(name, item.name);
+        if (similarity > bestSimilarity && similarity >= threshold) {
+          bestSimilarity = similarity;
+          bestMatch = { ...item, similarity };
+        }
+      }
+      
+      return bestMatch;
+    };
+
     // Track what will be created
     const newDistributorNames = new Set();
     const newSupplierNames = new Set();
@@ -96,13 +153,15 @@ export async function POST(req) {
         stateIds = foundStates.map(s => s.state_id);
       }
 
-      // Track new distributors
-      if (!distributorMap.has(distributorName.toLowerCase())) {
+      // Track new distributors (with fuzzy matching)
+      const distributorExists = distributorMap.has(distributorName.toLowerCase());
+      if (!distributorExists) {
         newDistributorNames.add(distributorName);
       }
 
-      // Track new suppliers
-      if (!supplierMap.has(supplierName.toLowerCase())) {
+      // Track new suppliers (with fuzzy matching)
+      const supplierExists = supplierMap.has(supplierName.toLowerCase());
+      if (!supplierExists) {
         newSupplierNames.add(supplierName);
       }
 
@@ -198,11 +257,27 @@ export async function POST(req) {
         const distributorInfo = distributorNameMap.get(distributorName);
         const supplierInfo = supplierNameMap.get(supplierName);
         
+        // Find fuzzy matches for distributors and suppliers
+        let distributorFuzzyMatch = null;
+        let supplierFuzzyMatch = null;
+        
+        if (!distExists) {
+          const distributorItems = existingDistributors.map(d => ({ name: d.distributor_name, ...d }));
+          distributorFuzzyMatch = findBestMatch(distributorName, distributorItems);
+        }
+        
+        if (!suppExists) {
+          const supplierItems = existingSuppliers.map(s => ({ name: s.supplier_name, ...s }));
+          supplierFuzzyMatch = findBestMatch(supplierName, supplierItems);
+        }
+        
         relationshipDetails.push({
           distributorName,
           supplierName,
           distributorExists: distExists,
           supplierExists: suppExists,
+          distributorFuzzyMatch,
+          supplierFuzzyMatch,
           distributorLogoUrl: distributorInfo?.distributor_logo_url || null,
           supplierLogoUrl: supplierInfo?.supplier_logo_url || null,
           stateCount: stateIds.size,

@@ -552,7 +552,7 @@ function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDi
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 4 }}>
-                Suggested Supplier
+                {relationship.supplierFuzzyMatch ? `Suggested: ${relationship.supplierFuzzyMatch.supplier_name}` : 'Suggested Supplier'}
               </div>
               <select
                 style={{
@@ -563,7 +563,7 @@ function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDi
                   fontSize: 13,
                   background: 'white'
                 }}
-                value={supplierMatches[relationshipKey]?.supplier_name || (relationship.supplierExists ? relationship.supplierName : "")}
+                value={supplierMatches[relationshipKey]?.supplier_name || (relationship.supplierExists ? relationship.supplierName : (relationship.supplierFuzzyMatch ? relationship.supplierFuzzyMatch.supplier_name : ""))}
                 onChange={(e) => {
                   const selectedSupplier = allSuppliers.find(s => s.supplier_name === e.target.value);
                   if (selectedSupplier) {
@@ -573,6 +573,8 @@ function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDi
               >
                 {relationship.supplierExists ? (
                   <option value={relationship.supplierName}>{relationship.supplierName}</option>
+                ) : relationship.supplierFuzzyMatch ? (
+                  <option value={relationship.supplierFuzzyMatch.supplier_name}>{relationship.supplierFuzzyMatch.supplier_name}</option>
                 ) : (
                   <option value="">Select a supplier...</option>
                 )}
@@ -583,7 +585,7 @@ function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDi
                 ))}
               </select>
               <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>
-                Review and confirm
+                {relationship.supplierFuzzyMatch ? `${Math.round(relationship.supplierFuzzyMatch.similarity * 100)}% similar to "${relationship.supplierName}"` : 'Review and confirm'}
               </div>
             </div>
           </div>
