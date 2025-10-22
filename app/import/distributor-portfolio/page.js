@@ -241,137 +241,105 @@ export default function ImportDistributorSupplierPortfolio() {
           <p style={{ color: '#64748b', marginBottom: 24 }}>
             Review all distributor-supplier relationships below. You can manually adjust matches before importing.
           </p>
-          
-          {/* Relationship Cards */}
-          <div style={{ marginTop: 24, display: 'grid', gap: 24 }}>
-            {validation.relationshipDetails?.map((rel, index) => (
-              <div key={index} style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr auto 1fr',
-                gap: 24,
-                alignItems: 'center',
-                padding: 20,
-                background: 'white',
-                border: '1px solid #e2e8f0',
-                borderRadius: 12
-              }}>
-                {/* Distributor Box */}
-                <div style={{ 
-                  padding: 16, 
-                  background: '#f8fafc', 
-                  border: '2px solid #e2e8f0',
-                  borderRadius: 8,
-                  textAlign: 'center'
+
+          {validation.relationshipDetails?.map((rel, idx) => {
+            // Group relationships by type
+            const exactMatches = [];
+            const fuzzyMatches = [];
+            const newRelationships = [];
+            
+            // Determine relationship type based on existence
+            if (rel.distributorExists && rel.supplierExists) {
+              exactMatches.push(rel);
+            } else if (rel.distributorExists || rel.supplierExists) {
+              fuzzyMatches.push(rel);
+            } else {
+              newRelationships.push(rel);
+            }
+
+            return (
+              <div key={idx} style={{ marginBottom: 40 }}>
+                <h3 style={{ 
+                  padding: '12px 16px', 
+                  background: '#1e293b', 
+                  color: 'white',
+                  borderRadius: '8px 8px 0 0',
+                  margin: 0
                 }}>
-                  <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>Distributor</div>
-                  {rel.distributorLogoUrl ? (
-                    <img 
-                      src={rel.distributorLogoUrl} 
-                      alt={rel.distributorName}
-                      style={{ 
-                        width: 40, 
-                        height: 40, 
-                        objectFit: 'contain', 
-                        marginBottom: 8,
-                        borderRadius: 4
-                      }}
-                    />
-                  ) : (
-                    <div style={{ 
-                      width: 40, 
-                      height: 40, 
-                      background: '#e2e8f0', 
-                      margin: '0 auto 8px auto',
-                      borderRadius: 4,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                      color: '#94a3b8'
-                    }}>
-                      📦
+                  {rel.distributorName} ↔ {rel.supplierName}
+                </h3>
+
+                {/* Column Headers */}
+                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none', background: '#f8fafc' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0 }}>
+                    <div style={{ padding: '12px 16px', borderRight: '2px solid #cbd5e1' }}>
+                      <strong>Import Relationship</strong>
                     </div>
-                  )}
-                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-                    {rel.distributorName}
-                  </div>
-                  <div style={{ 
-                    fontSize: 12, 
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                    background: rel.distributorExists ? '#d1fae5' : '#dbeafe',
-                    color: rel.distributorExists ? '#065f46' : '#1e40af',
-                    display: 'inline-block'
-                  }}>
-                    {rel.distributorExists ? '✓ Existing' : '+ New'}
+                    <div style={{ padding: '12px 16px' }}>
+                      <strong>Existing Relationship</strong>
+                    </div>
                   </div>
                 </div>
 
-                {/* Connection Arrow */}
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  fontSize: 24,
-                  color: '#94a3b8'
-                }}>
-                  ↔
-                </div>
-
-                {/* Supplier Box */}
-                <div style={{ 
-                  padding: 16, 
-                  background: '#f8fafc', 
-                  border: '2px solid #e2e8f0',
-                  borderRadius: 8,
-                  textAlign: 'center'
-                }}>
-                  <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>Supplier</div>
-                  {rel.supplierLogoUrl ? (
-                    <img 
-                      src={rel.supplierLogoUrl} 
-                      alt={rel.supplierName}
-                      style={{ 
-                        width: 40, 
-                        height: 40, 
-                        objectFit: 'contain', 
-                        marginBottom: 8,
-                        borderRadius: 4
-                      }}
-                    />
-                  ) : (
-                    <div style={{ 
-                      width: 40, 
-                      height: 40, 
-                      background: '#e2e8f0', 
-                      margin: '0 auto 8px auto',
-                      borderRadius: 4,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 12,
-                      color: '#94a3b8'
-                    }}>
-                      🏭
+                {/* Exact Matches - Ignore */}
+                {exactMatches.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#d1fae5', borderBottom: '1px solid #10b981' }}>
+                      <strong style={{ color: '#065f46' }}>✓ Exact Match - Ignore ({exactMatches.length})</strong>
+                      <span style={{ fontSize: 13, color: '#065f46', marginLeft: 8 }}>
+                        - Will re-verify these relationships
+                      </span>
                     </div>
-                  )}
-                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-                    {rel.supplierName}
+                    {exactMatches.map((rel, relIdx) => (
+                      <TwoColumnRelationshipRow 
+                        key={relIdx} 
+                        relationship={rel} 
+                        type="exact"
+                      />
+                    ))}
                   </div>
-                  <div style={{ 
-                    fontSize: 12, 
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                    background: rel.supplierExists ? '#d1fae5' : '#dbeafe',
-                    color: rel.supplierExists ? '#065f46' : '#1e40af',
-                    display: 'inline-block'
-                  }}>
-                    {rel.supplierExists ? '✓ Existing' : '+ New'}
+                )}
+
+                {/* Fuzzy Matches - Confirm */}
+                {fuzzyMatches.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fbbf24' }}>
+                      <strong style={{ color: '#92400e' }}>~ Fuzzy Match - Confirm ({fuzzyMatches.length})</strong>
+                      <span style={{ fontSize: 13, color: '#92400e', marginLeft: 8 }}>
+                        - Review and confirm matches
+                      </span>
+                    </div>
+                    {fuzzyMatches.map((rel, relIdx) => (
+                      <TwoColumnRelationshipRow 
+                        key={relIdx} 
+                        relationship={rel} 
+                        type="fuzzy"
+                      />
+                    ))}
                   </div>
-                </div>
+                )}
+
+                {/* New Relationships - Add */}
+                {newRelationships.length > 0 && (
+                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                    <div style={{ padding: '12px 16px', background: '#dbeafe', borderBottom: '1px solid #3b82f6' }}>
+                      <strong style={{ color: '#1e40af' }}>+ New Relationship - Add ({newRelationships.length})</strong>
+                      <span style={{ fontSize: 13, color: '#1e40af', marginLeft: 8 }}>
+                        - Will create these relationships
+                      </span>
+                    </div>
+                    {newRelationships.map((rel, relIdx) => (
+                      <TwoColumnRelationshipRow 
+                        key={relIdx} 
+                        relationship={rel} 
+                        type="new"
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
 
           <h2 style={{ marginTop: 40, marginBottom: 16 }}>Validation Summary</h2>
           
@@ -578,6 +546,129 @@ function SummaryItem({ label, count, items, type, existingItems, onClick }) {
         </strong>
         {onClick && (
           <span style={{ fontSize: 12, color: '#94a3b8' }}>👆 click to edit</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TwoColumnRelationshipRow({ relationship, type }) {
+  return (
+    <div style={{ 
+      display: 'grid', 
+      gridTemplateColumns: '1fr 1fr', 
+      gap: 0,
+      borderBottom: '1px solid #e2e8f0'
+    }}>
+      {/* Left Column - Import Relationship */}
+      <div style={{ 
+        padding: '12px 16px', 
+        borderRight: '1px solid #e2e8f0',
+        background: 'white'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <div style={{ 
+            width: 32, 
+            height: 32, 
+            background: '#e2e8f0', 
+            borderRadius: 4,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 12,
+            color: '#94a3b8'
+          }}>
+            📦
+          </div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{relationship.distributorName}</div>
+            <div style={{ fontSize: 12, color: '#64748b' }}>
+              {relationship.distributorExists ? '✓ Existing' : '+ New'}
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: '#64748b', marginLeft: 40 }}>
+          ↔ {relationship.supplierName}
+        </div>
+      </div>
+
+      {/* Right Column - Existing Relationship */}
+      <div style={{ 
+        padding: '12px 16px',
+        background: '#f8fafc'
+      }}>
+        {type === 'exact' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ 
+              width: 32, 
+              height: 32, 
+              background: '#d1fae5', 
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              color: '#065f46'
+            }}>
+              ✓
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: '#065f46' }}>
+                {relationship.distributorName} ↔ {relationship.supplierName}
+              </div>
+              <div style={{ fontSize: 12, color: '#065f46' }}>
+                ✓ Existing Relationship
+              </div>
+            </div>
+          </div>
+        ) : type === 'fuzzy' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ 
+              width: 32, 
+              height: 32, 
+              background: '#fef3c7', 
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              color: '#92400e'
+            }}>
+              ~
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e' }}>
+                Partial Match Found
+              </div>
+              <div style={{ fontSize: 12, color: '#92400e' }}>
+                Review and confirm
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ 
+              width: 32, 
+              height: 32, 
+              background: '#dbeafe', 
+              borderRadius: 4,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              color: '#1e40af'
+            }}>
+              +
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: '#1e40af' }}>
+                New Relationship
+              </div>
+              <div style={{ fontSize: 12, color: '#1e40af' }}>
+                Will be created
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
