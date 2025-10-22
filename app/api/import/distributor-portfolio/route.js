@@ -9,7 +9,8 @@ export async function POST(req) {
       fileName,
       isFirstBatch = true,
       isLastBatch = true,
-      existingImportLogId = null
+      existingImportLogId = null,
+      verifyRelationships = false
     } = await req.json();
     
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -299,8 +300,8 @@ export async function POST(req) {
             distributor_id: distributor.distributor_id,
             supplier_id: supplier.supplier_id,
             state_id: stateId,
-            is_verified: true,
-            last_verified_at: now
+            is_verified: verifyRelationships,
+            last_verified_at: verifyRelationships ? now : null
           });
         }
       }
@@ -324,17 +325,19 @@ export async function POST(req) {
         const { error: updateError } = await supabaseAdmin
           .from('distributor_supplier_state')
           .update({
-            is_verified: true,
-            last_verified_at: now
+            is_verified: verifyRelationships,
+            last_verified_at: verifyRelationships ? now : null
           })
           .eq('distributor_id', rel.distributor_id)
           .eq('supplier_id', rel.supplier_id)
           .eq('state_id', rel.state_id);
 
         if (updateError) throw updateError;
+        if (verifyRelationships) {
+          relationshipsVerified++;
+        }
       }
     }
-    relationshipsVerified = relationshipsToUpdate.length;
 
     // Save changes
     if (changes.length > 0) {

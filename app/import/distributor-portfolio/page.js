@@ -11,6 +11,7 @@ export default function ImportDistributorSupplierPortfolio() {
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
   const [selectedSummaryItem, setSelectedSummaryItem] = useState(null);
   const [manualMatches, setManualMatches] = useState({});
+  const [verifyRelationships, setVerifyRelationships] = useState(false);
 
   const handleMatch = (itemName, existingItem, type) => {
     console.log('Matching:', itemName, 'to', existingItem, 'type:', type);
@@ -131,7 +132,8 @@ export default function ImportDistributorSupplierPortfolio() {
             fileName: file?.name,
             isFirstBatch: i === 0,
             isLastBatch: i === batches.length - 1,
-            existingImportLogId: importLogId
+            existingImportLogId: importLogId,
+            verifyRelationships
           })
         });
         
@@ -205,22 +207,33 @@ export default function ImportDistributorSupplierPortfolio() {
 
       {parsed.length > 0 && <p style={{ marginTop: 16, fontSize: 14, color: '#64748b' }}>Parsed {parsed.length} rows</p>}
 
-      <button
-        onClick={handleValidate}
-        disabled={loading || parsed.length === 0}
-        style={{
-          marginTop: 16,
-          padding: '10px 20px',
-          background: (loading || parsed.length === 0) ? '#94a3b8' : '#3b82f6',
-          color: 'white',
-          border: 'none',
-          borderRadius: 6,
-          cursor: (loading || parsed.length === 0) ? 'not-allowed' : 'pointer',
-          fontWeight: 500
-        }}
-      >
-        {loading ? 'Validating...' : 'Validate & Review Changes'}
-      </button>
+      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={handleValidate}
+          disabled={loading || parsed.length === 0}
+          style={{
+            padding: '10px 20px',
+            background: (loading || parsed.length === 0) ? '#94a3b8' : '#3b82f6',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: (loading || parsed.length === 0) ? 'not-allowed' : 'pointer',
+            fontWeight: 500
+          }}
+        >
+          {loading ? 'Validating...' : 'Validate & Review Changes'}
+        </button>
+        
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#374151' }}>
+          <input
+            type="checkbox"
+            checked={verifyRelationships}
+            onChange={(e) => setVerifyRelationships(e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+          <span>Mark distributor-supplier relationships as verified</span>
+        </label>
+      </div>
 
       {validation && (
         <div style={{ marginTop: 32 }}>
@@ -481,7 +494,11 @@ export default function ImportDistributorSupplierPortfolio() {
             <p>✅ Distributors created: {results.distributorsCreated}</p>
             <p>✅ Suppliers created: {results.suppliersCreated}</p>
             <p>✅ Relationships created: {results.relationshipsCreated}</p>
-            <p>🔄 Relationships re-verified: {results.relationshipsVerified}</p>
+            {verifyRelationships ? (
+              <p>🔄 Relationships verified: {results.relationshipsVerified}</p>
+            ) : (
+              <p>📝 Relationships updated (not verified): {results.relationshipsVerified}</p>
+            )}
             <p>⚠️ Rows skipped: {results.skipped}</p>
             {results.errors && results.errors.length > 0 && (
               <div style={{ marginTop: 12 }}>
