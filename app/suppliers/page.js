@@ -130,6 +130,52 @@ export default function SuppliersPage() {
     }
   };
 
+  const handleDeleteSupplier = async (supplierId, supplierName) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${supplierName}"?\n\n` +
+      `This will permanently delete:\n` +
+      `• The supplier record\n` +
+      `• All distributor-supplier relationships\n` +
+      `• All brand-supplier relationships\n\n` +
+      `This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      // Delete distributor-supplier relationships first
+      const { error: distributorRelationsError } = await supabase
+        .from('distributor_supplier_state')
+        .delete()
+        .eq('supplier_id', supplierId);
+
+      if (distributorRelationsError) throw distributorRelationsError;
+
+      // Delete brand-supplier relationships
+      const { error: brandRelationsError } = await supabase
+        .from('brand_supplier')
+        .delete()
+        .eq('supplier_id', supplierId);
+
+      if (brandRelationsError) throw brandRelationsError;
+
+      // Delete the supplier record
+      const { error: supplierError } = await supabase
+        .from('core_suppliers')
+        .delete()
+        .eq('supplier_id', supplierId);
+
+      if (supplierError) throw supplierError;
+
+      // Update local state
+      setSuppliers(prev => prev.filter(s => s.supplier_id !== supplierId));
+      alert(`Supplier "${supplierName}" has been deleted successfully.`);
+    } catch (err) {
+      console.error('Delete supplier error:', err.message);
+      alert('Failed to delete supplier: ' + err.message);
+    }
+  };
+
   const handleDistributorStateReassignment = async (supplierId, currentDistributorId, currentStateId, newDistributorId, newStateId) => {
     try {
       // Delete existing relationship
@@ -202,6 +248,7 @@ export default function SuppliersPage() {
     { key: 'supplier_url', label: 'Website', editable: true },
     { key: 'supplier_logo_url', label: 'Logo URL', editable: true },
     { key: 'distributor_states', label: 'Distributor & State', editable: false, special: true },
+    { key: 'actions', label: 'Actions', editable: false, special: true },
   ];
 
   // Filter suppliers based on search term
@@ -311,6 +358,27 @@ export default function SuppliersPage() {
                           supplierId={s.supplier_id}
                           onReassign={handleDistributorStateReassignment}
                         />
+                      </td>
+                    );
+                  }
+
+                  if (special && col.key === 'actions') {
+                    return (
+                      <td key={col.key} style={cellStyle}>
+                        <button
+                          onClick={() => handleDeleteSupplier(s.supplier_id, s.supplier_name)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            background: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Delete
+                        </button>
                       </td>
                     );
                   }
