@@ -14,6 +14,7 @@ export default function BrandsPage() {
   const [allCategories, setAllCategories] = useState([]);
   const [allSubCategories, setAllSubCategories] = useState([]);
   const [allSuppliers, setAllSuppliers] = useState([]);
+  const [categorySubCategoryMap, setCategorySubCategoryMap] = useState(new Map());
   const [colWidths, setColWidths] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('brandColWidths');
@@ -200,6 +201,25 @@ export default function BrandsPage() {
           }
         });
 
+        // Build category-subcategory relationship map based on existing data
+        const catSubcatMap = new Map();
+        allBrands.forEach(brand => {
+          const brandCats = catsMap[brand.brand_id] || [];
+          const brandSubcats = subcatsMap[brand.brand_id] || [];
+          
+          // For each category this brand has, associate it with all subcategories this brand has
+          brandCats.forEach(cat => {
+            if (!catSubcatMap.has(cat)) {
+              catSubcatMap.set(cat, new Set());
+            }
+            brandSubcats.forEach(subcat => {
+              catSubcatMap.get(cat).add(subcat);
+            });
+          });
+        });
+
+        setCategorySubCategoryMap(catSubcatMap);
+
         // Merge data
         const enrichedBrands = allBrands.map(brand => {
           const supplierInfo = supplierMap[brand.brand_id];
@@ -301,6 +321,9 @@ export default function BrandsPage() {
       setBrands((prev) =>
         prev.map((b) => (b.brand_id === brandId ? { ...b, categories: categoryNames } : b))
       );
+
+      // Force re-render to update filtered sub-categories
+      setBrands((prev) => [...prev]);
     } catch (err) {
       console.error('Update categories error:', err.message);
       alert('Failed to update categories: ' + err.message);
@@ -472,6 +495,27 @@ export default function BrandsPage() {
     });
   };
 
+  // Function to get filtered sub-categories based on selected categories
+  const getFilteredSubCategories = (selectedCategories) => {
+    if (!selectedCategories || selectedCategories.length === 0) {
+      return allSubCategories;
+    }
+
+    // Get all sub-categories that are associated with any of the selected categories
+    const filteredSubcats = new Set();
+    selectedCategories.forEach(catName => {
+      const associatedSubcats = categorySubCategoryMap.get(catName);
+      if (associatedSubcats) {
+        associatedSubcats.forEach(subcatName => {
+          filteredSubcats.add(subcatName);
+        });
+      }
+    });
+
+    // Convert back to array format and filter the allSubCategories
+    return allSubCategories.filter(subcat => filteredSubcats.has(subcat.sub_category_name));
+  };
+
   if (loading) return <p>Loading...</p>;
 
   return (
@@ -583,11 +627,15 @@ export default function BrandsPage() {
                     }
                     
                     if (col.editHandler === 'sub_categories') {
+                      // Get current categories for this brand to filter sub-categories
+                      const currentCategories = b.categories ? b.categories.split(', ').filter(Boolean) : [];
+                      const filteredSubCategories = getFilteredSubCategories(currentCategories);
+                      
                       return (
                         <td key={col.key} style={cellStyle}>
                           <MultiSelectCell
                             currentValue={value}
-                            options={allSubCategories}
+                            options={filteredSubCategories}
                             optionIdKey="sub_category_id"
                             optionLabelKey="sub_category_name"
                             onChange={(selectedIds) => handleSubCategoriesEdit(b.brand_id, selectedIds)}
