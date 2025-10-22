@@ -6,6 +6,8 @@ export async function POST(req) {
     const { 
       rows, 
       manualMatches = {},
+      supplierMatches = {},
+      distributorMatches = {},
       fileName,
       isFirstBatch = true,
       isLastBatch = true,
@@ -123,15 +125,26 @@ export async function POST(req) {
         const distributorMatch = manualMatches[`distributor_${distributorName}`];
         const supplierMatch = manualMatches[`supplier_${supplierName}`];
         
-        // Use manual match if available, otherwise check if exists or needs to be created
-        if (distributorMatch) {
+        // Check for relationship-specific matches
+        const relationshipKey = `${distributorName}_${supplierName}_${rowIndex}`;
+        const relationshipSupplierMatch = supplierMatches[relationshipKey];
+        const relationshipDistributorMatch = distributorMatches[relationshipKey];
+        
+        // Use relationship-specific match if available, otherwise use manual match, otherwise check if exists or needs to be created
+        if (relationshipDistributorMatch) {
+          // Relationship-specific distributor match found - use the existing distributor
+          distributorMap.set(distributorName, relationshipDistributorMatch);
+        } else if (distributorMatch) {
           // Manual match found - use the existing distributor
           distributorMap.set(distributorName, distributorMatch);
         } else if (!distributorMap.has(distributorName) && !distributorsToCreate.some(d => d.name === distributorName)) {
           distributorsToCreate.push({ name: distributorName, row });
         }
 
-        if (supplierMatch) {
+        if (relationshipSupplierMatch) {
+          // Relationship-specific supplier match found - use the existing supplier
+          supplierMap.set(supplierName, relationshipSupplierMatch);
+        } else if (supplierMatch) {
           // Manual match found - use the existing supplier
           supplierMap.set(supplierName, supplierMatch);
         } else if (!supplierMap.has(supplierName) && !suppliersToCreate.some(s => s.name === supplierName)) {

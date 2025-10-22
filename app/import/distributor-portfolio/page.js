@@ -11,12 +11,34 @@ export default function ImportDistributorSupplierPortfolio() {
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
   const [manualMatches, setManualMatches] = useState({});
   const [verifyRelationships, setVerifyRelationships] = useState(false);
+  const [supplierMatches, setSupplierMatches] = useState({});
+  const [distributorMatches, setDistributorMatches] = useState({});
 
   const handleMatch = (itemName, existingItem, type) => {
     console.log('Matching:', itemName, 'to', existingItem, 'type:', type);
     setManualMatches(prev => ({
       ...prev,
       [`${type}_${itemName}`]: existingItem
+    }));
+  };
+
+  const handleSupplierMatch = (relationshipKey, selectedSupplierId, selectedSupplierName) => {
+    setSupplierMatches(prev => ({
+      ...prev,
+      [relationshipKey]: {
+        supplier_id: selectedSupplierId,
+        supplier_name: selectedSupplierName
+      }
+    }));
+  };
+
+  const handleDistributorMatch = (relationshipKey, selectedDistributorId, selectedDistributorName) => {
+    setDistributorMatches(prev => ({
+      ...prev,
+      [relationshipKey]: {
+        distributor_id: selectedDistributorId,
+        distributor_name: selectedDistributorName
+      }
     }));
   };
 
@@ -112,6 +134,8 @@ export default function ImportDistributorSupplierPortfolio() {
           body: JSON.stringify({ 
             rows: batch,
             manualMatches,
+            supplierMatches,
+            distributorMatches,
             fileName: file?.name,
             isFirstBatch: i === 0,
             isLastBatch: i === batches.length - 1,
@@ -292,14 +316,23 @@ export default function ImportDistributorSupplierPortfolio() {
                         - Review and confirm matches
                       </span>
                     </div>
-                    {fuzzyMatches.map((rel, relIdx) => (
-                      <TwoColumnRelationshipRow 
-                        key={relIdx} 
-                        relationship={rel} 
-                        type="fuzzy"
-                        allSuppliers={validation.allExistingSuppliers}
-                      />
-                    ))}
+                    {fuzzyMatches.map((rel, relIdx) => {
+                      const relationshipKey = `${rel.distributorName}_${rel.supplierName}_${relIdx}`;
+                      return (
+                        <TwoColumnRelationshipRow 
+                          key={relIdx} 
+                          relationship={rel} 
+                          type="fuzzy"
+                          allSuppliers={validation.allExistingSuppliers}
+                          allDistributors={validation.allExistingDistributors}
+                          relationshipKey={relationshipKey}
+                          supplierMatches={supplierMatches}
+                          distributorMatches={distributorMatches}
+                          onSupplierMatch={handleSupplierMatch}
+                          onDistributorMatch={handleDistributorMatch}
+                        />
+                      );
+                    })}
                   </div>
                 )}
 
@@ -426,7 +459,7 @@ export default function ImportDistributorSupplierPortfolio() {
 }
 
 
-function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [] }) {
+function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [], allDistributors = [], relationshipKey, supplierMatches = {}, distributorMatches = {}, onSupplierMatch, onDistributorMatch }) {
   return (
     <div style={{ 
       display: 'grid', 
@@ -523,7 +556,13 @@ function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [] }) {
                   fontSize: 13,
                   background: 'white'
                 }}
-                defaultValue={relationship.supplierName}
+                value={supplierMatches[relationshipKey]?.supplier_name || relationship.supplierName}
+                onChange={(e) => {
+                  const selectedSupplier = allSuppliers.find(s => s.supplier_name === e.target.value);
+                  if (selectedSupplier) {
+                    onSupplierMatch(relationshipKey, selectedSupplier.supplier_id, selectedSupplier.supplier_name);
+                  }
+                }}
               >
                 <option value={relationship.supplierName}>{relationship.supplierName}</option>
                 {allSuppliers?.map(supplier => (
