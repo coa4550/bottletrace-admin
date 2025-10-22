@@ -199,12 +199,93 @@ export default function AuditSupplierPortfolioPage() {
 
   const handleBrandEdit = async (brandId, field, newValue) => {
     try {
-      const { error } = await supabase
-        .from('core_brands')
-        .update({ [field]: newValue })
-        .eq('brand_id', brandId);
+      // For categories and sub_categories, we need to update the junction tables
+      if (field === 'categories' || field === 'sub_categories') {
+        // First, delete existing relationships
+        const tableName = field === 'categories' ? 'brand_categories' : 'brand_sub_categories';
+        const { error: deleteError } = await supabase
+          .from(tableName)
+          .delete()
+          .eq('brand_id', brandId);
 
-      if (error) throw error;
+        if (deleteError) throw deleteError;
+
+        // If newValue is not empty, create new relationships
+        if (newValue && newValue.trim()) {
+          const categoryNames = newValue.split(',').map(name => name.trim()).filter(name => name);
+          
+          // For each category/sub-category, find or create the record and link it
+          for (const categoryName of categoryNames) {
+            if (field === 'categories') {
+              // Find or create category
+              let { data: category, error: catError } = await supabase
+                .from('categories')
+                .select('category_id')
+                .eq('category_name', categoryName)
+                .single();
+
+              if (catError && catError.code === 'PGRST116') {
+                // Category doesn't exist, create it
+                const { data: newCategory, error: createError } = await supabase
+                  .from('categories')
+                  .insert({ category_name: categoryName })
+                  .select('category_id')
+                  .single();
+                
+                if (createError) throw createError;
+                category = newCategory;
+              } else if (catError) {
+                throw catError;
+              }
+
+              // Link brand to category
+              const { error: linkError } = await supabase
+                .from('brand_categories')
+                .insert({ brand_id: brandId, category_id: category.category_id });
+
+              if (linkError) throw linkError;
+            } else {
+              // Find or create sub-category
+              let { data: subCategory, error: subCatError } = await supabase
+                .from('sub_categories')
+                .select('sub_category_id')
+                .eq('sub_category_name', categoryName)
+                .single();
+
+              if (subCatError && subCatError.code === 'PGRST116') {
+                // Sub-category doesn't exist, create it
+                const { data: newSubCategory, error: createError } = await supabase
+                  .from('sub_categories')
+                  .insert({ sub_category_name: categoryName })
+                  .select('sub_category_id')
+                  .single();
+                
+                if (createError) throw createError;
+                subCategory = newSubCategory;
+              } else if (subCatError) {
+                throw subCatError;
+              }
+
+              // Link brand to sub-category
+              const { error: linkError } = await supabase
+                .from('brand_sub_categories')
+                .insert({ brand_id: brandId, sub_category_id: subCategory.sub_category_id });
+
+              if (linkError) throw linkError;
+            }
+          }
+        }
+      } else {
+        // For other fields, update directly in core_brands
+        const { error } = await supabase
+          .from('core_brands')
+          .update({ [field]: newValue })
+          .eq('brand_id', brandId);
+
+        if (error) throw error;
+      }
+
+      // Update local state
       setPortfolioBrands(prev =>
         prev.map(b => (b.brand_id === brandId ? { ...b, [field]: newValue } : b))
       );
@@ -690,13 +771,13 @@ export default function AuditSupplierPortfolioPage() {
                           title="Select all brands"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '14%' }}>Brand Name</th>
-                      <th style={{ ...headerStyle, width: '14%' }}>Supplier</th>
+                      <th style={{ ...headerStyle, width: '18%' }}>Brand Name</th>
+                      <th style={{ ...headerStyle, width: '15%' }}>Categories</th>
+                      <th style={{ ...headerStyle, width: '15%' }}>Sub-Categories</th>
+                      <th style={{ ...headerStyle, width: '8%' }}>Verified</th>
                       <th style={{ ...headerStyle, width: '10%' }}>Verified Date</th>
-                      <th style={{ ...headerStyle, width: '12%' }}>Categories</th>
-                      <th style={{ ...headerStyle, width: '12%' }}>Sub-Categories</th>
-                      <th style={{ ...headerStyle, width: '16%' }}>Brand URL</th>
-                      <th style={{ ...headerStyle, width: '16%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '15%' }}>Brand URL</th>
+                      <th style={{ ...headerStyle, width: '15%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -724,18 +805,23 @@ export default function AuditSupplierPortfolioPage() {
                           />
                         </td>
                         <td style={cellStyle}>
-                          <SupplierDropdown
-                            currentSupplierId={brand.current_supplier_id}
-                            currentSupplierName={brand.current_supplier_name}
-                            allSuppliers={allSuppliers}
-                            onChange={(newSupplierId) => handleSupplierChange(brand.brand_id, newSupplierId)}
+                          <EditableCell
+                            value={brand.categories}
+                            onChange={(val) => handleBrandEdit(brand.brand_id, 'categories', val)}
                           />
+                        </td>
+                        <td style={cellStyle}>
+                          <EditableCell
+                            value={brand.sub_categories}
+                            onChange={(val) => handleBrandEdit(brand.brand_id, 'sub_categories', val)}
+                          />
+                        </td>
+                        <td style={cellStyle}>
+                          <VerifiedStatus isVerified={brand.last_verified_at} />
                         </td>
                         <td style={cellStyle}>
                           <VerifiedDate date={brand.last_verified_at} />
                         </td>
-                        <td style={cellStyle}>{brand.categories || '—'}</td>
-                        <td style={cellStyle}>{brand.sub_categories || '—'}</td>
                         <td style={cellStyle}>
                           <EditableCell
                             value={brand.brand_url}
@@ -1075,6 +1161,15 @@ function EditableCell({ value, onChange }) {
       {value || '—'}
     </div>
   );
+}
+
+// Component to display verified status
+function VerifiedStatus({ isVerified }) {
+  if (!isVerified) {
+    return <span style={{ color: '#ef4444', fontSize: 13, fontWeight: 500 }}>No</span>;
+  }
+  
+  return <span style={{ color: '#10b981', fontSize: 13, fontWeight: 500 }}>Yes</span>;
 }
 
 // Component to display verified date
