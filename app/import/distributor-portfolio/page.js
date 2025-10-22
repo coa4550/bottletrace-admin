@@ -297,6 +297,7 @@ export default function ImportDistributorSupplierPortfolio() {
                         key={relIdx} 
                         relationship={rel} 
                         type="fuzzy"
+                        allSuppliers={validation.allExistingSuppliers}
                       />
                     ))}
                   </div>
@@ -425,7 +426,7 @@ export default function ImportDistributorSupplierPortfolio() {
 }
 
 
-function TwoColumnRelationshipRow({ relationship, type }) {
+function TwoColumnRelationshipRow({ relationship, type, allSuppliers = [] }) {
   return (
     <div style={{ 
       display: 'grid', 
@@ -509,11 +510,29 @@ function TwoColumnRelationshipRow({ relationship, type }) {
             }}>
               ~
             </div>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e' }}>
-                Partial Match Found
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, color: '#92400e', marginBottom: 4 }}>
+                Suggested Supplier
               </div>
-              <div style={{ fontSize: 12, color: '#92400e' }}>
+              <select
+                style={{
+                  width: '100%',
+                  padding: '6px 8px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 4,
+                  fontSize: 13,
+                  background: 'white'
+                }}
+                defaultValue={relationship.supplierName}
+              >
+                <option value={relationship.supplierName}>{relationship.supplierName}</option>
+                {allSuppliers?.map(supplier => (
+                  <option key={supplier.supplier_id} value={supplier.supplier_name}>
+                    {supplier.supplier_name}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11, color: '#92400e', marginTop: 2 }}>
                 Review and confirm
               </div>
             </div>
