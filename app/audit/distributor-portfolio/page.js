@@ -540,6 +540,7 @@ export default function AuditDistributorPortfolioPage() {
                           <VerifiedDate 
                             date={supplier.last_verified_at} 
                             createdDate={supplier.created_at}
+                            isVerified={supplier.is_verified}
                           />
                         </td>
                         <td style={cellStyle}>
@@ -739,16 +740,14 @@ function VerifiedStatus({ isVerified }) {
   );
 }
 
-// Component to display verified date (or created date if not verified)
-function VerifiedDate({ date, createdDate }) {
-  // Use verified date if available, otherwise fall back to created date
-  const displayDate = date || createdDate;
-  
-  if (!displayDate) {
-    return <span style={{ color: '#94a3b8', fontSize: 13 }}>No date</span>;
+// Component to display verified date (only show date if actually verified)
+function VerifiedDate({ date, createdDate, isVerified }) {
+  // Only show verified date if the relationship is actually verified
+  if (!isVerified || !date) {
+    return <span style={{ color: '#94a3b8', fontSize: 14 }}>—</span>;
   }
   
-  const dateObj = new Date(displayDate);
+  const dateObj = new Date(date);
   const now = new Date();
   const daysAgo = Math.floor((now - dateObj) / (1000 * 60 * 60 * 24));
   
@@ -767,15 +766,13 @@ function VerifiedDate({ date, createdDate }) {
     relativeTime = `${Math.floor(daysAgo / 365)}y ago`;
   }
   
-  const label = date ? 'Verified' : 'Added';
-  
   return (
     <div style={{ fontSize: 13 }}>
       <div style={{ color: '#1e293b', fontWeight: 500 }}>
         {dateObj.toLocaleDateString()}
       </div>
       <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
-        {label}: {relativeTime}
+        Verified: {relativeTime}
       </div>
     </div>
   );
