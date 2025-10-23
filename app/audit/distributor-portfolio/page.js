@@ -720,15 +720,21 @@ function VerifiedStatus({ isVerified }) {
       fontSize: 13,
       fontWeight: 500
     }}>
-      <span style={{
-        padding: '4px 8px',
-        borderRadius: 4,
-        backgroundColor: isVerified ? '#dcfce7' : '#fef3c7',
-        color: isVerified ? '#166534' : '#92400e',
-        fontSize: 12
-      }}>
-        {isVerified ? '✓ Verified' : '⚠ Pending'}
-      </span>
+      {isVerified ? (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: 4,
+          backgroundColor: '#dcfce7',
+          color: '#166534',
+          fontSize: 12
+        }}>
+          ✓ Verified
+        </span>
+      ) : (
+        <span style={{ color: '#94a3b8', fontSize: 14 }}>
+          —
+        </span>
+      )}
     </div>
   );
 }
