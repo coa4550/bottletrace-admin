@@ -125,9 +125,8 @@ export async function POST(req) {
     // Similarity threshold (75% match or higher)
     const THRESHOLD = 0.75;
 
-    // Get unique distributor-supplier relationships from import
-    const relationshipKeys = new Set();
-    const relationshipMap = new Map();
+    // Group by distributor first, then by supplier
+    const distributorMap = new Map();
     
     rows.forEach((row, index) => {
       const distributorName = (row.distributor_name || '').trim();
@@ -137,33 +136,35 @@ export async function POST(req) {
       
       if (!distributorName || !supplierName || (!stateName && !stateCode)) return;
       
-      const key = `${distributorName}|${supplierName}`;
-      relationshipKeys.add(key);
-      
-      if (!relationshipMap.has(key)) {
-        relationshipMap.set(key, {
+      // Initialize distributor if not exists
+      if (!distributorMap.has(distributorName)) {
+        distributorMap.set(distributorName, {
           distributorName,
+          suppliers: new Map()
+        });
+      }
+      
+      const distributor = distributorMap.get(distributorName);
+      
+      // Initialize supplier if not exists
+      if (!distributor.suppliers.has(supplierName)) {
+        distributor.suppliers.set(supplierName, {
           supplierName,
           rows: []
         });
       }
       
-      relationshipMap.get(key).rows.push({ ...row, originalIndex: index });
+      distributor.suppliers.get(supplierName).rows.push({ ...row, originalIndex: index });
     });
 
-    // Build comprehensive review data for each relationship
-    const relationshipReviews = [];
+    // Build comprehensive review data grouped by distributor
+    const distributorReviews = [];
 
-    for (const [key, relationship] of relationshipMap) {
-      const { distributorName, supplierName, rows: relationshipRows } = relationship;
+    for (const [distributorName, distributorData] of distributorMap) {
       
-      // Find or create distributor ID
+      // Find distributor match
       let distributor = existingDistributors.find(d => d.distributor_name === distributorName);
       let distributorId = distributor?.distributor_id;
-
-      // Find or create supplier ID
-      let supplier = existingSuppliers.find(s => s.supplier_name === supplierName);
-      let supplierId = supplier?.supplier_id;
 
       // Process distributor matching
       let distributorMatchType = 'new';
@@ -204,112 +205,125 @@ export async function POST(req) {
         }
       }
 
-      // Process supplier matching
-      let supplierMatchType = 'new';
-      let supplierMatched = supplier;
-      let supplierSimilarity = 0;
+      // Process suppliers for this distributor
+      const importSuppliers = [];
+      
+      for (const [supplierName, supplierData] of distributorData.suppliers) {
+        // Find supplier match
+        let supplier = existingSuppliers.find(s => s.supplier_name === supplierName);
+        let supplierId = supplier?.supplier_id;
 
-      if (supplier) {
-        supplierMatchType = 'exact';
-      } else {
-        // Check for fuzzy match
-        const normalizedSupplierName = normalizeName(supplierName);
-        const supplierFirstWord = getFirstWord(supplierName);
-        
-        for (const existing of existingSuppliers) {
-          const normalizedExisting = normalizeName(existing.supplier_name);
-          const existingFirstWord = getFirstWord(existing.supplier_name);
-          
-          // High confidence if first words match (excluding "the")
-          if (supplierFirstWord && supplierFirstWord === existingFirstWord && supplierFirstWord.length > 2) {
-            const sim = 0.95; // High confidence score for first word match
-            if (sim > supplierSimilarity) {
-              supplierMatched = existing;
-              supplierSimilarity = sim;
-            }
-          } else {
-            // Regular Levenshtein similarity
-            const sim = similarity(normalizedSupplierName, normalizedExisting);
-            
-            if (sim >= THRESHOLD && sim > supplierSimilarity) {
-              supplierMatched = existing;
-              supplierSimilarity = sim;
-            }
-          }
-        }
+        // Process supplier matching
+        let supplierMatchType = 'new';
+        let supplierMatched = supplier;
+        let supplierSimilarity = 0;
 
-        if (supplierMatched && supplierSimilarity >= THRESHOLD) {
-          supplierMatchType = 'fuzzy';
-        }
-      }
-
-      // Process states
-      const processedStates = [];
-      for (const row of relationshipRows) {
-        const stateName = (row.state_name || '').trim();
-        const stateCode = (row.state_code || '').trim();
-        
-        // Find state(s)
-        let stateIds = [];
-        if (stateCode && stateCode.toUpperCase() === 'ALL') {
-          stateIds = existingStates?.map(s => s.state_id) || [];
+        if (supplier) {
+          supplierMatchType = 'exact';
         } else {
-          // Handle comma-separated state codes
-          const stateCodesToCheck = stateCode ? stateCode.split(',').map(s => s.trim()) : [];
-          const stateNamesToCheck = stateName ? stateName.split(',').map(s => s.trim()) : [];
+          // Check for fuzzy match
+          const normalizedSupplierName = normalizeName(supplierName);
+          const supplierFirstWord = getFirstWord(supplierName);
           
-          const allStatesToCheck = [...stateCodesToCheck, ...stateNamesToCheck];
-          const foundStates = [];
-
-          for (const stateToCheck of allStatesToCheck) {
-            if (stateToCheck) {
-              const state = existingStates?.find(s => 
-                s.state_code?.toLowerCase() === stateToCheck.toLowerCase() ||
-                s.state_name?.toLowerCase() === stateToCheck.toLowerCase()
-              );
-              if (state) {
-                foundStates.push(state);
+          for (const existing of existingSuppliers) {
+            const normalizedExisting = normalizeName(existing.supplier_name);
+            const existingFirstWord = getFirstWord(existing.supplier_name);
+            
+            // High confidence if first words match (excluding "the")
+            if (supplierFirstWord && supplierFirstWord === existingFirstWord && supplierFirstWord.length > 2) {
+              const sim = 0.95; // High confidence score for first word match
+              if (sim > supplierSimilarity) {
+                supplierMatched = existing;
+                supplierSimilarity = sim;
+              }
+            } else {
+              // Regular Levenshtein similarity
+              const sim = similarity(normalizedSupplierName, normalizedExisting);
+              
+              if (sim >= THRESHOLD && sim > supplierSimilarity) {
+                supplierMatched = existing;
+                supplierSimilarity = sim;
               }
             }
           }
 
-          stateIds = foundStates.map(s => s.state_id);
+          if (supplierMatched && supplierSimilarity >= THRESHOLD) {
+            supplierMatchType = 'fuzzy';
+          }
         }
 
-        processedStates.push(...stateIds.map(stateId => ({
-          stateId,
-          state: existingStates.find(s => s.state_id === stateId)
-        })));
+        // Process states for this supplier
+        const processedStates = [];
+        for (const row of supplierData.rows) {
+          const stateName = (row.state_name || '').trim();
+          const stateCode = (row.state_code || '').trim();
+          
+          // Find state(s)
+          let stateIds = [];
+          if (stateCode && stateCode.toUpperCase() === 'ALL') {
+            stateIds = existingStates?.map(s => s.state_id) || [];
+          } else {
+            // Handle comma-separated state codes
+            const stateCodesToCheck = stateCode ? stateCode.split(',').map(s => s.trim()) : [];
+            const stateNamesToCheck = stateName ? stateName.split(',').map(s => s.trim()) : [];
+            
+            const allStatesToCheck = [...stateCodesToCheck, ...stateNamesToCheck];
+            const foundStates = [];
+
+            for (const stateToCheck of allStatesToCheck) {
+              if (stateToCheck) {
+                const state = existingStates?.find(s => 
+                  s.state_code?.toLowerCase() === stateToCheck.toLowerCase() ||
+                  s.state_name?.toLowerCase() === stateToCheck.toLowerCase()
+                );
+                if (state) {
+                  foundStates.push(state);
+                }
+              }
+            }
+
+            stateIds = foundStates.map(s => s.state_id);
+          }
+
+          processedStates.push(...stateIds.map(stateId => ({
+            stateId,
+            state: existingStates.find(s => s.state_id === stateId)
+          })));
+        }
+
+        // Remove duplicate states
+        const uniqueStates = processedStates.filter((state, index, self) => 
+          index === self.findIndex(s => s.stateId === state.stateId)
+        );
+
+        importSuppliers.push({
+          supplierName,
+          matchType: supplierMatchType,
+          matchedSupplier: supplierMatched ? {
+            supplier_id: supplierMatched.supplier_id,
+            supplier_name: supplierMatched.supplier_name
+          } : null,
+          similarity: supplierMatchType === 'fuzzy' ? supplierSimilarity : null,
+          states: uniqueStates,
+          rowIndex: supplierData.rows[0].originalIndex // Use first row's index for key generation
+        });
       }
 
-      // Remove duplicate states
-      const uniqueStates = processedStates.filter((state, index, self) => 
-        index === self.findIndex(s => s.stateId === state.stateId)
-      );
-
-      relationshipReviews.push({
+      distributorReviews.push({
         distributorName,
-        supplierName,
         distributorMatchType,
-        supplierMatchType,
         distributorMatched: distributorMatched ? {
           distributor_id: distributorMatched.distributor_id,
           distributor_name: distributorMatched.distributor_name
         } : null,
-        supplierMatched: supplierMatched ? {
-          supplier_id: supplierMatched.supplier_id,
-          supplier_name: supplierMatched.supplier_name
-        } : null,
         distributorSimilarity: distributorMatchType === 'fuzzy' ? distributorSimilarity : null,
-        supplierSimilarity: supplierMatchType === 'fuzzy' ? supplierSimilarity : null,
-        states: uniqueStates,
-        rows: relationshipRows
+        importSuppliers
       });
     }
 
     return NextResponse.json({
       totalRows: rows.length,
-      relationshipReviews,
+      distributorReviews,
       allExistingDistributors: existingDistributors.sort((a, b) => a.distributor_name.localeCompare(b.distributor_name)),
       allExistingSuppliers: existingSuppliers.sort((a, b) => a.supplier_name.localeCompare(b.supplier_name)),
       allExistingStates: existingStates?.sort((a, b) => a.state_name.localeCompare(b.state_name)) || []
