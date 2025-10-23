@@ -503,9 +503,10 @@ export default function AuditDistributorPortfolioPage() {
                         />
                       </th>
                       <th style={{ ...headerStyle, width: '20%' }}>Supplier Name</th>
-                      <th style={{ ...headerStyle, width: '14%' }}>Verified Date</th>
-                      <th style={{ ...headerStyle, width: '23%' }}>Supplier URL</th>
-                      <th style={{ ...headerStyle, width: '23%' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, width: '10%' }}>Verified</th>
+                      <th style={{ ...headerStyle, width: '12%' }}>Verified Date</th>
+                      <th style={{ ...headerStyle, width: '20%' }}>Supplier URL</th>
+                      <th style={{ ...headerStyle, width: '20%' }}>Logo URL</th>
                       <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
                     </tr>
                   </thead>
@@ -531,6 +532,9 @@ export default function AuditDistributorPortfolioPage() {
                             value={supplier.supplier_name}
                             onChange={(val) => handleSupplierEdit(supplier.supplier_id, 'supplier_name', val)}
                           />
+                        </td>
+                        <td style={cellStyle}>
+                          <VerifiedStatus isVerified={supplier.is_verified} />
                         </td>
                         <td style={cellStyle}>
                           <VerifiedDate 
@@ -702,6 +706,29 @@ function EditableCell({ value, onChange }) {
       title={value || "Click to edit"}
     >
       {value || '—'}
+    </div>
+  );
+}
+
+// Component to display verified status
+function VerifiedStatus({ isVerified }) {
+  return (
+    <div style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      fontSize: 13,
+      fontWeight: 500
+    }}>
+      <span style={{
+        padding: '4px 8px',
+        borderRadius: 4,
+        backgroundColor: isVerified ? '#dcfce7' : '#fef3c7',
+        color: isVerified ? '#166534' : '#92400e',
+        fontSize: 12
+      }}>
+        {isVerified ? '✓ Verified' : '⚠ Pending'}
+      </span>
     </div>
   );
 }
