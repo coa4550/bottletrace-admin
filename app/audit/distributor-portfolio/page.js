@@ -482,10 +482,10 @@ export default function AuditDistributorPortfolioPage() {
             {portfolioSuppliers.length === 0 ? (
               <p style={{ color: '#64748b' }}>No suppliers found for this distributor.</p>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div style={{ overflowX: 'auto', marginBottom: 40 }}>
                 <table style={{ 
                   width: '100%', 
-                  tableLayout: 'fixed',
+                  tableLayout: 'auto',
                   borderCollapse: 'collapse',
                   background: 'white',
                   border: '1px solid #e2e8f0',
@@ -493,7 +493,7 @@ export default function AuditDistributorPortfolioPage() {
                 }}>
                   <thead>
                     <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                      <th style={{ padding: '8px', textAlign: 'center', width: '30px', fontSize: 13, fontWeight: 600, color: '#475569' }}>
+                      <th style={{ padding: '8px', textAlign: 'center', minWidth: '30px', fontSize: 13, fontWeight: 600, color: '#475569' }}>
                         <input
                           type="checkbox"
                           checked={selectedSuppliers.size === portfolioSuppliers.length && portfolioSuppliers.length > 0}
@@ -502,12 +502,12 @@ export default function AuditDistributorPortfolioPage() {
                           title="Select all suppliers"
                         />
                       </th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Supplier Name</th>
-                      <th style={{ ...headerStyle, width: '10%' }}>Verified</th>
-                      <th style={{ ...headerStyle, width: '12%' }}>Verified Date</th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Supplier URL</th>
-                      <th style={{ ...headerStyle, width: '20%' }}>Logo URL</th>
-                      <th style={{ ...headerStyle, width: '90px' }}>Actions</th>
+                      <th style={{ ...headerStyle, minWidth: '150px' }}>Supplier Name</th>
+                      <th style={{ ...headerStyle, minWidth: '100px' }}>Verified</th>
+                      <th style={{ ...headerStyle, minWidth: '120px' }}>Verified Date</th>
+                      <th style={{ ...headerStyle, minWidth: '150px' }}>Supplier URL</th>
+                      <th style={{ ...headerStyle, minWidth: '150px' }}>Logo URL</th>
+                      <th style={{ ...headerStyle, minWidth: '90px' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
