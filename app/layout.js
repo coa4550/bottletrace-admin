@@ -16,7 +16,7 @@ export default function RootLayout({ children }) {
           <main style={{ 
             flex: 1, 
             padding: 24, 
-            background: '#f8fafc',
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
             overflowX: 'auto',
             overflowY: 'auto',
             height: '100vh'

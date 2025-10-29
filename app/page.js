@@ -124,17 +124,21 @@ export default function DashboardPage() {
             onClick={fetchDashboardData}
             style={{
               padding: '8px 16px',
-              background: '#3b82f6',
+              background: 'linear-gradient(90deg, #0d9488 0%, #059669 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
               fontSize: '14px',
-              fontWeight: '500',
+              fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '8px'
+              gap: '8px',
+              boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)',
+              transition: 'all 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
             🔄 Refresh Data
           </button>
@@ -191,9 +195,10 @@ export default function DashboardPage() {
       <div style={{
         padding: 24,
         background: 'white',
-        border: '2px solid #e2e8f0',
+        border: '2px solid #d1fae5',
         borderRadius: 8,
-        marginBottom: 32
+        marginBottom: 32,
+        boxShadow: '0 1px 3px rgba(13, 148, 136, 0.1)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <div style={{ fontSize: 32 }}>👥</div>
@@ -484,8 +489,9 @@ export default function DashboardPage() {
         <div style={{
           padding: 20,
           background: 'white',
-          border: '2px solid #e2e8f0',
-          borderRadius: 8
+          border: '2px solid #d1fae5',
+          borderRadius: 8,
+          boxShadow: '0 1px 3px rgba(13, 148, 136, 0.1)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
             <div>
@@ -510,8 +516,9 @@ export default function DashboardPage() {
         <div style={{
           padding: 20,
           background: 'white',
-          border: '2px solid #e2e8f0',
-          borderRadius: 8
+          border: '2px solid #d1fae5',
+          borderRadius: 8,
+          boxShadow: '0 1px 3px rgba(13, 148, 136, 0.1)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
             <div>
@@ -535,13 +542,17 @@ export default function DashboardPage() {
             style={{
               display: 'inline-block',
               padding: '8px 16px',
-              background: '#3b82f6',
+              background: 'linear-gradient(90deg, #0d9488 0%, #059669 100%)',
               color: 'white',
               borderRadius: 6,
               textDecoration: 'none',
               fontSize: 14,
-              fontWeight: 500
+              fontWeight: 600,
+              boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)',
+              transition: 'all 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
           >
             Fix Orphans →
           </a>
@@ -556,22 +567,22 @@ export default function DashboardPage() {
             <a 
               href="/admin/submissions" 
               style={{ 
-                color: '#3b82f6', 
+                color: '#0d9488', 
                 textDecoration: 'none', 
                 fontSize: 14, 
-                fontWeight: 500,
+                fontWeight: 600,
                 padding: '6px 12px',
-                border: '1px solid #3b82f6',
+                border: '2px solid #0d9488',
                 borderRadius: 6,
                 transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#3b82f6';
+                e.currentTarget.style.background = '#0d9488';
                 e.currentTarget.style.color = 'white';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#3b82f6';
+                e.currentTarget.style.color = '#0d9488';
               }}
             >
               View All →
@@ -579,9 +590,10 @@ export default function DashboardPage() {
           </div>
           <div style={{
             background: 'white',
-            border: '2px solid #e2e8f0',
+            border: '2px solid #d1fae5',
             borderRadius: 8,
-            overflow: 'hidden'
+            overflow: 'hidden',
+            boxShadow: '0 1px 3px rgba(13, 148, 136, 0.1)'
           }}>
             {recentSubmissions.map((submission, index) => (
               <a
@@ -679,20 +691,21 @@ function MetricCard({ title, value, subtitle, icon, link, warning = false }) {
         display: 'block',
         padding: 20,
         background: 'white',
-        border: warning ? '2px solid #fbbf24' : '2px solid #e2e8f0',
+        border: warning ? '2px solid #fbbf24' : '2px solid #d1fae5',
         borderRadius: 8,
         textDecoration: 'none',
         color: 'inherit',
         transition: 'all 0.2s',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        boxShadow: '0 1px 3px rgba(13, 148, 136, 0.1)'
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+        e.currentTarget.style.boxShadow = warning ? '0 4px 12px rgba(251,191,36,0.2)' : '0 4px 12px rgba(13,148,136,0.2)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(13, 148, 136, 0.1)';
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
@@ -721,17 +734,20 @@ function SmallMetricCard({ title, value, link }) {
         display: 'block',
         padding: 16,
         background: 'white',
-        border: '1px solid #e2e8f0',
+        border: '2px solid #d1fae5',
         borderRadius: 8,
         textDecoration: 'none',
         color: 'inherit',
-        transition: 'all 0.2s'
+        transition: 'all 0.2s',
+        boxShadow: '0 1px 3px rgba(13, 148, 136, 0.1)'
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = '#3b82f6';
+        e.currentTarget.style.borderColor = '#0d9488';
+        e.currentTarget.style.transform = 'translateY(-2px)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = '#e2e8f0';
+        e.currentTarget.style.borderColor = '#d1fae5';
+        e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>
@@ -764,13 +780,13 @@ function QuickActionButton({ href, icon, label, highlight = false }) {
         boxShadow: highlight ? '0 2px 8px rgba(251, 191, 36, 0.2)' : 'none'
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = highlight ? '#fde68a' : '#f8fafc';
-        e.currentTarget.style.borderColor = highlight ? '#f59e0b' : '#3b82f6';
+        e.currentTarget.style.background = highlight ? '#fde68a' : '#ecfdf5';
+        e.currentTarget.style.borderColor = highlight ? '#f59e0b' : '#0d9488';
         e.currentTarget.style.transform = 'translateY(-2px)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = highlight ? '#fef3c7' : 'white';
-        e.currentTarget.style.borderColor = highlight ? '#fbbf24' : '#e2e8f0';
+        e.currentTarget.style.borderColor = highlight ? '#fbbf24' : '#d1fae5';
         e.currentTarget.style.transform = 'translateY(0)';
       }}
     >

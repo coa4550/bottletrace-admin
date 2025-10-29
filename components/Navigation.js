@@ -29,61 +29,88 @@ export default function Navigation() {
   };
 
   return (
-    <aside style={{ width: 270, minWidth: 270, flexShrink: 0, background: '#0f172a', color: 'white', padding: 16, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto', boxSizing: 'border-box' }}>
-      <h2 style={{ marginTop: 8 }}>BottleTrace Admin</h2>
+    <aside style={{ 
+      width: 270, 
+      minWidth: 270, 
+      flexShrink: 0, 
+      background: 'linear-gradient(180deg, #0d9488 0%, #059669 100%)', 
+      color: 'white', 
+      padding: 16, 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh', 
+      overflowY: 'auto', 
+      boxSizing: 'border-box',
+      boxShadow: '4px 0 12px rgba(0, 0, 0, 0.1)'
+    }}>
+      <h2 style={{ marginTop: 8, fontWeight: 700, fontSize: 20, textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)' }}>BottleTrace Admin</h2>
       
       <nav style={{ marginTop: 16, flex: 1 }}>
-        <a href="/" style={{ color: '#e2e8f0', textDecoration: 'none', fontSize: 15, fontWeight: 500, display: 'block', marginBottom: 8 }}>Dashboard</a>
+        <a href="/" style={{ 
+          color: 'white', 
+          textDecoration: 'none', 
+          fontSize: 15, 
+          fontWeight: 600, 
+          display: 'block', 
+          marginBottom: 8,
+          padding: '8px 12px',
+          borderRadius: 6,
+          background: 'rgba(255, 255, 255, 0.1)',
+          transition: 'all 0.2s'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+        >Dashboard</a>
 
-        <h4 style={{ marginTop: 12, marginBottom: 6, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+        <h4 style={{ marginTop: 16, marginBottom: 8, color: 'rgba(255, 255, 255, 0.7)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.1em' }}>
           Data
         </h4>
-        <a href="/brands" style={{ color: '#e2e8f0', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Brands</a>
-        <a href="/suppliers" style={{ color: '#e2e8f0', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Suppliers</a>
-        <a href="/distributors" style={{ color: '#e2e8f0', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Distributors</a>
-        <a href="/states" style={{ color: '#e2e8f0', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>States</a>
-        <a href="/categories" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Categories</a>
-        <a href="/sub-categories" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Sub-Categories</a>
-        <a href="/users" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Users</a>
-        <a href="/reviews" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Reviews</a>
+        <a href="/brands" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Brands</a>
+        <a href="/suppliers" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Suppliers</a>
+        <a href="/distributors" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Distributors</a>
+        <a href="/states" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>States</a>
+        <a href="/categories" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Categories</a>
+        <a href="/sub-categories" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Sub-Categories</a>
+        <a href="/users" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Users</a>
+        <a href="/reviews" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Reviews</a>
 
-        <h4 style={{ marginTop: 12, marginBottom: 6, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+        <h4 style={{ marginTop: 16, marginBottom: 8, color: 'rgba(255, 255, 255, 0.7)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.1em' }}>
           Admin
         </h4>
-        <a href="/admin/submissions" style={{ color:'#34d399', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>📝 Submissions Dashboard</a>
-        <a href="/audit/orphans" style={{ color:'#fbbf24', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>🍾 Orphaned Records</a>
+        <a href="/admin/submissions" style={{ color: '#a7f3d0', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, fontWeight: 500, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>📝 Submissions Dashboard</a>
+        <a href="/audit/orphans" style={{ color: '#fde68a', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, fontWeight: 500, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>🍾 Orphaned Records</a>
 
-        <h4 style={{ marginTop: 12, marginBottom: 6, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+        <h4 style={{ marginTop: 16, marginBottom: 8, color: 'rgba(255, 255, 255, 0.7)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.1em' }}>
           Audits
         </h4>
-        <a href="/audit/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Audit Supplier Portfolio</a>
-        <a href="/audit/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Audit Distributor Portfolio</a>
+        <a href="/audit/supplier-portfolio" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Audit Supplier Portfolio</a>
+        <a href="/audit/distributor-portfolio" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Audit Distributor Portfolio</a>
 
-        <h4 style={{ marginTop: 12, marginBottom: 6, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+        <h4 style={{ marginTop: 16, marginBottom: 8, color: 'rgba(255, 255, 255, 0.7)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.1em' }}>
           Visualization
         </h4>
-        <a href="/visualize/relationships" style={{ color:'#a78bfa', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>📊 Relationship Network</a>
+        <a href="/visualize/relationships" style={{ color: '#c4b5fd', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, fontWeight: 500, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>📊 Relationship Network</a>
 
-        <h4 style={{ marginTop: 12, marginBottom: 6, color: '#94a3b8', fontSize: 12, textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>
+        <h4 style={{ marginTop: 16, marginBottom: 8, color: 'rgba(255, 255, 255, 0.7)', fontSize: 11, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.1em' }}>
           Data Import
         </h4>
-        <a href="/import/brand" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Brand</a>
-        <a href="/import/add-supplier" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Supplier</a>
-        <a href="/import/add-distributor" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Distributor</a>
-        <a href="/import/supplier-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Supplier Portfolio</a>
-        <a href="/import/distributor-portfolio" style={{ color:'#e2e8f0', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>Import Distributor Portfolio</a>
-        <a href="/import/logs" style={{ color:'#22d3ee', textDecoration:'none', paddingLeft: 12, display: 'block', marginBottom: 4 }}>📋 Import History</a>
+        <a href="/import/brand" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Import Brand</a>
+        <a href="/import/add-supplier" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Import Supplier</a>
+        <a href="/import/add-distributor" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Import Distributor</a>
+        <a href="/import/supplier-portfolio" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Import Supplier Portfolio</a>
+        <a href="/import/distributor-portfolio" style={{ color: 'rgba(255, 255, 255, 0.9)', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>Import Distributor Portfolio</a>
+        <a href="/import/logs" style={{ color: '#a5f3fc', textDecoration: 'none', paddingLeft: 12, display: 'block', marginBottom: 6, padding: '6px 12px', borderRadius: 4, fontWeight: 500, transition: 'all 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>📋 Import History</a>
       </nav>
 
       {/* Logout Button */}
-      <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid #334155' }}>
+      <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
         <button
           onClick={handleLogout}
           disabled={loggingOut}
           style={{
             width: '100%',
             padding: '10px 16px',
-            background: loggingOut ? '#475569' : '#ef4444',
+            background: loggingOut ? 'rgba(0, 0, 0, 0.3)' : 'rgba(239, 68, 68, 0.9)',
             color: 'white',
             border: 'none',
             borderRadius: 6,
@@ -94,10 +121,11 @@ export default function Navigation() {
             alignItems: 'center',
             justifyContent: 'center',
             gap: 8,
-            transition: 'background 0.2s'
+            transition: 'background 0.2s',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
           }}
-          onMouseEnter={(e) => !loggingOut && (e.currentTarget.style.background = '#dc2626')}
-          onMouseLeave={(e) => !loggingOut && (e.currentTarget.style.background = '#ef4444')}
+          onMouseEnter={(e) => !loggingOut && (e.currentTarget.style.background = 'rgba(220, 38, 38, 0.9)')}
+          onMouseLeave={(e) => !loggingOut && (e.currentTarget.style.background = 'rgba(239, 68, 68, 0.9)')}
         >
           <span>{loggingOut ? '⏳' : '🚪'}</span>
           {loggingOut ? 'Logging out...' : 'Logout'}

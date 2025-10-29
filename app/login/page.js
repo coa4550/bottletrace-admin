@@ -48,7 +48,7 @@ export default function LoginPage() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(180deg, #0EBDDA 0%, #92CE6C 100%)',
+      background: 'linear-gradient(135deg, #0d9488 0%, #059669 100%)',
       padding: 20
     }}>
       <div style={{
@@ -65,13 +65,16 @@ export default function LoginPage() {
             marginBottom: 8,
             fontSize: 28,
             fontWeight: 700,
-            color: '#1f2937'
+            background: 'linear-gradient(90deg, #0d9488 0%, #059669 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
           }}>
             BottleTrace Admin
           </h1>
           <p style={{ 
             margin: 0, 
-            color: '#6b7280',
+            color: '#065f46',
             fontSize: 14
           }}>
             Sign in to your account
@@ -111,14 +114,21 @@ export default function LoginPage() {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                border: '1px solid #d1d5db',
-                borderRadius: 6,
+                border: '2px solid #d1fae5',
+                borderRadius: 8,
                 fontSize: 15,
                 outline: 'none',
-                transition: 'border-color 0.2s'
+                transition: 'all 0.2s',
+                boxSizing: 'border-box'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#0EBDDA'}
-              onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#0d9488';
+                e.target.style.boxShadow = '0 0 0 3px rgba(13, 148, 136, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#d1fae5';
+                e.target.style.boxShadow = 'none';
+              }}
               placeholder="admin@example.com"
               disabled={loading}
             />
@@ -142,14 +152,21 @@ export default function LoginPage() {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                border: '1px solid #d1d5db',
-                borderRadius: 6,
+                border: '2px solid #d1fae5',
+                borderRadius: 8,
                 fontSize: 15,
                 outline: 'none',
-                transition: 'border-color 0.2s'
+                transition: 'all 0.2s',
+                boxSizing: 'border-box'
               }}
-              onFocus={(e) => e.target.style.borderColor = '#0EBDDA'}
-              onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#0d9488';
+                e.target.style.boxShadow = '0 0 0 3px rgba(13, 148, 136, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#d1fae5';
+                e.target.style.boxShadow = 'none';
+              }}
               placeholder="Enter your password"
               disabled={loading}
             />
@@ -161,19 +178,20 @@ export default function LoginPage() {
             style={{
               width: '100%',
               padding: '14px',
-              background: loading ? '#9ca3af' : 'linear-gradient(90deg, #0EBDDA 0%, #92CE6C 100%)',
+              background: loading ? '#9ca3af' : 'linear-gradient(90deg, #0d9488 0%, #059669 100%)',
               color: 'white',
               border: 'none',
-              borderRadius: 6,
+              borderRadius: 8,
               fontSize: 16,
               fontWeight: 600,
               cursor: loading ? 'not-allowed' : 'pointer',
-              transition: 'transform 0.1s',
-              boxShadow: '0 4px 12px rgba(14, 189, 218, 0.4)'
+              transition: 'all 0.2s',
+              boxShadow: loading ? 'none' : '0 4px 12px rgba(13, 148, 136, 0.4)'
             }}
+            onMouseEnter={(e) => !loading && (e.currentTarget.style.transform = 'translateY(-2px)')}
+            onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = 'translateY(0)')}
             onMouseDown={(e) => !loading && (e.currentTarget.style.transform = 'scale(0.98)')}
-            onMouseUp={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
-            onMouseLeave={(e) => !loading && (e.currentTarget.style.transform = 'scale(1)')}
+            onMouseUp={(e) => !loading && (e.currentTarget.style.transform = 'translateY(-2px)')}
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -183,7 +201,7 @@ export default function LoginPage() {
           marginTop: 24, 
           textAlign: 'center',
           fontSize: 13,
-          color: '#9ca3af'
+          color: '#6b7280'
         }}>
           Need help? Contact your administrator
         </div>
