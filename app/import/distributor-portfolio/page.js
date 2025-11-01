@@ -11,6 +11,15 @@ export default function ImportDistributorPortfolio() {
   const [relationshipMatches, setRelationshipMatches] = useState({});
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
   const [verifyRelationships, setVerifyRelationships] = useState(false);
+  
+  // Normalization state
+  const [normalizationFile, setNormalizationFile] = useState(null);
+  const [normalizationUploading, setNormalizationUploading] = useState(false);
+  const [normalizationResults, setNormalizationResults] = useState(null);
+  const [normalizationError, setNormalizationError] = useState(null);
+  const [previewData, setPreviewData] = useState({});
+  const [loadingPreviews, setLoadingPreviews] = useState({});
+  const [expandedPreviews, setExpandedPreviews] = useState({});
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -262,6 +271,123 @@ export default function ImportDistributorPortfolio() {
       return <span style={{ padding: '2px 8px', background: '#fef3c7', color: '#92400e', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>~ Fuzzy ({Math.round(similarity * 100)}%)</span>;
     } else {
       return <span style={{ padding: '2px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: 4, fontSize: 12, fontWeight: 500 }}>+ New</span>;
+    }
+  };
+
+  // Normalization handlers
+  const handleNormalizationFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+    
+    // Validate CSV file
+    if (!selectedFile.name.endsWith('.csv')) {
+      setNormalizationError('Please upload a CSV file');
+      setNormalizationFile(null);
+      return;
+    }
+    
+    setNormalizationFile(selectedFile);
+    setNormalizationError(null);
+    setNormalizationResults(null);
+    setPreviewData({});
+    setExpandedPreviews({});
+  };
+
+  const handleNormalizationUpload = async () => {
+    if (!normalizationFile) {
+      setNormalizationError('Please select a CSV file');
+      return;
+    }
+
+    setNormalizationUploading(true);
+    setNormalizationError(null);
+    setNormalizationResults(null);
+    setPreviewData({});
+    setExpandedPreviews({});
+
+    try {
+      const formData = new FormData();
+      formData.append('file', normalizationFile);
+
+      const response = await fetch('/api/import/distributor-normalization/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        setNormalizationError(result.error || 'Failed to upload file to N8N');
+        return;
+      }
+
+      setNormalizationResults(result);
+    } catch (error) {
+      console.error('Normalization upload error:', error);
+      setNormalizationError(error.message || 'Failed to upload file');
+    } finally {
+      setNormalizationUploading(false);
+    }
+  };
+
+  const handleRetryUpload = () => {
+    setNormalizationError(null);
+    setNormalizationResults(null);
+    setPreviewData({});
+    setExpandedPreviews({});
+    handleNormalizationUpload();
+  };
+
+  const fetchPreview = async (fileUrl, fileKey) => {
+    if (previewData[fileKey]) {
+      // Toggle preview
+      setExpandedPreviews(prev => ({
+        ...prev,
+        [fileKey]: !prev[fileKey]
+      }));
+      return;
+    }
+
+    setLoadingPreviews(prev => ({ ...prev, [fileKey]: true }));
+
+    try {
+      const response = await fetch('/api/import/distributor-normalization/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        setNormalizationError(result.error || 'Failed to fetch preview');
+        return;
+      }
+
+      setPreviewData(prev => ({
+        ...prev,
+        [fileKey]: result
+      }));
+      setExpandedPreviews(prev => ({
+        ...prev,
+        [fileKey]: true
+      }));
+    } catch (error) {
+      console.error('Preview error:', error);
+      setNormalizationError(error.message || 'Failed to fetch preview');
+    } finally {
+      setLoadingPreviews(prev => ({ ...prev, [fileKey]: false }));
+    }
+  };
+
+  const getFileNameFromUrl = (url) => {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const fileName = pathname.split('/').pop();
+      return fileName || 'download.csv';
+    } catch {
+      return 'download.csv';
     }
   };
 
@@ -569,6 +695,341 @@ export default function ImportDistributorPortfolio() {
           </div>
         </div>
       )}
+
+      {/* Distributor Data Normalization Section */}
+      <div style={{ marginTop: 48, paddingTop: 32, borderTop: '2px solid #e2e8f0' }}>
+        <h2 style={{ marginBottom: 8 }}>Distributor Data Normalization</h2>
+        <p style={{ color: '#64748b', marginBottom: 24, fontSize: 14 }}>
+          Upload your original distributor CSV file to normalize the data using N8N workflow. The workflow will output normalized CSV files for brand/supplier and supplier/distributor/state relationships.
+        </p>
+
+        <div style={{ marginBottom: 16 }}>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleNormalizationFileChange}
+            disabled={normalizationUploading}
+            style={{
+              padding: 8,
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              background: 'white',
+              marginBottom: 12,
+              display: 'block'
+            }}
+          />
+          {normalizationFile && (
+            <p style={{ fontSize: 14, color: '#64748b', marginBottom: 12 }}>
+              Selected file: <strong>{normalizationFile.name}</strong>
+            </p>
+          )}
+          <button
+            onClick={handleNormalizationUpload}
+            disabled={normalizationUploading || !normalizationFile}
+            style={{
+              padding: '10px 20px',
+              background: (normalizationUploading || !normalizationFile) ? '#94a3b8' : '#8b5cf6',
+              color: 'white',
+              border: 'none',
+              borderRadius: 6,
+              cursor: (normalizationUploading || !normalizationFile) ? 'not-allowed' : 'pointer',
+              fontWeight: 500,
+              marginRight: 12
+            }}
+          >
+            {normalizationUploading ? 'Uploading to N8N...' : 'Upload to N8N'}
+          </button>
+          {normalizationError && (
+            <button
+              onClick={handleRetryUpload}
+              disabled={normalizationUploading || !normalizationFile}
+              style={{
+                padding: '10px 20px',
+                background: normalizationUploading ? '#94a3b8' : '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: 6,
+                cursor: normalizationUploading ? 'not-allowed' : 'pointer',
+                fontWeight: 500
+              }}
+            >
+              Retry Upload
+            </button>
+          )}
+        </div>
+
+        {/* Status Display */}
+        {normalizationUploading && (
+          <div style={{
+            padding: 16,
+            background: '#f0f9ff',
+            border: '1px solid #3b82f6',
+            borderRadius: 8,
+            marginBottom: 16
+          }}>
+            <p style={{ color: '#1e40af', margin: 0 }}>
+              ⏳ Uploading file to N8N workflow...
+            </p>
+          </div>
+        )}
+
+        {normalizationError && (
+          <div style={{
+            padding: 16,
+            background: '#fef2f2',
+            border: '1px solid #ef4444',
+            borderRadius: 8,
+            marginBottom: 16
+          }}>
+            <p style={{ color: '#dc2626', margin: 0, fontWeight: 500 }}>
+              ❌ Error: {normalizationError}
+            </p>
+          </div>
+        )}
+
+        {normalizationResults && normalizationResults.status === 'success' && (
+          <div style={{
+            padding: 20,
+            background: '#f0fdf4',
+            border: '1px solid #10b981',
+            borderRadius: 8,
+            marginTop: 16
+          }}>
+            <h3 style={{ marginTop: 0, color: '#166534', marginBottom: 16 }}>
+              ✅ Processing Complete
+            </h3>
+            <p style={{ color: '#166534', marginBottom: 24, fontSize: 14 }}>
+              {normalizationResults.message || 'Files processed successfully'}
+            </p>
+
+            {/* Brand/Supplier File */}
+            {normalizationResults.brand_file_url && (
+              <div style={{
+                marginBottom: 24,
+                border: '1px solid #d1d5db',
+                borderRadius: 8,
+                background: 'white',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  padding: '12px 16px',
+                  background: '#f9fafb',
+                  borderBottom: '1px solid #e5e7eb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <strong style={{ fontSize: 15 }}>Brand/Supplier File</strong>
+                    <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0 0' }}>
+                      {getFileNameFromUrl(normalizationResults.brand_file_url)}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <a
+                      href={normalizationResults.brand_file_url}
+                      download={getFileNameFromUrl(normalizationResults.brand_file_url)}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#3b82f6',
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: 4,
+                        fontSize: 14,
+                        fontWeight: 500
+                      }}
+                    >
+                      Download
+                    </a>
+                    <button
+                      onClick={() => fetchPreview(normalizationResults.brand_file_url, 'brand')}
+                      disabled={loadingPreviews.brand}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontSize: 14,
+                        fontWeight: 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {loadingPreviews.brand ? 'Loading...' : (expandedPreviews.brand ? 'Hide Preview ▼' : 'Show Preview ▶')}
+                    </button>
+                  </div>
+                </div>
+                {expandedPreviews.brand && previewData.brand && (
+                  <div style={{ padding: 16, overflowX: 'auto' }}>
+                    {loadingPreviews.brand ? (
+                      <p style={{ color: '#6b7280' }}>Loading preview...</p>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
+                          Preview ({previewData.brand.previewRowCount} of {previewData.brand.totalRows} rows)
+                        </p>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: 13
+                        }}>
+                          <thead>
+                            <tr style={{ background: '#f9fafb' }}>
+                              {previewData.brand.headers.map((header, idx) => (
+                                <th
+                                  key={idx}
+                                  style={{
+                                    padding: '8px 12px',
+                                    textAlign: 'left',
+                                    border: '1px solid #e5e7eb',
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {header}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewData.brand.rows.map((row, rowIdx) => (
+                              <tr key={rowIdx}>
+                                {previewData.brand.headers.map((header, colIdx) => (
+                                  <td
+                                    key={colIdx}
+                                    style={{
+                                      padding: '8px 12px',
+                                      border: '1px solid #e5e7eb'
+                                    }}
+                                  >
+                                    {row[header] || ''}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Relationship File */}
+            {normalizationResults.relationship_file_url && (
+              <div style={{
+                marginBottom: 24,
+                border: '1px solid #d1d5db',
+                borderRadius: 8,
+                background: 'white',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  padding: '12px 16px',
+                  background: '#f9fafb',
+                  borderBottom: '1px solid #e5e7eb',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <strong style={{ fontSize: 15 }}>Relationship File</strong>
+                    <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0 0' }}>
+                      {getFileNameFromUrl(normalizationResults.relationship_file_url)}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <a
+                      href={normalizationResults.relationship_file_url}
+                      download={getFileNameFromUrl(normalizationResults.relationship_file_url)}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#3b82f6',
+                        color: 'white',
+                        textDecoration: 'none',
+                        borderRadius: 4,
+                        fontSize: 14,
+                        fontWeight: 500
+                      }}
+                    >
+                      Download
+                    </a>
+                    <button
+                      onClick={() => fetchPreview(normalizationResults.relationship_file_url, 'relationship')}
+                      disabled={loadingPreviews.relationship}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontSize: 14,
+                        fontWeight: 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {loadingPreviews.relationship ? 'Loading...' : (expandedPreviews.relationship ? 'Hide Preview ▼' : 'Show Preview ▶')}
+                    </button>
+                  </div>
+                </div>
+                {expandedPreviews.relationship && previewData.relationship && (
+                  <div style={{ padding: 16, overflowX: 'auto' }}>
+                    {loadingPreviews.relationship ? (
+                      <p style={{ color: '#6b7280' }}>Loading preview...</p>
+                    ) : (
+                      <>
+                        <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
+                          Preview ({previewData.relationship.previewRowCount} of {previewData.relationship.totalRows} rows)
+                        </p>
+                        <table style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                          fontSize: 13
+                        }}>
+                          <thead>
+                            <tr style={{ background: '#f9fafb' }}>
+                              {previewData.relationship.headers.map((header, idx) => (
+                                <th
+                                  key={idx}
+                                  style={{
+                                    padding: '8px 12px',
+                                    textAlign: 'left',
+                                    border: '1px solid #e5e7eb',
+                                    fontWeight: 600
+                                  }}
+                                >
+                                  {header}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewData.relationship.rows.map((row, rowIdx) => (
+                              <tr key={rowIdx}>
+                                {previewData.relationship.headers.map((header, colIdx) => (
+                                  <td
+                                    key={colIdx}
+                                    style={{
+                                      padding: '8px 12px',
+                                      border: '1px solid #e5e7eb'
+                                    }}
+                                  >
+                                    {row[header] || ''}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
