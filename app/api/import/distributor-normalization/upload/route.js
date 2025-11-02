@@ -30,20 +30,19 @@ export async function POST(req) {
       );
     }
 
-    // Create new FormData for N8N webhook
-    const n8nFormData = new FormData();
+    // Convert file to array buffer for raw binary transmission
+    const fileBuffer = await file.arrayBuffer();
     
-    // Convert file to blob for forwarding
-    const fileBlob = await file.arrayBuffer();
-    const blob = new Blob([fileBlob], { type: file.type || 'text/csv' });
-    
-    // Append file to form data with field name 'data' as specified by N8N requirements
-    n8nFormData.append('data', blob, file.name);
-
-    // Forward to N8N webhook
+    // Send file as raw binary data to N8N webhook
+    // This approach is more reliable for N8N webhook nodes
     const response = await fetch(n8nWebhookUrl, {
       method: 'POST',
-      body: n8nFormData,
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Filename': file.name || 'data.csv',
+        'X-Content-Type': file.type || 'text/csv'
+      },
+      body: fileBuffer,
     });
 
     if (!response.ok) {
