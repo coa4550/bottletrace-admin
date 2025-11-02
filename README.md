@@ -59,7 +59,10 @@ A comprehensive admin portal for managing the BottleTrace spirits database, incl
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   N8N_CSV_UPLOAD_WEBHOOK_URL=https://coadata.app.n8n.cloud/webhook/distributor-csv-upload
    ```
+   
+   **Note:** The N8N webhook URL is used for the Distributor Data Normalization feature on the Import Distributor Portfolio page.
 
 4. **Run development server**
    ```bash
@@ -117,6 +120,7 @@ For detailed instructions, see [ADMIN_USER_SETUP.md](./ADMIN_USER_SETUP.md)
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
+   - `N8N_CSV_UPLOAD_WEBHOOK_URL` (optional, for Distributor Data Normalization feature)
 
 ## Project Structure
 
@@ -182,6 +186,8 @@ bottletrace-admin-bulk/
 - `POST /api/import/supplier-portfolio/validate` - Validate supplier portfolio
 - `POST /api/import/distributor-portfolio/validate` - Validate distributor portfolio
 - `POST /api/import/commit` - Commit validated import
+- `POST /api/import/distributor-normalization/upload` - Upload CSV to N8N for normalization
+- `POST /api/import/distributor-normalization/preview` - Fetch and parse CSV preview
 
 ### Submissions
 
