@@ -8,6 +8,7 @@ export default function ImportBrandPage() {
   const [validation, setValidation] = useState(null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [brandMatches, setBrandMatches] = useState({});
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
 
@@ -43,27 +44,94 @@ export default function ImportBrandPage() {
   };
 
   const handleValidate = async () => {
-    setLoading(true);
+    setValidating(true);
+    setProgress({ current: 0, total: parsed.length, message: 'Starting validation...' });
+    
     try {
-      const response = await fetch('/api/import/brand/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: parsed })
-      });
-      
-      const result = await response.json();
-      
-      if (result.error) {
-        alert('Validation error: ' + result.error);
-        setLoading(false);
-        return;
+      // Process validation in batches to show progress
+      const BATCH_SIZE = 50; // Validate 50 rows at a time
+      const batches = [];
+      for (let i = 0; i < parsed.length; i += BATCH_SIZE) {
+        batches.push(parsed.slice(i, i + BATCH_SIZE));
       }
+
+      let allBrandReviews = [];
+      let allExistingBrands = null;
+      let categories = null;
+      let subCategories = null;
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const batchStartIndex = i * BATCH_SIZE;
+        
+        setProgress({
+          current: batchStartIndex,
+          total: parsed.length,
+          message: `Validating rows ${batchStartIndex + 1}-${Math.min(batchStartIndex + batch.length, parsed.length)} of ${parsed.length}...`
+        });
+
+        const response = await fetch('/api/import/brand/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: batch })
+        });
+        
+        const result = await response.json();
+        
+        if (result.error) {
+          alert('Validation error: ' + result.error);
+          setValidating(false);
+          setProgress({ current: 0, total: 0, message: '' });
+          return;
+        }
+        
+        // Adjust row indices to match original positions
+        const adjustedReviews = result.brandReviews?.map(review => ({
+          ...review,
+          rowIndex: batchStartIndex + review.rowIndex
+        })) || [];
+        
+        allBrandReviews = [...allBrandReviews, ...adjustedReviews];
+        
+        // Store metadata from first batch (should be same across all batches)
+        if (i === 0) {
+          allExistingBrands = result.allExistingBrands;
+          categories = result.categories;
+          subCategories = result.subCategories;
+        }
+      }
+
+      setProgress({
+        current: parsed.length,
+        total: parsed.length,
+        message: 'Validation complete!'
+      });
+
+      // Calculate summary
+      const exactMatches = allBrandReviews.filter(b => b.matchType === 'exact');
+      const fuzzyMatches = allBrandReviews.filter(b => b.matchType === 'fuzzy');
+      const newBrands = allBrandReviews.filter(b => b.matchType === 'new');
+      const errors = allBrandReviews.filter(b => b.matchType === 'error');
+
+      const validationResult = {
+        brandReviews: allBrandReviews,
+        summary: {
+          total: parsed.length,
+          exact: exactMatches.length,
+          fuzzy: fuzzyMatches.length,
+          new: newBrands.length,
+          errors: errors.length
+        },
+        allExistingBrands,
+        categories,
+        subCategories
+      };
       
-      setValidation(result);
+      setValidation(validationResult);
       
       // Initialize brand matches with defaults
       const matches = {};
-      result.brandReviews?.forEach(brand => {
+      allBrandReviews.forEach(brand => {
         matches[brand.rowIndex] = {
           useExisting: brand.matchType === 'exact',
           existingBrandId: brand.matchedBrand?.brand_id,
@@ -72,11 +140,17 @@ export default function ImportBrandPage() {
         };
       });
       setBrandMatches(matches);
+
+      // Clear progress after a short delay
+      setTimeout(() => {
+        setProgress({ current: 0, total: 0, message: '' });
+      }, 1000);
     } catch (error) {
       console.error('Validation error:', error);
       alert('Validation failed: ' + error.message);
+      setProgress({ current: 0, total: 0, message: '' });
     } finally {
-      setLoading(false);
+      setValidating(false);
     }
   };
 
@@ -228,20 +302,58 @@ export default function ImportBrandPage() {
 
       <button
         onClick={handleValidate}
-        disabled={loading || parsed.length === 0}
+        disabled={validating || loading || parsed.length === 0}
         style={{
           marginTop: 16,
           padding: '10px 20px',
-          background: (loading || parsed.length === 0) ? '#94a3b8' : '#3b82f6',
+          background: (validating || loading || parsed.length === 0) ? '#94a3b8' : '#3b82f6',
           color: 'white',
           border: 'none',
           borderRadius: 6,
-          cursor: (loading || parsed.length === 0) ? 'not-allowed' : 'pointer',
+          cursor: (validating || loading || parsed.length === 0) ? 'not-allowed' : 'pointer',
           fontWeight: 500
         }}
       >
-        {loading ? 'Validating...' : 'Validate & Review Changes'}
+        {validating ? 'Validating...' : 'Validate & Review Changes'}
       </button>
+
+      {/* Validation Progress Bar */}
+      {validating && progress.total > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ marginBottom: 8, fontSize: 14, color: '#64748b' }}>
+            {progress.message}
+          </div>
+          <div style={{ 
+            width: '100%', 
+            height: 24, 
+            background: '#e2e8f0', 
+            borderRadius: 12,
+            overflow: 'hidden',
+            position: 'relative'
+          }}>
+            <div style={{ 
+              width: `${(progress.current / progress.total) * 100}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, #3b82f6, #2563eb)',
+              transition: 'width 0.3s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <span style={{ 
+                color: 'white', 
+                fontSize: 12, 
+                fontWeight: 600,
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)'
+              }}>
+                {Math.round((progress.current / progress.total) * 100)}%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {validation && validation.brandReviews && (
         <div style={{ marginTop: 32 }}>
