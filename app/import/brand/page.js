@@ -2,6 +2,174 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
 
+// Normalize brand names for fuzzy matching
+function normalizeName(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\s]/g, '');
+}
+
+// Get first significant word from brand name (excluding "the")
+function getFirstWord(name) {
+  const normalized = normalizeName(name);
+  const words = normalized.split(' ').filter(w => w.length > 0);
+  
+  if (words.length > 0 && words[0] === 'the') {
+    return words[1] || words[0];
+  }
+  
+  return words[0] || '';
+}
+
+// Calculate similarity between two strings
+function similarity(s1, s2) {
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+function levenshteinDistance(str1, str2) {
+  const matrix = [];
+
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  return matrix[str2.length][str1.length];
+}
+
+// Validate a batch of rows client-side
+function validateBatch(rows, existingBrands, brandMap, firstWordMap, THRESHOLD = 0.75) {
+  const brandReviews = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const brandName = (row.brand_name || '').trim();
+    
+    if (!brandName) {
+      brandReviews.push({
+        rowIndex: i,
+        brandName: '',
+        error: 'Missing brand_name',
+        matchType: 'error'
+      });
+      continue;
+    }
+
+    // Check for exact match using Map (O(1) lookup)
+    let matchedBrand = brandMap.get(brandName);
+    let matchType = 'new';
+    let suggestedMatch = null;
+    let bestSimilarity = 0;
+
+    if (matchedBrand) {
+      matchType = 'exact';
+    } else {
+      // Check for first word match first (faster)
+      const importFirstWord = getFirstWord(brandName);
+      if (importFirstWord && importFirstWord.length > 2 && firstWordMap.has(importFirstWord)) {
+        const candidates = firstWordMap.get(importFirstWord);
+        for (const existing of candidates) {
+          const sim = 0.95;
+          if (sim > bestSimilarity) {
+            suggestedMatch = existing;
+            bestSimilarity = sim;
+            matchedBrand = existing;
+            matchType = 'fuzzy';
+          }
+        }
+      }
+      
+      // If no first word match found, do fuzzy matching
+      if (!suggestedMatch) {
+        const normalizedImportName = normalizeName(brandName);
+        
+        // Only check brands with similar length to optimize
+        const minLen = Math.max(1, Math.floor(normalizedImportName.length * 0.7));
+        const maxLen = Math.ceil(normalizedImportName.length * 1.3);
+        
+        for (const existing of existingBrands) {
+          const normalizedExisting = normalizeName(existing.brand_name);
+          
+          // Skip if length difference is too large
+          if (normalizedExisting.length < minLen || normalizedExisting.length > maxLen) {
+            continue;
+          }
+          
+          const sim = similarity(normalizedImportName, normalizedExisting);
+          
+          if (sim >= THRESHOLD && sim > bestSimilarity) {
+            suggestedMatch = existing;
+            bestSimilarity = sim;
+            matchedBrand = existing;
+            matchType = 'fuzzy';
+            
+            // Early exit if we find a very good match
+            if (sim >= 0.95) break;
+          }
+        }
+      }
+    }
+
+    // Parse categories and sub-categories
+    const categoriesArray = (row.brand_categories || '')
+      .split(',')
+      .map(c => c.trim())
+      .filter(Boolean);
+    
+    const subCategoriesArray = (row.brand_sub_categories || '')
+      .split(',')
+      .map(c => c.trim())
+      .filter(Boolean);
+
+    brandReviews.push({
+      rowIndex: i,
+      brandName,
+      brandUrl: (row.brand_url || '').trim(),
+      brandLogoUrl: (row.brand_logo_url || '').trim(),
+      dataSource: (row.data_source || 'csv_import').trim(),
+      categories: categoriesArray,
+      subCategories: subCategoriesArray,
+      matchType,
+      matchedBrand: matchedBrand ? {
+        brand_id: matchedBrand.brand_id,
+        brand_name: matchedBrand.brand_name,
+        brand_url: matchedBrand.brand_url,
+        brand_logo_url: matchedBrand.brand_logo_url,
+        data_source: matchedBrand.data_source
+      } : null,
+      similarity: matchType === 'fuzzy' ? bestSimilarity : null,
+      action: matchType === 'new' ? 'create' : (matchType === 'exact' ? 'update' : 'match')
+    });
+  }
+
+  return brandReviews;
+}
+
 export default function ImportBrandPage() {
   const [file, setFile] = useState(null);
   const [parsed, setParsed] = useState([]);
@@ -45,21 +213,60 @@ export default function ImportBrandPage() {
 
   const handleValidate = async () => {
     setValidating(true);
-    setProgress({ current: 0, total: parsed.length, message: 'Starting validation...' });
+    setProgress({ current: 0, total: parsed.length, message: 'Fetching existing brands...' });
     
     try {
-      // Process validation in batches to show progress
-      const BATCH_SIZE = 50; // Validate 50 rows at a time
+      // Step 1: Fetch metadata once (existing brands, categories, sub-categories)
+      const metadataResponse = await fetch('/api/import/brand/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadataOnly: true })
+      });
+      
+      const metadata = await metadataResponse.json();
+      
+      if (metadata.error) {
+        alert('Error fetching metadata: ' + metadata.error);
+        setValidating(false);
+        setProgress({ current: 0, total: 0, message: '' });
+        return;
+      }
+
+      const allExistingBrands = metadata.allExistingBrands;
+      const categories = metadata.categories;
+      const subCategories = metadata.subCategories;
+
+      // Create optimized lookup structures
+      setProgress({
+        current: 0,
+        total: parsed.length,
+        message: 'Preparing validation data...'
+      });
+      
+      const brandMap = new Map();
+      const firstWordMap = new Map();
+      
+      for (const brand of allExistingBrands) {
+        brandMap.set(brand.brand_name, brand);
+        const firstWord = getFirstWord(brand.brand_name);
+        if (firstWord && firstWord.length > 2) {
+          if (!firstWordMap.has(firstWord)) {
+            firstWordMap.set(firstWord, []);
+          }
+          firstWordMap.get(firstWord).push(brand);
+        }
+      }
+
+      // Step 2: Process validation in batches client-side with progress updates
+      const BATCH_SIZE = 100; // Process 100 rows at a time
       const batches = [];
       for (let i = 0; i < parsed.length; i += BATCH_SIZE) {
         batches.push(parsed.slice(i, i + BATCH_SIZE));
       }
 
       let allBrandReviews = [];
-      let allExistingBrands = null;
-      let categories = null;
-      let subCategories = null;
 
+      // Process batches with delays to keep browser responsive
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         const batchStartIndex = i * BATCH_SIZE;
@@ -70,34 +277,20 @@ export default function ImportBrandPage() {
           message: `Validating rows ${batchStartIndex + 1}-${Math.min(batchStartIndex + batch.length, parsed.length)} of ${parsed.length}...`
         });
 
-        const response = await fetch('/api/import/brand/validate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: batch })
-        });
-        
-        const result = await response.json();
-        
-        if (result.error) {
-          alert('Validation error: ' + result.error);
-          setValidating(false);
-          setProgress({ current: 0, total: 0, message: '' });
-          return;
-        }
+        // Validate batch client-side
+        const batchReviews = validateBatch(batch, allExistingBrands, brandMap, firstWordMap);
         
         // Adjust row indices to match original positions
-        const adjustedReviews = result.brandReviews?.map(review => ({
+        const adjustedReviews = batchReviews.map(review => ({
           ...review,
           rowIndex: batchStartIndex + review.rowIndex
-        })) || [];
+        }));
         
         allBrandReviews = [...allBrandReviews, ...adjustedReviews];
-        
-        // Store metadata from first batch (should be same across all batches)
-        if (i === 0) {
-          allExistingBrands = result.allExistingBrands;
-          categories = result.categories;
-          subCategories = result.subCategories;
+
+        // Yield to browser every batch to prevent UI blocking
+        if (i < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 10));
         }
       }
 

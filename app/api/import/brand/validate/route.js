@@ -63,7 +63,52 @@ function levenshteinDistance(str1, str2) {
 
 export async function POST(req) {
   try {
-    const { rows } = await req.json();
+    const { rows, metadataOnly } = await req.json();
+    
+    // If metadataOnly is true, just return existing brands, categories, and sub-categories
+    if (metadataOnly) {
+      // Fetch ALL existing brands for fuzzy matching
+      let existingBrands = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabaseAdmin
+          .from('core_brands')
+          .select('brand_id, brand_name, brand_url, brand_logo_url, data_source')
+          .range(start, start + pageSize - 1);
+
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          existingBrands = [...existingBrands, ...data];
+          start += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // Fetch all categories and sub-categories
+      const { data: categories, error: categoriesError } = await supabaseAdmin
+        .from('categories')
+        .select('category_id, category_name');
+      
+      if (categoriesError) throw categoriesError;
+
+      const { data: subCategories, error: subCategoriesError } = await supabaseAdmin
+        .from('sub_categories')
+        .select('sub_category_id, sub_category_name, category_id');
+      
+      if (subCategoriesError) throw subCategoriesError;
+
+      return NextResponse.json({
+        allExistingBrands: existingBrands.sort((a, b) => a.brand_name.localeCompare(b.brand_name)),
+        categories,
+        subCategories
+      });
+    }
     
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: 'No rows provided' }, { status: 400 });
