@@ -63,7 +63,7 @@ function levenshteinDistance(str1, str2) {
 }
 
 // Validate a batch of rows client-side
-function validateBatch(rows, existingBrands, brandMap, firstWordMap, THRESHOLD = 0.75) {
+function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndexMap, THRESHOLD = 0.75) {
   const brandReviews = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -107,19 +107,35 @@ function validateBatch(rows, existingBrands, brandMap, firstWordMap, THRESHOLD =
       // If no first word match found, do fuzzy matching
       if (!suggestedMatch) {
         const normalizedImportName = normalizeName(brandName);
+        const importLen = normalizedImportName.length;
         
         // Only check brands with similar length to optimize
-        const minLen = Math.max(1, Math.floor(normalizedImportName.length * 0.7));
-        const maxLen = Math.ceil(normalizedImportName.length * 1.3);
+        const minLen = Math.max(1, Math.floor(importLen * 0.7));
+        const maxLen = Math.ceil(importLen * 1.3);
         
-        for (const existing of existingBrands) {
-          const normalizedExisting = normalizeName(existing.brand_name);
-          
-          // Skip if length difference is too large
-          if (normalizedExisting.length < minLen || normalizedExisting.length > maxLen) {
-            continue;
+        // Collect candidates from length index
+        const candidates = [];
+        for (let len = minLen; len <= maxLen; len++) {
+          if (lengthIndexMap.has(len)) {
+            candidates.push(...lengthIndexMap.get(len));
           }
-          
+        }
+        
+        // If we have too many candidates, limit to closest lengths
+        if (candidates.length > 1000) {
+          // Prioritize exact length matches, then closest
+          candidates.sort((a, b) => {
+            const aLen = normalizeName(a.brand_name).length;
+            const bLen = normalizeName(b.brand_name).length;
+            const aDiff = Math.abs(aLen - importLen);
+            const bDiff = Math.abs(bLen - importLen);
+            return aDiff - bDiff;
+          });
+          candidates.splice(1000); // Limit to top 1000 candidates
+        }
+        
+        for (const existing of candidates) {
+          const normalizedExisting = normalizeName(existing.brand_name);
           const sim = similarity(normalizedImportName, normalizedExisting);
           
           if (sim >= THRESHOLD && sim > bestSimilarity) {
@@ -245,9 +261,11 @@ export default function ImportBrandPage() {
       
       const brandMap = new Map();
       const firstWordMap = new Map();
+      const lengthIndexMap = new Map(); // Index by normalized length for faster fuzzy matching
       
       for (const brand of allExistingBrands) {
         brandMap.set(brand.brand_name, brand);
+        
         const firstWord = getFirstWord(brand.brand_name);
         if (firstWord && firstWord.length > 2) {
           if (!firstWordMap.has(firstWord)) {
@@ -255,6 +273,14 @@ export default function ImportBrandPage() {
           }
           firstWordMap.get(firstWord).push(brand);
         }
+        
+        // Index by normalized length
+        const normalized = normalizeName(brand.brand_name);
+        const len = normalized.length;
+        if (!lengthIndexMap.has(len)) {
+          lengthIndexMap.set(len, []);
+        }
+        lengthIndexMap.get(len).push(brand);
       }
 
       // Step 2: Process validation in batches client-side with progress updates
@@ -278,7 +304,7 @@ export default function ImportBrandPage() {
         });
 
         // Validate batch client-side
-        const batchReviews = validateBatch(batch, allExistingBrands, brandMap, firstWordMap);
+        const batchReviews = validateBatch(batch, allExistingBrands, brandMap, firstWordMap, lengthIndexMap);
         
         // Adjust row indices to match original positions
         const adjustedReviews = batchReviews.map(review => ({
