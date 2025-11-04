@@ -23,15 +23,67 @@ function getFirstWord(name) {
   return words[0] || '';
 }
 
-// Calculate similarity between two strings
+// Fast similarity check using character set overlap (much faster than Levenshtein)
+function fastSimilarity(s1, s2) {
+  if (s1 === s2) return 1.0;
+  
+  const len1 = s1.length;
+  const len2 = s2.length;
+  const maxLen = Math.max(len1, len2);
+  if (maxLen === 0) return 1.0;
+  
+  // Quick length-based check
+  const lenDiff = Math.abs(len1 - len2);
+  if (lenDiff > maxLen * 0.5) return 0; // Too different in length
+  
+  // Character overlap
+  const chars1 = new Set(s1);
+  const chars2 = new Set(s2);
+  let intersection = 0;
+  let union = chars1.size;
+  
+  for (const char of chars2) {
+    if (chars1.has(char)) {
+      intersection++;
+    } else {
+      union++;
+    }
+  }
+  
+  const jaccard = intersection / union;
+  
+  // Also check prefix/suffix similarity for better accuracy
+  const minLen = Math.min(len1, len2);
+  let prefixMatch = 0;
+  let suffixMatch = 0;
+  
+  for (let i = 0; i < Math.min(10, minLen); i++) {
+    if (s1[i] === s2[i]) prefixMatch++;
+    if (s1[len1 - 1 - i] === s2[len2 - 1 - i]) suffixMatch++;
+  }
+  
+  const prefixScore = prefixMatch / Math.min(10, minLen);
+  const suffixScore = suffixMatch / Math.min(10, minLen);
+  
+  // Weighted combination
+  return (jaccard * 0.6 + prefixScore * 0.2 + suffixScore * 0.2);
+}
+
+// Calculate similarity between two strings (use Levenshtein only for short strings)
 function similarity(s1, s2) {
   const longer = s1.length > s2.length ? s1 : s2;
   const shorter = s1.length > s2.length ? s2 : s1;
   
   if (longer.length === 0) return 1.0;
   
-  const editDistance = levenshteinDistance(longer, shorter);
-  return (longer.length - editDistance) / longer.length;
+  // For short strings, use Levenshtein for accuracy
+  if (longer.length <= 15) {
+    const editDistance = levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+  }
+  
+  // For longer strings, use fast approximation
+  return fastSimilarity(s1, s2);
 }
 
 function levenshteinDistance(str1, str2) {
@@ -62,22 +114,17 @@ function levenshteinDistance(str1, str2) {
   return matrix[str2.length][str1.length];
 }
 
-// Validate a batch of rows client-side
-function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndexMap, THRESHOLD = 0.75) {
-  const brandReviews = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+// Validate a single row
+function validateRow(row, rowIndex, brandMap, firstWordMap, lengthIndexMap, THRESHOLD = 0.75) {
     const brandName = (row.brand_name || '').trim();
     
     if (!brandName) {
-      brandReviews.push({
-        rowIndex: i,
+      return {
+        rowIndex,
         brandName: '',
         error: 'Missing brand_name',
         matchType: 'error'
-      });
-      continue;
+      };
     }
 
     // Check for exact match using Map (O(1) lookup)
@@ -93,7 +140,10 @@ function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndex
       const importFirstWord = getFirstWord(brandName);
       if (importFirstWord && importFirstWord.length > 2 && firstWordMap.has(importFirstWord)) {
         const candidates = firstWordMap.get(importFirstWord);
-        for (const existing of candidates) {
+        // Limit first word candidates to prevent slowdown
+        const maxFirstWordCandidates = Math.min(100, candidates.length);
+        for (let i = 0; i < maxFirstWordCandidates; i++) {
+          const existing = candidates[i];
           const sim = 0.95;
           if (sim > bestSimilarity) {
             suggestedMatch = existing;
@@ -121,8 +171,8 @@ function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndex
           }
         }
         
-        // If we have too many candidates, limit to closest lengths
-        if (candidates.length > 1000) {
+        // Limit candidates more aggressively to prevent slowdown
+        if (candidates.length > 500) {
           // Prioritize exact length matches, then closest
           candidates.sort((a, b) => {
             const aLen = normalizeName(a.brand_name).length;
@@ -131,9 +181,10 @@ function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndex
             const bDiff = Math.abs(bLen - importLen);
             return aDiff - bDiff;
           });
-          candidates.splice(1000); // Limit to top 1000 candidates
+          candidates.splice(500); // Limit to top 500 candidates
         }
         
+        // Process candidates with early exit
         for (const existing of candidates) {
           const normalizedExisting = normalizeName(existing.brand_name);
           const sim = similarity(normalizedImportName, normalizedExisting);
@@ -145,7 +196,7 @@ function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndex
             matchType = 'fuzzy';
             
             // Early exit if we find a very good match
-            if (sim >= 0.95) break;
+            if (sim >= 0.9) break;
           }
         }
       }
@@ -162,8 +213,8 @@ function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndex
       .map(c => c.trim())
       .filter(Boolean);
 
-    brandReviews.push({
-      rowIndex: i,
+    return {
+      rowIndex,
       brandName,
       brandUrl: (row.brand_url || '').trim(),
       brandLogoUrl: (row.brand_logo_url || '').trim(),
@@ -180,7 +231,17 @@ function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndex
       } : null,
       similarity: matchType === 'fuzzy' ? bestSimilarity : null,
       action: matchType === 'new' ? 'create' : (matchType === 'exact' ? 'update' : 'match')
-    });
+    };
+}
+
+// Validate a batch of rows client-side
+function validateBatch(rows, existingBrands, brandMap, firstWordMap, lengthIndexMap, THRESHOLD = 0.75) {
+  const brandReviews = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const review = validateRow(row, i, brandMap, firstWordMap, lengthIndexMap, THRESHOLD);
+    brandReviews.push(review);
   }
 
   return brandReviews;
@@ -283,41 +344,28 @@ export default function ImportBrandPage() {
         lengthIndexMap.get(len).push(brand);
       }
 
-      // Step 2: Process validation in batches client-side with progress updates
-      const BATCH_SIZE = 100; // Process 100 rows at a time
-      const batches = [];
-      for (let i = 0; i < parsed.length; i += BATCH_SIZE) {
-        batches.push(parsed.slice(i, i + BATCH_SIZE));
-      }
-
+      // Step 2: Process validation row-by-row with frequent progress updates
       let allBrandReviews = [];
 
-      // Process batches with delays to keep browser responsive
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        const batchStartIndex = i * BATCH_SIZE;
-        
-        setProgress({
-          current: batchStartIndex,
-          total: parsed.length,
-          message: `Validating rows ${batchStartIndex + 1}-${Math.min(batchStartIndex + batch.length, parsed.length)} of ${parsed.length}...`
-        });
-
-        // Validate batch client-side
-        const batchReviews = validateBatch(batch, allExistingBrands, brandMap, firstWordMap, lengthIndexMap);
-        
-        // Adjust row indices to match original positions
-        const adjustedReviews = batchReviews.map(review => ({
-          ...review,
-          rowIndex: batchStartIndex + review.rowIndex
-        }));
-        
-        allBrandReviews = [...allBrandReviews, ...adjustedReviews];
-
-        // Yield to browser every batch to prevent UI blocking
-        if (i < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 10));
+      // Process rows individually with frequent yields to keep browser responsive
+      for (let i = 0; i < parsed.length; i++) {
+        // Update progress every 10 rows or at the start
+        if (i % 10 === 0 || i === 0) {
+          setProgress({
+            current: i,
+            total: parsed.length,
+            message: `Validating row ${i + 1} of ${parsed.length}...`
+          });
+          
+          // Yield to browser every 10 rows to prevent UI blocking
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 5));
+          }
         }
+
+        // Validate single row
+        const review = validateRow(parsed[i], i, brandMap, firstWordMap, lengthIndexMap);
+        allBrandReviews.push(review);
       }
 
       setProgress({
