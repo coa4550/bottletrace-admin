@@ -386,45 +386,89 @@ export default function ImportBrandPage() {
       setProgress({
         current: parsed.length,
         total: parsed.length,
-        message: 'Validation complete!'
+        message: 'Processing results...'
       });
       
       // Small delay to ensure UI updates
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Calculate summary
-      const exactMatches = allBrandReviews.filter(b => b.matchType === 'exact');
-      const fuzzyMatches = allBrandReviews.filter(b => b.matchType === 'fuzzy');
-      const newBrands = allBrandReviews.filter(b => b.matchType === 'new');
-      const errors = allBrandReviews.filter(b => b.matchType === 'error');
+      // Calculate summary - use reduce for efficiency
+      setProgress({
+        current: parsed.length,
+        total: parsed.length,
+        message: 'Calculating summary...'
+      });
+      
+      const summary = allBrandReviews.reduce((acc, brand) => {
+        acc[brand.matchType] = (acc[brand.matchType] || 0) + 1;
+        return acc;
+      }, { total: parsed.length, exact: 0, fuzzy: 0, new: 0, error: 0 });
+
+      // Yield before creating large state objects
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      setProgress({
+        current: parsed.length,
+        total: parsed.length,
+        message: 'Preparing matches...'
+      });
+
+      // Initialize brand matches with defaults - process in batches to avoid blocking
+      const matches = {};
+      const BATCH_SIZE = 500;
+      
+      for (let i = 0; i < allBrandReviews.length; i += BATCH_SIZE) {
+        const batch = allBrandReviews.slice(i, i + BATCH_SIZE);
+        batch.forEach(brand => {
+          matches[brand.rowIndex] = {
+            useExisting: brand.matchType === 'exact',
+            existingBrandId: brand.matchedBrand?.brand_id,
+            existingBrandName: brand.matchedBrand?.brand_name,
+            importBrandName: brand.brandName
+          };
+        });
+        
+        // Yield every batch to keep UI responsive
+        if (i + BATCH_SIZE < allBrandReviews.length) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+
+      // Yield before setting large state
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      setProgress({
+        current: parsed.length,
+        total: parsed.length,
+        message: 'Finalizing...'
+      });
 
       const validationResult = {
         brandReviews: allBrandReviews,
         summary: {
-          total: parsed.length,
-          exact: exactMatches.length,
-          fuzzy: fuzzyMatches.length,
-          new: newBrands.length,
-          errors: errors.length
+          total: summary.total,
+          exact: summary.exact || 0,
+          fuzzy: summary.fuzzy || 0,
+          new: summary.new || 0,
+          errors: summary.error || 0
         },
         allExistingBrands,
         categories,
         subCategories
       };
       
+      // Set validation state
       setValidation(validationResult);
       
-      // Initialize brand matches with defaults
-      const matches = {};
-      allBrandReviews.forEach(brand => {
-        matches[brand.rowIndex] = {
-          useExisting: brand.matchType === 'exact',
-          existingBrandId: brand.matchedBrand?.brand_id,
-          existingBrandName: brand.matchedBrand?.brand_name,
-          importBrandName: brand.brandName
-        };
-      });
+      // Set brand matches
       setBrandMatches(matches);
+
+      // Final progress update
+      setProgress({
+        current: parsed.length,
+        total: parsed.length,
+        message: 'Validation complete!'
+      });
 
       // Clear progress after a short delay
       setTimeout(() => {
