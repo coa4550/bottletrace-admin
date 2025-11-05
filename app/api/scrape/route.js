@@ -1,5 +1,34 @@
 // Load environment variables explicitly from .env.local
-require('dotenv').config({ path: require('path').resolve(process.cwd(), '.env.local') });
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+
+try {
+  const envPath = resolve(process.cwd(), '.env.local');
+  const envFile = readFileSync(envPath, 'utf8');
+  envFile.split('\n').forEach(line => {
+    // Skip comments and empty lines
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) return;
+    
+    // Match KEY=VALUE pattern
+    const eqIndex = trimmed.indexOf('=');
+    if (eqIndex > 0) {
+      const key = trimmed.substring(0, eqIndex).trim();
+      let value = trimmed.substring(eqIndex + 1).trim();
+      // Remove surrounding quotes if present
+      if ((value.startsWith('"') && value.endsWith('"')) || 
+          (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (key && !process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  });
+} catch (e) {
+  // .env.local might not exist, that's okay - Next.js will load it
+  console.warn('Could not load .env.local manually:', e.message);
+}
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
