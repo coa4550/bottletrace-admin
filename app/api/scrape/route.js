@@ -4,7 +4,11 @@ import { resolve } from 'path';
 
 try {
   const envPath = resolve(process.cwd(), '.env.local');
+  console.log('Attempting to load .env.local from:', envPath);
   const envFile = readFileSync(envPath, 'utf8');
+  console.log('Successfully read .env.local, lines:', envFile.split('\n').length);
+  
+  let loadedCount = 0;
   envFile.split('\n').forEach(line => {
     // Skip comments and empty lines
     const trimmed = line.trim();
@@ -22,12 +26,17 @@ try {
       }
       if (key && !process.env[key]) {
         process.env[key] = value;
+        if (key === 'OPENAI_API_KEY' || key === 'BRIGHT_API_TOKEN') {
+          console.log(`Loaded ${key}: ${value.substring(0, 20)}...`);
+          loadedCount++;
+        }
       }
     }
   });
+  console.log(`Loaded ${loadedCount} environment variables from .env.local`);
 } catch (e) {
   // .env.local might not exist, that's okay - Next.js will load it
-  console.warn('Could not load .env.local manually:', e.message);
+  console.error('Could not load .env.local manually:', e.message, e.stack);
 }
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -81,10 +90,28 @@ async function downloadLogo(url) {
 
 export async function POST(req) {
   try {
+    // Debug: Log environment variable status
+    const openAiKey = process.env.OPENAI_API_KEY;
+    const brightToken = process.env.BRIGHT_API_TOKEN;
+    
+    console.log('Environment check:', {
+      hasOpenAiKey: !!openAiKey,
+      openAiKeyPrefix: openAiKey ? openAiKey.substring(0, 20) + '...' : 'NOT FOUND',
+      hasBrightToken: !!brightToken,
+      brightTokenPrefix: brightToken ? brightToken.substring(0, 20) + '...' : 'NOT FOUND',
+      cwd: process.cwd()
+    });
+
     // Validate required environment variables
-    if (!process.env.OPENAI_API_KEY) {
+    if (!openAiKey) {
       return NextResponse.json(
-        { error: 'Missing OPENAI_API_KEY environment variable. Please set it in .env.local' },
+        { 
+          error: 'Missing OPENAI_API_KEY environment variable. Please set it in .env.local',
+          debug: {
+            cwd: process.cwd(),
+            envKeys: Object.keys(process.env).filter(k => k.includes('OPENAI') || k.includes('BRIGHT'))
+          }
+        },
         { status: 500 }
       );
     }
