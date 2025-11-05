@@ -28,12 +28,24 @@ export async function POST(req) {
       importLogId = logData.import_log_id;
     }
 
-    let distributorsCreated = 0;
-    let distributorsUpdated = 0;
+    let rowsProcessed = 0;
     let skipped = 0;
     const errors = [];
 
-    // Process each row
+    // Get current user for imported_by
+    const authHeader = req.headers.get('authorization');
+    let importedBy = null;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        importedBy = user?.id || null;
+      } catch (e) {
+        // If auth fails, continue without user
+      }
+    }
+
+    // Process each row and write to staging
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const match = confirmedMatches?.[i];
@@ -49,112 +61,31 @@ export async function POST(req) {
         const distributorUrl = (row.distributor_url || '').trim();
         const distributorLogoUrl = (row.distributor_logo_url || '').trim();
 
-        let distributorId;
-        let wasCreated = false;
-        let wasUpdated = false;
+        // Store match information in raw_row_data
+        const rawRowData = {
+          ...row,
+          confirmedMatch: match || null
+        };
 
-        // Check if user wants to use existing distributor or create new
-        if (match?.useExisting && match?.existingDistributorId) {
-          // Use existing distributor - enrich it with new data
-          distributorId = match.existingDistributorId;
-          
-          // Fetch existing distributor to check what fields are empty
-          const { data: existingDistributor, error: fetchError } = await supabaseAdmin
-            .from('core_distributors')
-            .select('distributor_url, distributor_logo_url')
-            .eq('distributor_id', distributorId)
-            .single();
+        // Write to staging table
+        const { error: stagingError } = await supabaseAdmin
+          .from('staging_distributors')
+          .insert({
+            distributor_name: distributorName,
+            distributor_url: distributorUrl || null,
+            distributor_logo_url: distributorLogoUrl || null,
+            is_approved: false,
+            import_log_id: importLogId,
+            imported_by: importedBy,
+            row_index: i,
+            raw_row_data: rawRowData
+          });
 
-          if (fetchError) throw fetchError;
-
-          // Only update fields that are currently null/empty in the database
-          const updateData = {};
-          if (distributorUrl && !existingDistributor.distributor_url) {
-            updateData.distributor_url = distributorUrl;
-          }
-          if (distributorLogoUrl && !existingDistributor.distributor_logo_url) {
-            updateData.distributor_logo_url = distributorLogoUrl;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            const { error: updateError } = await supabaseAdmin
-              .from('core_distributors')
-              .update(updateData)
-              .eq('distributor_id', distributorId);
-
-            if (updateError) throw updateError;
-            wasUpdated = true;
-            distributorsUpdated++;
-
-            // Log the enrichment
-            await supabaseAdmin
-              .from('import_changes')
-              .insert({
-                import_log_id: importLogId,
-                change_type: 'enriched',
-                entity_type: 'distributor',
-                entity_id: distributorId,
-                entity_name: distributorName,
-                old_value: existingDistributor,
-                new_value: updateData,
-                source_row: row
-              });
-          }
-
-        } else {
-          // Create new distributor
-          const { data: newDistributor, error: distributorError } = await supabaseAdmin
-            .from('core_distributors')
-            .insert({
-              distributor_name: distributorName,
-              distributor_url: distributorUrl || null,
-              distributor_logo_url: distributorLogoUrl || null
-            })
-            .select()
-            .single();
-
-          if (distributorError) {
-            // Check if it's a duplicate error
-            if (distributorError.code === '23505') {
-              // Distributor already exists, fetch it
-              const { data: existingDistributor } = await supabaseAdmin
-                .from('core_distributors')
-                .select('distributor_id')
-                .eq('distributor_name', distributorName)
-                .single();
-              
-              if (existingDistributor) {
-                distributorId = existingDistributor.distributor_id;
-                skipped++;
-              } else {
-                throw distributorError;
-              }
-            } else {
-              throw distributorError;
-            }
-          } else {
-            distributorId = newDistributor.distributor_id;
-            wasCreated = true;
-            distributorsCreated++;
-
-            // Log the creation
-            await supabaseAdmin
-              .from('import_changes')
-              .insert({
-                import_log_id: importLogId,
-                change_type: 'created',
-                entity_type: 'distributor',
-                entity_id: distributorId,
-                entity_name: distributorName,
-                new_value: { 
-                  distributor_name: distributorName,
-                  distributor_url: distributorUrl,
-                  distributor_logo_url: distributorLogoUrl
-                },
-                source_row: row
-              });
-          }
+        if (stagingError) {
+          throw stagingError;
         }
+
+        rowsProcessed++;
 
       } catch (error) {
         console.error(`Error processing row ${i}:`, error);
@@ -168,8 +99,7 @@ export async function POST(req) {
         .from('import_logs')
         .update({
           status: 'completed',
-          distributors_created: distributorsCreated,
-          rows_processed: rows.length,
+          rows_processed: rowsProcessed,
           rows_skipped: skipped,
           errors_count: errors.length
         })
@@ -180,8 +110,7 @@ export async function POST(req) {
 
     return NextResponse.json({
       success: true,
-      distributorsCreated,
-      distributorsUpdated,
+      rowsProcessed,
       skipped,
       errors,
       importLogId

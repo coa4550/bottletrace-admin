@@ -420,10 +420,6 @@ export default function ImportBrandPage() {
         batches.push(parsed.slice(i, i + BATCH_SIZE));
       }
 
-      let totalBrandsCreated = 0;
-      let totalBrandsUpdated = 0;
-      let totalCategoriesLinked = 0;
-      let totalSubCategoriesLinked = 0;
       let totalSkipped = 0;
       let allErrors = [];
       let importLogId = null;
@@ -466,13 +462,13 @@ export default function ImportBrandPage() {
           importLogId = result.importLogId;
         }
 
-        totalBrandsCreated += result.brandsCreated || 0;
-        totalBrandsUpdated += result.brandsUpdated || 0;
-        totalCategoriesLinked += result.categoriesLinked || 0;
-        totalSubCategoriesLinked += result.subCategoriesLinked || 0;
-        totalSkipped += result.skipped || 0;
-        if (result.errors && result.errors.length > 0) {
-          allErrors = [...allErrors, ...result.errors];
+        if (result.error) {
+          allErrors.push(`Batch ${i + 1}: ${result.error}`);
+        } else {
+          totalSkipped += result.skipped || 0;
+          if (result.errors && result.errors.length > 0) {
+            allErrors = [...allErrors, ...result.errors];
+          }
         }
       }
 
@@ -483,10 +479,7 @@ export default function ImportBrandPage() {
       });
 
       setResults({
-        brandsCreated: totalBrandsCreated,
-        brandsUpdated: totalBrandsUpdated,
-        categoriesLinked: totalCategoriesLinked,
-        subCategoriesLinked: totalSubCategoriesLinked,
+        rowsProcessed: parsed.length - totalSkipped,
         skipped: totalSkipped,
         errors: allErrors.slice(0, 20),
         importLogId
@@ -810,17 +803,14 @@ export default function ImportBrandPage() {
         <div style={{ 
           marginTop: 32, 
           padding: 20, 
-          background: '#f0fdf4', 
-          border: '1px solid #86efac',
+          background: '#fef3c7', 
+          border: '1px solid #fbbf24',
           borderRadius: 8 
         }}>
-          <h3 style={{ marginTop: 0, color: '#166534' }}>Import Complete</h3>
-          <div style={{ display: 'grid', gap: 8, fontSize: 14, color: '#166534' }}>
-            <p>✅ Brands created: {results.brandsCreated}</p>
-            <p>✅ Brands enriched: {results.brandsUpdated}</p>
-            <p>✅ Categories linked: {results.categoriesLinked}</p>
-            <p>✅ Sub-categories linked: {results.subCategoriesLinked}</p>
-            <p>⚠️ Rows skipped: {results.skipped}</p>
+          <h3 style={{ marginTop: 0, color: '#92400e' }}>Data Imported to Staging</h3>
+          <div style={{ display: 'grid', gap: 8, fontSize: 14, color: '#92400e' }}>
+            <p>✅ Rows processed: {results.rowsProcessed || 0}</p>
+            <p>⚠️ Rows skipped: {results.skipped || 0}</p>
             {results.errors && results.errors.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <p style={{ fontWeight: 500 }}>Errors:</p>
@@ -829,16 +819,35 @@ export default function ImportBrandPage() {
                 ))}
               </div>
             )}
-            {results.importLogId && (
-              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #86efac' }}>
-                <a 
-                  href={`/import/logs/${results.importLogId}`}
-                  style={{ color: '#059669', textDecoration: 'underline', fontSize: 14 }}
-                >
-                  📋 View detailed import log
-                </a>
-              </div>
-            )}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #fbbf24' }}>
+              <p style={{ fontWeight: 600, marginBottom: 8 }}>Next Steps:</p>
+              <a 
+                href="/staging/review/brands"
+                style={{ 
+                  display: 'inline-block',
+                  padding: '10px 20px',
+                  background: '#f59e0b',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: 6,
+                  fontWeight: 600,
+                  fontSize: 14,
+                  marginTop: 8
+                }}
+              >
+                📋 Review & Migrate Staging Data
+              </a>
+              {results.importLogId && (
+                <div style={{ marginTop: 12 }}>
+                  <a 
+                    href={`/import/logs/${results.importLogId}`}
+                    style={{ color: '#92400e', textDecoration: 'underline', fontSize: 13 }}
+                  >
+                    View detailed import log
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

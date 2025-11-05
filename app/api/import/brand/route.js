@@ -28,26 +28,26 @@ export async function POST(req) {
       importLogId = logData.import_log_id;
     }
 
-    let brandsCreated = 0;
-    let brandsUpdated = 0;
-    let categoriesLinked = 0;
-    let subCategoriesLinked = 0;
+    let rowsProcessed = 0;
     let skipped = 0;
     const errors = [];
 
-    // Fetch all categories and sub-categories
-    const { data: categories } = await supabaseAdmin
-      .from('categories')
-      .select('category_id, category_name');
-    
-    const { data: subCategories } = await supabaseAdmin
-      .from('sub_categories')
-      .select('sub_category_id, sub_category_name');
+    // Get current user for imported_by
+    const authHeader = req.headers.get('authorization');
+    let importedBy = null;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        importedBy = user?.id || null;
+      } catch (e) {
+        // If auth fails, continue without user
+      }
+    }
 
-    // Process each row
+    // Process each row and write to staging
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const match = confirmedMatches?.[i];
       
       try {
         const brandName = (row.brand_name || '').trim();
@@ -60,216 +60,38 @@ export async function POST(req) {
         const brandUrl = (row.brand_url || '').trim();
         const brandLogoUrl = (row.brand_logo_url || '').trim();
         const dataSource = (row.data_source || 'csv_import').trim();
+        const categories = (row.brand_categories || '').trim();
+        const subCategories = (row.brand_sub_categories || '').trim();
 
-        let brandId;
-        let wasCreated = false;
-        let wasUpdated = false;
+        // Store match information in raw_row_data
+        const match = confirmedMatches?.[i];
+        const rawRowData = {
+          ...row,
+          confirmedMatch: match || null
+        };
 
-        // Check if user wants to use existing brand or create new
-        if (match?.useExisting && match?.existingBrandId) {
-          // Use existing brand - enrich it with new data
-          brandId = match.existingBrandId;
-          
-          // Fetch existing brand to check what fields are empty
-          const { data: existingBrand, error: fetchError } = await supabaseAdmin
-            .from('core_brands')
-            .select('brand_url, brand_logo_url, data_source')
-            .eq('brand_id', brandId)
-            .single();
+        // Write to staging table
+        const { error: stagingError } = await supabaseAdmin
+          .from('staging_brands')
+          .insert({
+            brand_name: brandName,
+            brand_url: brandUrl || null,
+            brand_logo_url: brandLogoUrl || null,
+            brand_categories: categories || null,
+            brand_sub_categories: subCategories || null,
+            data_source: dataSource,
+            is_approved: false,
+            import_log_id: importLogId,
+            imported_by: importedBy,
+            row_index: i,
+            raw_row_data: rawRowData
+          });
 
-          if (fetchError) throw fetchError;
-
-          // Only update fields that are currently null/empty in the database
-          const updateData = {};
-          if (brandUrl && !existingBrand.brand_url) {
-            updateData.brand_url = brandUrl;
-          }
-          if (brandLogoUrl && !existingBrand.brand_logo_url) {
-            updateData.brand_logo_url = brandLogoUrl;
-          }
-          // Always update data_source if provided to reflect latest import
-          if (dataSource) {
-            updateData.data_source = dataSource;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            const { error: updateError } = await supabaseAdmin
-              .from('core_brands')
-              .update(updateData)
-              .eq('brand_id', brandId);
-
-            if (updateError) throw updateError;
-            wasUpdated = true;
-            brandsUpdated++;
-
-            // Log the enrichment
-            await supabaseAdmin
-              .from('import_changes')
-              .insert({
-                import_log_id: importLogId,
-                change_type: 'enriched',
-                entity_type: 'brand',
-                entity_id: brandId,
-                entity_name: brandName,
-                old_value: existingBrand,
-                new_value: updateData,
-                source_row: row
-              });
-          }
-
-        } else {
-          // Create new brand
-          const { data: newBrand, error: brandError } = await supabaseAdmin
-            .from('core_brands')
-            .insert({
-              brand_name: brandName,
-              brand_url: brandUrl || null,
-              brand_logo_url: brandLogoUrl || null,
-              data_source: dataSource
-            })
-            .select()
-            .single();
-
-          if (brandError) {
-            // Check if it's a duplicate error
-            if (brandError.code === '23505') {
-              // Brand already exists, fetch it
-              const { data: existingBrand } = await supabaseAdmin
-                .from('core_brands')
-                .select('brand_id')
-                .eq('brand_name', brandName)
-                .single();
-              
-              if (existingBrand) {
-                brandId = existingBrand.brand_id;
-                skipped++;
-              } else {
-                throw brandError;
-              }
-            } else {
-              throw brandError;
-            }
-          } else {
-            brandId = newBrand.brand_id;
-            wasCreated = true;
-            brandsCreated++;
-
-            // Log the creation
-            await supabaseAdmin
-              .from('import_changes')
-              .insert({
-                import_log_id: importLogId,
-                change_type: 'created',
-                entity_type: 'brand',
-                entity_id: brandId,
-                entity_name: brandName,
-                new_value: { 
-                  brand_name: brandName,
-                  brand_url: brandUrl,
-                  brand_logo_url: brandLogoUrl,
-                  data_source: dataSource
-                },
-                source_row: row
-              });
-          }
+        if (stagingError) {
+          throw stagingError;
         }
 
-        // Process categories and sub-categories (enrichment)
-        // This runs for both new and existing brands, adding categories/sub-categories that don't exist
-        if (brandId) {
-          const categoriesArray = (row.brand_categories || '')
-            .split(',')
-            .map(c => c.trim())
-            .filter(Boolean);
-
-          for (const categoryName of categoriesArray) {
-            const category = categories?.find(c => 
-              c.category_name.toLowerCase() === categoryName.toLowerCase()
-            );
-
-            if (category) {
-              // Check if relationship exists
-              const { data: existing } = await supabaseAdmin
-                .from('brand_categories')
-                .select('*')
-                .eq('brand_id', brandId)
-                .eq('category_id', category.category_id)
-                .single();
-
-              if (!existing) {
-                const { error: catError } = await supabaseAdmin
-                  .from('brand_categories')
-                  .insert({
-                    brand_id: brandId,
-                    category_id: category.category_id
-                  });
-
-                if (!catError) {
-                  categoriesLinked++;
-                  
-                  await supabaseAdmin
-                    .from('import_changes')
-                    .insert({
-                      import_log_id: importLogId,
-                      change_type: 'linked',
-                      entity_type: 'brand_category',
-                      entity_id: brandId,
-                      entity_name: `${brandName} → ${categoryName}`,
-                      new_value: { category_name: categoryName },
-                      source_row: row
-                    });
-                }
-              }
-            }
-          }
-
-          // Process sub-categories
-          const subCategoriesArray = (row.brand_sub_categories || '')
-            .split(',')
-            .map(c => c.trim())
-            .filter(Boolean);
-
-          for (const subCategoryName of subCategoriesArray) {
-            const subCategory = subCategories?.find(sc => 
-              sc.sub_category_name.toLowerCase() === subCategoryName.toLowerCase()
-            );
-
-            if (subCategory) {
-              // Check if relationship exists
-              const { data: existing } = await supabaseAdmin
-                .from('brand_sub_categories')
-                .select('*')
-                .eq('brand_id', brandId)
-                .eq('sub_category_id', subCategory.sub_category_id)
-                .single();
-
-              if (!existing) {
-                const { error: subCatError } = await supabaseAdmin
-                  .from('brand_sub_categories')
-                  .insert({
-                    brand_id: brandId,
-                    sub_category_id: subCategory.sub_category_id
-                  });
-
-                if (!subCatError) {
-                  subCategoriesLinked++;
-                  
-                  await supabaseAdmin
-                    .from('import_changes')
-                    .insert({
-                      import_log_id: importLogId,
-                      change_type: 'linked',
-                      entity_type: 'brand_sub_category',
-                      entity_id: brandId,
-                      entity_name: `${brandName} → ${subCategoryName}`,
-                      new_value: { sub_category_name: subCategoryName },
-                      source_row: row
-                    });
-                }
-              }
-            }
-          }
-        }
+        rowsProcessed++;
 
       } catch (error) {
         console.error(`Error processing row ${i}:`, error);
@@ -283,8 +105,7 @@ export async function POST(req) {
         .from('import_logs')
         .update({
           status: 'completed',
-          brands_created: brandsCreated,
-          rows_processed: rows.length,
+          rows_processed: rowsProcessed,
           rows_skipped: skipped,
           errors_count: errors.length
         })
@@ -295,10 +116,7 @@ export async function POST(req) {
 
     return NextResponse.json({
       success: true,
-      brandsCreated,
-      brandsUpdated,
-      categoriesLinked,
-      subCategoriesLinked,
+      rowsProcessed,
       skipped,
       errors,
       importLogId

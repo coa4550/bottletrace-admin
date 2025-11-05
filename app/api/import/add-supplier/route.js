@@ -28,12 +28,24 @@ export async function POST(req) {
       importLogId = logData.import_log_id;
     }
 
-    let suppliersCreated = 0;
-    let suppliersUpdated = 0;
+    let rowsProcessed = 0;
     let skipped = 0;
     const errors = [];
 
-    // Process each row
+    // Get current user for imported_by
+    const authHeader = req.headers.get('authorization');
+    let importedBy = null;
+    if (authHeader) {
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        importedBy = user?.id || null;
+      } catch (e) {
+        // If auth fails, continue without user
+      }
+    }
+
+    // Process each row and write to staging
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const match = confirmedMatches?.[i];
@@ -49,112 +61,31 @@ export async function POST(req) {
         const supplierUrl = (row.supplier_url || '').trim();
         const supplierLogoUrl = (row.supplier_logo_url || '').trim();
 
-        let supplierId;
-        let wasCreated = false;
-        let wasUpdated = false;
+        // Store match information in raw_row_data
+        const rawRowData = {
+          ...row,
+          confirmedMatch: match || null
+        };
 
-        // Check if user wants to use existing supplier or create new
-        if (match?.useExisting && match?.existingSupplierId) {
-          // Use existing supplier - enrich it with new data
-          supplierId = match.existingSupplierId;
-          
-          // Fetch existing supplier to check what fields are empty
-          const { data: existingSupplier, error: fetchError } = await supabaseAdmin
-            .from('core_suppliers')
-            .select('supplier_url, supplier_logo_url')
-            .eq('supplier_id', supplierId)
-            .single();
+        // Write to staging table
+        const { error: stagingError } = await supabaseAdmin
+          .from('staging_suppliers')
+          .insert({
+            supplier_name: supplierName,
+            supplier_url: supplierUrl || null,
+            supplier_logo_url: supplierLogoUrl || null,
+            is_approved: false,
+            import_log_id: importLogId,
+            imported_by: importedBy,
+            row_index: i,
+            raw_row_data: rawRowData
+          });
 
-          if (fetchError) throw fetchError;
-
-          // Only update fields that are currently null/empty in the database
-          const updateData = {};
-          if (supplierUrl && !existingSupplier.supplier_url) {
-            updateData.supplier_url = supplierUrl;
-          }
-          if (supplierLogoUrl && !existingSupplier.supplier_logo_url) {
-            updateData.supplier_logo_url = supplierLogoUrl;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            const { error: updateError } = await supabaseAdmin
-              .from('core_suppliers')
-              .update(updateData)
-              .eq('supplier_id', supplierId);
-
-            if (updateError) throw updateError;
-            wasUpdated = true;
-            suppliersUpdated++;
-
-            // Log the enrichment
-            await supabaseAdmin
-              .from('import_changes')
-              .insert({
-                import_log_id: importLogId,
-                change_type: 'enriched',
-                entity_type: 'supplier',
-                entity_id: supplierId,
-                entity_name: supplierName,
-                old_value: existingSupplier,
-                new_value: updateData,
-                source_row: row
-              });
-          }
-
-        } else {
-          // Create new supplier
-          const { data: newSupplier, error: supplierError } = await supabaseAdmin
-            .from('core_suppliers')
-            .insert({
-              supplier_name: supplierName,
-              supplier_url: supplierUrl || null,
-              supplier_logo_url: supplierLogoUrl || null
-            })
-            .select()
-            .single();
-
-          if (supplierError) {
-            // Check if it's a duplicate error
-            if (supplierError.code === '23505') {
-              // Supplier already exists, fetch it
-              const { data: existingSupplier } = await supabaseAdmin
-                .from('core_suppliers')
-                .select('supplier_id')
-                .eq('supplier_name', supplierName)
-                .single();
-              
-              if (existingSupplier) {
-                supplierId = existingSupplier.supplier_id;
-                skipped++;
-              } else {
-                throw supplierError;
-              }
-            } else {
-              throw supplierError;
-            }
-          } else {
-            supplierId = newSupplier.supplier_id;
-            wasCreated = true;
-            suppliersCreated++;
-
-            // Log the creation
-            await supabaseAdmin
-              .from('import_changes')
-              .insert({
-                import_log_id: importLogId,
-                change_type: 'created',
-                entity_type: 'supplier',
-                entity_id: supplierId,
-                entity_name: supplierName,
-                new_value: { 
-                  supplier_name: supplierName,
-                  supplier_url: supplierUrl,
-                  supplier_logo_url: supplierLogoUrl
-                },
-                source_row: row
-              });
-          }
+        if (stagingError) {
+          throw stagingError;
         }
+
+        rowsProcessed++;
 
       } catch (error) {
         console.error(`Error processing row ${i}:`, error);
@@ -168,8 +99,7 @@ export async function POST(req) {
         .from('import_logs')
         .update({
           status: 'completed',
-          suppliers_created: suppliersCreated,
-          rows_processed: rows.length,
+          rows_processed: rowsProcessed,
           rows_skipped: skipped,
           errors_count: errors.length
         })
@@ -180,8 +110,7 @@ export async function POST(req) {
 
     return NextResponse.json({
       success: true,
-      suppliersCreated,
-      suppliersUpdated,
+      rowsProcessed,
       skipped,
       errors,
       importLogId
