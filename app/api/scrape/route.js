@@ -1,3 +1,6 @@
+// Load environment variables explicitly from .env.local
+require('dotenv').config({ path: require('path').resolve(process.cwd(), '.env.local') });
+
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import JSZip from 'jszip';
