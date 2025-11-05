@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 // Normalize brand names for fuzzy matching
@@ -265,6 +265,17 @@ export default function ImportBrandPage() {
   const [validating, setValidating] = useState(false);
   const [brandMatches, setBrandMatches] = useState({});
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' });
+  const [currentPage, setCurrentPage] = useState(0);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (window._validationPollInterval) {
+        clearInterval(window._validationPollInterval);
+      }
+    };
+  }, []);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -273,6 +284,12 @@ export default function ImportBrandPage() {
     setValidation(null);
     setResults(null);
     setBrandMatches({});
+    setCurrentPage(0);
+    // Clean up any existing polling
+    if (window._validationPollInterval) {
+      clearInterval(window._validationPollInterval);
+      window._validationPollInterval = null;
+    }
     parseFile(selectedFile);
   };
 
@@ -299,186 +316,95 @@ export default function ImportBrandPage() {
 
   const handleValidate = async () => {
     setValidating(true);
-    setProgress({ current: 0, total: parsed.length, message: 'Fetching existing brands...' });
+    setProgress({ current: 0, total: parsed.length, message: 'Starting validation...' });
     
     try {
-      // Step 1: Fetch metadata once (existing brands, categories, sub-categories)
-      const metadataResponse = await fetch('/api/import/brand/validate', {
+      // Start server-side validation job
+      const response = await fetch('/api/import/brand/validate-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metadataOnly: true })
+        body: JSON.stringify({ rows: parsed })
       });
       
-      const metadata = await metadataResponse.json();
+      const { jobId, error } = await response.json();
       
-      if (metadata.error) {
-        alert('Error fetching metadata: ' + metadata.error);
+      if (error || !jobId) {
+        alert('Error starting validation: ' + (error || 'Unknown error'));
         setValidating(false);
         setProgress({ current: 0, total: 0, message: '' });
         return;
       }
 
-      const allExistingBrands = metadata.allExistingBrands;
-      const categories = metadata.categories;
-      const subCategories = metadata.subCategories;
-
-      // Create optimized lookup structures
-      setProgress({
-        current: 0,
-        total: parsed.length,
-        message: 'Preparing validation data...'
-      });
-      
-      const brandMap = new Map();
-      const firstWordMap = new Map();
-      const lengthIndexMap = new Map(); // Index by normalized length for faster fuzzy matching
-      
-      for (const brand of allExistingBrands) {
-        brandMap.set(brand.brand_name, brand);
-        
-        const firstWord = getFirstWord(brand.brand_name);
-        if (firstWord && firstWord.length > 2) {
-          if (!firstWordMap.has(firstWord)) {
-            firstWordMap.set(firstWord, []);
+      // Poll for progress
+      let pollInterval = setInterval(async () => {
+        try {
+          const statusResponse = await fetch(`/api/import/brand/validate-stream?jobId=${jobId}`);
+          const status = await statusResponse.json();
+          
+          if (status.error) {
+            clearInterval(pollInterval);
+            alert('Validation error: ' + status.error);
+            setValidating(false);
+            setProgress({ current: 0, total: 0, message: '' });
+            return;
           }
-          firstWordMap.get(firstWord).push(brand);
-        }
-        
-        // Index by normalized length
-        const normalized = normalizeName(brand.brand_name);
-        const len = normalized.length;
-        if (!lengthIndexMap.has(len)) {
-          lengthIndexMap.set(len, []);
-        }
-        lengthIndexMap.get(len).push(brand);
-      }
 
-      // Step 2: Process validation row-by-row with frequent progress updates
-      let allBrandReviews = [];
+          // Update progress
+          setProgress({
+            current: status.progress || 0,
+            total: status.total || parsed.length,
+            message: status.message || 'Validating...'
+          });
 
-      // Process rows individually with yields after each row to keep browser responsive
-      for (let i = 0; i < parsed.length; i++) {
-        // Update progress after each row
-        setProgress({
-          current: i,
-          total: parsed.length,
-          message: `Validating row ${i + 1} of ${parsed.length}...`
-        });
-
-        // Validate single row
-        const review = validateRow(parsed[i], i, brandMap, firstWordMap, lengthIndexMap);
-        allBrandReviews.push(review);
-
-        // Yield to browser after every row to prevent UI blocking
-        // Use requestIdleCallback if available, otherwise setTimeout
-        if (i < parsed.length - 1) {
-          if (window.requestIdleCallback) {
-            await new Promise(resolve => {
-              window.requestIdleCallback(() => resolve(), { timeout: 10 });
+          // If complete, process results
+          if (status.status === 'complete' && status.results) {
+            clearInterval(pollInterval);
+            
+            // Initialize brand matches
+            const matches = {};
+            status.results.brandReviews.forEach(brand => {
+              matches[brand.rowIndex] = {
+                useExisting: brand.matchType === 'exact',
+                existingBrandId: brand.matchedBrand?.brand_id,
+                existingBrandName: brand.matchedBrand?.brand_name,
+                importBrandName: brand.brandName
+              };
             });
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 0));
+            
+            setBrandMatches(matches);
+            setValidation(status.results);
+            setCurrentPage(0); // Reset pagination
+            
+            setProgress({
+              current: status.total,
+              total: status.total,
+              message: 'Validation complete!'
+            });
+
+            // Clear progress after a delay
+            setTimeout(() => {
+              setProgress({ current: 0, total: 0, message: '' });
+            }, 1000);
+            
+            setValidating(false);
+          } else if (status.status === 'error') {
+            clearInterval(pollInterval);
+            alert('Validation failed: ' + (status.error || 'Unknown error'));
+            setValidating(false);
+            setProgress({ current: 0, total: 0, message: '' });
           }
+        } catch (error) {
+          console.error('Polling error:', error);
+          // Don't clear interval on network errors, keep polling
         }
-      }
+      }, 500); // Poll every 500ms
 
-      // Final progress update
-      setProgress({
-        current: parsed.length,
-        total: parsed.length,
-        message: 'Processing results...'
-      });
-      
-      // Small delay to ensure UI updates
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      // Calculate summary - use reduce for efficiency
-      setProgress({
-        current: parsed.length,
-        total: parsed.length,
-        message: 'Calculating summary...'
-      });
-      
-      const summary = allBrandReviews.reduce((acc, brand) => {
-        acc[brand.matchType] = (acc[brand.matchType] || 0) + 1;
-        return acc;
-      }, { total: parsed.length, exact: 0, fuzzy: 0, new: 0, error: 0 });
-
-      // Yield before creating large state objects
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      setProgress({
-        current: parsed.length,
-        total: parsed.length,
-        message: 'Preparing matches...'
-      });
-
-      // Initialize brand matches with defaults - process in batches to avoid blocking
-      const matches = {};
-      const BATCH_SIZE = 500;
-      
-      for (let i = 0; i < allBrandReviews.length; i += BATCH_SIZE) {
-        const batch = allBrandReviews.slice(i, i + BATCH_SIZE);
-        batch.forEach(brand => {
-          matches[brand.rowIndex] = {
-            useExisting: brand.matchType === 'exact',
-            existingBrandId: brand.matchedBrand?.brand_id,
-            existingBrandName: brand.matchedBrand?.brand_name,
-            importBrandName: brand.brandName
-          };
-        });
-        
-        // Yield every batch to keep UI responsive
-        if (i + BATCH_SIZE < allBrandReviews.length) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-      }
-
-      // Yield before setting large state
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      setProgress({
-        current: parsed.length,
-        total: parsed.length,
-        message: 'Finalizing...'
-      });
-
-      const validationResult = {
-        brandReviews: allBrandReviews,
-        summary: {
-          total: summary.total,
-          exact: summary.exact || 0,
-          fuzzy: summary.fuzzy || 0,
-          new: summary.new || 0,
-          errors: summary.error || 0
-        },
-        allExistingBrands,
-        categories,
-        subCategories
-      };
-      
-      // Set validation state
-      setValidation(validationResult);
-      
-      // Set brand matches
-      setBrandMatches(matches);
-
-      // Final progress update
-      setProgress({
-        current: parsed.length,
-        total: parsed.length,
-        message: 'Validation complete!'
-      });
-
-      // Clear progress after a short delay
-      setTimeout(() => {
-        setProgress({ current: 0, total: 0, message: '' });
-      }, 1000);
+      // Store interval reference for cleanup
+      window._validationPollInterval = pollInterval;
     } catch (error) {
       console.error('Validation error:', error);
       alert('Validation failed: ' + error.message);
       setProgress({ current: 0, total: 0, message: '' });
-    } finally {
       setValidating(false);
     }
   };
@@ -696,6 +622,85 @@ export default function ImportBrandPage() {
             const fuzzyMatches = validation.brandReviews.filter(b => b.matchType === 'fuzzy');
             const newBrands = validation.brandReviews.filter(b => b.matchType === 'new');
 
+            // Pagination helper
+            const PaginatedSection = ({ title, items, bgColor, borderColor, textColor, description }) => {
+              const [page, setPage] = useState(0);
+              const startIdx = page * itemsPerPage;
+              const endIdx = startIdx + itemsPerPage;
+              const paginatedItems = items.slice(startIdx, endIdx);
+              const totalPages = Math.ceil(items.length / itemsPerPage);
+
+              if (items.length === 0) return null;
+
+              return (
+                <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
+                  <div style={{ padding: '12px 16px', background: bgColor, borderBottom: `1px solid ${borderColor}` }}>
+                    <strong style={{ color: textColor }}>{title} ({items.length})</strong>
+                    <span style={{ fontSize: 13, color: textColor, marginLeft: 8 }}>
+                      {description}
+                    </span>
+                  </div>
+                  {paginatedItems.map((brand, idx) => (
+                    <BrandRow 
+                      key={brand.rowIndex} 
+                      brand={brand} 
+                      brandMatches={brandMatches}
+                      validation={validation}
+                      handleManualMatch={handleManualMatch}
+                      updateMatch={updateMatch}
+                    />
+                  ))}
+                  {totalPages > 1 && (
+                    <div style={{ 
+                      padding: '12px 16px', 
+                      background: '#f8fafc', 
+                      borderTop: '1px solid #e2e8f0',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div style={{ fontSize: 14, color: '#64748b' }}>
+                        Showing {startIdx + 1}-{Math.min(endIdx, items.length)} of {items.length}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => setPage(p => Math.max(0, p - 1))}
+                          disabled={page === 0}
+                          style={{
+                            padding: '6px 12px',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 4,
+                            background: page === 0 ? '#f1f5f9' : 'white',
+                            cursor: page === 0 ? 'not-allowed' : 'pointer',
+                            color: page === 0 ? '#94a3b8' : '#334155'
+                          }}
+                        >
+                          Previous
+                        </button>
+                        <span style={{ padding: '6px 12px', fontSize: 14, color: '#64748b' }}>
+                          Page {page + 1} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                          disabled={page >= totalPages - 1}
+                          style={{
+                            padding: '6px 12px',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: 4,
+                            background: page >= totalPages - 1 ? '#f1f5f9' : 'white',
+                            cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                            color: page >= totalPages - 1 ? '#94a3b8' : '#334155'
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            };
+
             return (
               <>
                 {/* Column Headers */}
@@ -710,71 +715,35 @@ export default function ImportBrandPage() {
                   </div>
                 </div>
 
-                {/* Exact Matches - Ignore */}
-                {exactMatches.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                    <div style={{ padding: '12px 16px', background: '#d1fae5', borderBottom: '1px solid #10b981' }}>
-                      <strong style={{ color: '#065f46' }}>✓ Exact Match - Enrich ({exactMatches.length})</strong>
-                      <span style={{ fontSize: 13, color: '#065f46', marginLeft: 8 }}>
-                        - Will add missing data (URL, logo, categories) without replacing existing data
-                      </span>
-                    </div>
-                    {exactMatches.map((brand, idx) => (
-                      <BrandRow 
-                        key={idx} 
-                        brand={brand} 
-                        brandMatches={brandMatches}
-                        validation={validation}
-                        handleManualMatch={handleManualMatch}
-                        updateMatch={updateMatch}
-                      />
-                    ))}
-                  </div>
-                )}
+                {/* Exact Matches - Paginated */}
+                <PaginatedSection
+                  title="✓ Exact Match - Enrich"
+                  items={exactMatches}
+                  bgColor="#d1fae5"
+                  borderColor="#10b981"
+                  textColor="#065f46"
+                  description="- Will add missing data (URL, logo, categories) without replacing existing data"
+                />
 
-                {/* Fuzzy Matches - Confirm */}
-                {fuzzyMatches.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                    <div style={{ padding: '12px 16px', background: '#fef3c7', borderBottom: '1px solid #fbbf24' }}>
-                      <strong style={{ color: '#92400e' }}>~ Fuzzy Match - Confirm ({fuzzyMatches.length})</strong>
-                      <span style={{ fontSize: 13, color: '#92400e', marginLeft: 8 }}>
-                        - Review and confirm matches
-                      </span>
-                    </div>
-                    {fuzzyMatches.map((brand, idx) => (
-                      <BrandRow 
-                        key={idx} 
-                        brand={brand} 
-                        brandMatches={brandMatches}
-                        validation={validation}
-                        handleManualMatch={handleManualMatch}
-                        updateMatch={updateMatch}
-                      />
-                    ))}
-                  </div>
-                )}
+                {/* Fuzzy Matches - Paginated */}
+                <PaginatedSection
+                  title="~ Fuzzy Match - Confirm"
+                  items={fuzzyMatches}
+                  bgColor="#fef3c7"
+                  borderColor="#fbbf24"
+                  textColor="#92400e"
+                  description="- Review and confirm matches"
+                />
 
-                {/* New Brands - Add */}
-                {newBrands.length > 0 && (
-                  <div style={{ border: '1px solid #e2e8f0', borderTop: 'none' }}>
-                    <div style={{ padding: '12px 16px', background: '#dbeafe', borderBottom: '1px solid #3b82f6' }}>
-                      <strong style={{ color: '#1e40af' }}>+ New Brand - Add ({newBrands.length})</strong>
-                      <span style={{ fontSize: 13, color: '#1e40af', marginLeft: 8 }}>
-                        - Will create these brands
-                      </span>
-                    </div>
-                    {newBrands.map((brand, idx) => (
-                      <BrandRow 
-                        key={idx} 
-                        brand={brand} 
-                        brandMatches={brandMatches}
-                        validation={validation}
-                        handleManualMatch={handleManualMatch}
-                        updateMatch={updateMatch}
-                      />
-                    ))}
-                  </div>
-                )}
+                {/* New Brands - Paginated */}
+                <PaginatedSection
+                  title="+ New Brand - Add"
+                  items={newBrands}
+                  bgColor="#dbeafe"
+                  borderColor="#3b82f6"
+                  textColor="#1e40af"
+                  description="- Will create these brands"
+                />
               </>
             );
           })()}
