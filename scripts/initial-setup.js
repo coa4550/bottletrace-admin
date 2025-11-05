@@ -82,7 +82,15 @@ async function createEnvFile() {
     return false;
   }
 
-  const envContent = `# Supabase Configuration
+  log('\n🔑 Enter your OpenAI and Bright Data credentials (optional for web scraper):', 'cyan');
+  log('   (You can skip these and add them later if you don\'t plan to use the scraper)', 'yellow');
+  log('   Press Enter to skip each field\n', 'yellow');
+
+  const openAiKey = await prompt('OpenAI API Key (starts with sk-...): ');
+  const brightDataToken = await prompt('Bright Data API Token (starts with bd_... or hex string): ');
+  const model = await prompt('OpenAI Model (default: gpt-5.1-mini, press Enter for default): ') || 'gpt-5.1-mini';
+
+  let envContent = `# Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=${supabaseUrl}
 NEXT_PUBLIC_SUPABASE_ANON_KEY=${anonKey}
 SUPABASE_SERVICE_ROLE_KEY=${serviceKey}
@@ -97,6 +105,18 @@ TABLE_SUPPLIERS=core_suppliers
 TABLE_STATES=core_states
 TABLE_BRAND_SUPPLIER_STATES=brand_supplier_states
 `;
+
+  // Add OpenAI and Bright Data configuration if provided
+  if (openAiKey || brightDataToken) {
+    envContent += `\n# OpenAI and Bright Data Configuration for Web Scraper\n`;
+    if (openAiKey) {
+      envContent += `OPENAI_API_KEY=${openAiKey}\n`;
+    }
+    if (brightDataToken) {
+      envContent += `BRIGHT_API_TOKEN=${brightDataToken}\n`;
+    }
+    envContent += `MODEL=${model}\n`;
+  }
 
   try {
     fs.writeFileSync(envPath, envContent);
