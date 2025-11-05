@@ -25,7 +25,16 @@ function getBrightUrl() {
   const direct = process.env.BRIGHT_MCP_URL;
   if (direct) return direct;
   const token = process.env.BRIGHT_API_TOKEN;
-  if (!token) throw new Error('Set BRIGHT_MCP_URL or BRIGHT_API_TOKEN env var');
+  if (!token) {
+    // Debug: Check what env vars are available (without exposing secrets)
+    const hasOpenAi = !!process.env.OPENAI_API_KEY;
+    const hasBrightUrl = !!process.env.BRIGHT_MCP_URL;
+    const hasBrightToken = !!process.env.BRIGHT_API_TOKEN;
+    throw new Error(
+      `Missing Bright Data configuration. Set BRIGHT_MCP_URL or BRIGHT_API_TOKEN env var. ` +
+      `(Found: OPENAI_API_KEY=${hasOpenAi}, BRIGHT_MCP_URL=${hasBrightUrl}, BRIGHT_API_TOKEN=${hasBrightToken})`
+    );
+  }
   return `https://mcp.brightdata.com/mcp?token=${token}`;
 }
 
@@ -40,6 +49,14 @@ async function downloadLogo(url) {
 
 export async function POST(req) {
   try {
+    // Validate required environment variables
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: 'Missing OPENAI_API_KEY environment variable. Please set it in .env.local' },
+        { status: 500 }
+      );
+    }
+
     const json = await req.json();
     const { url, fields } = Body.parse(json);
 
